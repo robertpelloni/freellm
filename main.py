@@ -255,14 +255,37 @@ class LiteLLMControlPanel:
             r.destroy()
             self.notify(f"Copied {self.ranked_models[0]['id']} to clipboard.")
 
+    def get_litellm_env(self):
+        """Prepare environment variables for LiteLLM process."""
+        return {
+            "OPENROUTER_API_KEY": self.settings.get("OPENROUTER_API_KEY", ""),
+            "GROQ_API_KEY": self.settings.get("GROQ_API_KEY", ""),
+            "TOGETHER_API_KEY": self.settings.get("TOGETHER_API_KEY", ""),
+            "DEEPINFRA_API_KEY": self.settings.get("DEEPINFRA_API_KEY", ""),
+            "CEREBRAS_API_KEY": self.settings.get("CEREBRAS_API_KEY", ""),
+            "GITHUB_TOKEN": self.settings.get("GITHUB_API_KEY", ""),
+            "HUGGINGFACE_API_KEY": self.settings.get("HUGGINGFACE_API_KEY", ""),
+            "NVIDIA_API_KEY": self.settings.get("NVIDIA_API_KEY", ""),
+        }
+
     def launch_litellm(self, icon, item):
-        self.process_mgr.start()
+        if self.process_mgr.start(env=self.get_litellm_env()):
+            self.notify("LiteLLM Proxy started successfully.", "Process Update")
+        else:
+            self.notify("Failed to start LiteLLM Proxy.", "Process Error")
+        self.update_tray_status()
 
     def stop_litellm(self, icon, item):
-        self.process_mgr.stop()
+        if self.process_mgr.stop():
+            self.notify("LiteLLM Proxy stopped.", "Process Update")
+        self.update_tray_status()
 
     def restart_litellm(self, icon, item):
-        self.process_mgr.restart()
+        if self.process_mgr.restart(env=self.get_litellm_env()):
+            self.notify("LiteLLM Proxy restarted.", "Process Update")
+        else:
+            self.notify("Failed to restart LiteLLM Proxy.", "Process Error")
+        self.update_tray_status()
 
     def show_logs(self, icon, item):
         def run_logs():
@@ -346,6 +369,7 @@ class LiteLLMControlPanel:
         engine.GLOBAL_EXCLUSIONS = [x.strip() for x in self.settings.get("GLOBAL_EXCLUSIONS", "").split(",") if x.strip()]
         self.primary_count = int(self.settings.get("PRIMARY_COUNT", 5))
 
+        self.notify("Settings saved and applied.", "Configuration Update")
         asyncio.run_coroutine_threadsafe(self.refresh_logic(), self.loop)
 
     # ── Model Selection & Reordering ──────────────────────────────────────
@@ -508,6 +532,12 @@ class LiteLLMControlPanel:
         if self.icon:
             self.icon.menu = self.build_menu()
         self.update_tray_status()
+
+        if self.ranked_models:
+            best = self.ranked_models[0]
+            lat = best.get('latency', 0)
+            self.notify(f"Refresh complete. Top model: {best['id']} ({lat:.2f}s)", "Sync Complete")
+
         print("Refresh complete.")
         return True
 
@@ -643,7 +673,7 @@ class LiteLLMControlPanel:
             elif auto_manage:
                 print("LiteLLM process stopped unexpectedly. Attempting restart...")
                 self.notify("LiteLLM process stopped. Attempting restart...", "Process Alert")
-                self.process_mgr.start()
+                self.process_mgr.start(env=self.get_litellm_env())
             await asyncio.sleep(60)
 
     async def background_worker(self):
@@ -678,7 +708,7 @@ class LiteLLMControlPanel:
     def run(self):
         # Start LiteLLM if configured
         if self.settings.get("AUTO_MANAGE_LITELLM", True):
-            self.process_mgr.start()
+            self.process_mgr.start(env=self.get_litellm_env())
 
         # Start background thread
         threading.Thread(target=self.run_async_loop, daemon=True).start()
@@ -690,6 +720,8 @@ class LiteLLMControlPanel:
             "LiteLLM Router",
             menu=self.build_menu(),
         )
+        # Set primary click action to open Dashboard
+        self.icon.action = self.show_dashboard
         self.icon.run()
 
 
