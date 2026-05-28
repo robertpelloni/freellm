@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import scrolledtext
+from tkinter import scrolledtext, ttk
 import threading
 
 class LogViewer:
@@ -7,10 +7,49 @@ class LogViewer:
         self.process_mgr = process_mgr
         self.root = tk.Tk()
         self.root.title("LiteLLM Process Logs")
-        self.root.geometry("800x600")
+        self.root.geometry("900x700")
 
+        self.create_widgets()
+
+        self.running = True
+        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+
+        # Start log polling
+        threading.Thread(target=self.poll_logs, daemon=True).start()
+
+    def create_widgets(self):
+        # Toolbar
+        toolbar = ttk.Frame(self.root, padding=5)
+        toolbar.pack(fill='x')
+
+        ttk.Label(toolbar, text="Filter:").pack(side='left', padx=5)
+        self.filter_entry = ttk.Entry(toolbar)
+        self.filter_entry.pack(side='left', fill='x', expand=True, padx=5)
+        self.filter_entry.bind("<KeyRelease>", lambda e: self.apply_filter())
+
+        ttk.Button(toolbar, text="Clear", command=self.clear_logs).pack(side='right', padx=5)
+        ttk.Button(toolbar, text="Copy All", command=self.copy_all).pack(side='right', padx=5)
+
+        # Log Area
         self.log_area = scrolledtext.ScrolledText(self.root, wrap=tk.WORD)
         self.log_area.pack(fill='both', expand=True)
+        self.full_logs = []
+
+    def clear_logs(self):
+        self.full_logs = []
+        self.log_area.delete(1.0, tk.END)
+
+    def copy_all(self):
+        self.root.clipboard_clear()
+        self.root.clipboard_append(self.log_area.get(1.0, tk.END))
+
+    def apply_filter(self):
+        filter_text = self.filter_entry.get().lower()
+        self.log_area.delete(1.0, tk.END)
+        for line in self.full_logs:
+            if filter_text in line.lower():
+                self.log_area.insert(tk.END, line)
+        self.log_area.see(tk.END)
 
         self.running = True
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -33,8 +72,12 @@ class LogViewer:
                 time.sleep(1)
 
     def append_log(self, message):
-        self.log_area.insert(tk.END, message)
-        self.log_area.see(tk.END)
+        self.full_logs.append(message)
+        # Apply filter if active
+        filter_text = self.filter_entry.get().lower()
+        if not filter_text or filter_text in message.lower():
+            self.log_area.insert(tk.END, message)
+            self.log_area.see(tk.END)
 
     def run(self):
         self.root.mainloop()

@@ -26,6 +26,9 @@ class DashboardUI:
         header.pack(fill='x')
         ttk.Label(header, text="Model Performance & Rankings", font=('Helvetica', 14, 'bold')).pack(side='left')
 
+        self.usage_label = ttk.Label(header, text="Usage: 0 queries (0 tokens)", font=('Helvetica', 10))
+        self.usage_label.pack(side='right', padx=20)
+
         # Table
         columns = ('id', 'provider', 'parameters', 'latency', 'score', 'actions')
         self.tree = ttk.Treeview(self.root, columns=columns, show='headings')
@@ -83,6 +86,12 @@ class DashboardUI:
     def update_loop(self):
         if not self.running:
             return
+
+        # Update usage stats
+        queries, prompts, completions = database.get_total_usage()
+        prompts = prompts or 0
+        completions = completions or 0
+        self.usage_label.config(text=f"Usage: {queries} queries ({prompts + completions} tokens)")
 
         # Update table content
         for i in self.tree.get_children():

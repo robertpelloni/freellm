@@ -1,5 +1,12 @@
 # Changelog: LiteLLM Control Panel
 
+## [1.4.0] - 2024-06-09
+### Added
+- Advanced Log Viewer: Added live search, filtering, and data management tools.
+- Smart Cache: Optimized benchmarking by caching local model latency for 15 minutes.
+- Usage Tracking: Integrated query and token tracking for the Quick Query UI.
+- Usage Dashboard: Real-time usage summary displayed in the Main Dashboard.
+
 ## [1.3.0] - 2024-06-08
 ### Added
 - Direct LiteLLM Control: Start, Stop, and Restart the proxy directly from the top-level tray menu.

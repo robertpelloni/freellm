@@ -35,6 +35,17 @@ def init_db():
         )
     """)
 
+    # Usage table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS usage (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            model_id TEXT,
+            timestamp TIMESTAMP,
+            prompt_tokens INTEGER,
+            completion_tokens INTEGER
+        )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -142,6 +153,24 @@ def clear_blacklist():
     cursor.execute("UPDATE model_history SET is_blacklisted = 0")
     conn.commit()
     conn.close()
+
+def log_usage(model_id, prompt_tokens=0, completion_tokens=0):
+    """Logs model usage."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO usage (model_id, timestamp, prompt_tokens, completion_tokens) VALUES (?, ?, ?, ?)",
+                   (model_id, datetime.datetime.now(), prompt_tokens, completion_tokens))
+    conn.commit()
+    conn.close()
+
+def get_total_usage():
+    """Returns total query count and token counts."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*), SUM(prompt_tokens), SUM(completion_tokens) FROM usage")
+    row = cursor.fetchone()
+    conn.close()
+    return row if row else (0, 0, 0)
 
 def reset_all_stats():
     """Resets provider failures and model histories."""
