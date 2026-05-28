@@ -83,6 +83,12 @@ class QueryUI:
                             data = json.loads(content)
                             delta = data['choices'][0]['delta'].get('content', '')
                             self._append_text(delta)
+                            # Log usage if token counts available (usually only at end)
+                            usage = data.get('usage')
+                            if usage:
+                                database.log_usage("active-free-model",
+                                                 usage.get('prompt_tokens', 0),
+                                                 usage.get('completion_tokens', 0))
                         except:
                             pass
         except Exception as e:

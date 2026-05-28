@@ -268,7 +268,7 @@ class ModelEngine:
         # 2. Filter using database skip/failure status
         conn = database.sqlite3.connect(database.DB_NAME)
         cursor = conn.cursor()
-        cursor.execute("SELECT model_id, manually_skipped, skip_expiry, failure_count, retry_after, is_blacklisted FROM model_history")
+        cursor.execute("SELECT model_id, manually_skipped, skip_expiry, failure_count, retry_after, is_blacklisted, last_success, avg_latency FROM model_history")
         db_status = {row[0]: row[1:] for row in cursor.fetchall()}
         conn.close()
 
@@ -303,13 +303,33 @@ class ModelEngine:
             valid_candidates.append(m)
 
         # 3. Benchmark in parallel (limited concurrency)
+        # Smart Cache: identify local models and check if they need benchmarking
         tasks = []
+        benchmarking_models = []
+
+        now = database.datetime.datetime.now()
+        cached_results = []
+
         for m in valid_candidates:
+            is_local = m['provider'] in ['ollama', 'lm_studio']
+            status = db_status.get(m['id'])
+
+            # Smart Cache: If local and benchmarked in the last 15 minutes, reuse latency
+            if is_local and status:
+                last_success, avg_latency = status[5], status[6]
+                if last_success and avg_latency > 0:
+                    last_success_dt = database.datetime.datetime.fromisoformat(last_success) if isinstance(last_success, str) else last_success
+                    if now - last_success_dt < database.datetime.timedelta(minutes=15):
+                        cached_results.append((m, avg_latency))
+                        continue
+
             tasks.append(self.measure_latency(m['id'], m['provider']))
+            benchmarking_models.append(m)
 
         latencies = await asyncio.gather(*tasks)
 
         ranked_list = []
+        # Add benchmarking results
         for m, latency in zip(valid_candidates, latencies):
             if latency is not None:
                 score = self.calculate_score(m['parameters'], latency, m.get('context_length', 4096))
@@ -318,6 +338,13 @@ class ModelEngine:
                 ranked_list.append(m)
                 # Update DB
                 database.update_model_latency(m['id'], m['provider'], latency)
+
+        # Add cached results
+        for m, latency in cached_results:
+            score = self.calculate_score(m['parameters'], latency, m.get('context_length', 4096))
+            m['latency'] = latency
+            m['score'] = score
+            ranked_list.append(m)
 
         # 4. Sort by score
         ranked_list.sort(key=lambda x: x['score'], reverse=True)
