@@ -555,9 +555,11 @@ class LiteLLMControlPanel:
         menu_items.append(item(f"LiteLLM: {status_text} | Primary: {active_model_name}", lambda: None, enabled=False))
         menu_items.append(pystray.Menu.SEPARATOR)
 
-        menu_items.append(item("Open LLM Interface", self.launch_interface))
+        menu_items.append(item("Open LLM Interface", self.launch_interface, default=True))
+        menu_items.append(item("Settings", self.show_settings))
+        menu_items.append(pystray.Menu.SEPARATOR)
         menu_items.append(item("Quick Query", self.show_query))
-        menu_items.append(item("Show Dashboard", self.show_dashboard, default=True))
+        menu_items.append(item("Show Dashboard", self.show_dashboard))
         menu_items.append(item("System Status", self.show_status))
         menu_items.append(pystray.Menu.SEPARATOR)
 
@@ -630,7 +632,6 @@ class LiteLLMControlPanel:
                 toggle_items.append(item(name, self.toggle_provider(name), checked=lambda item, ns=is_free: ns))
             menu_items.append(item("Enable Providers", pystray.Menu(*toggle_items)))
 
-        menu_items.append(item("Settings", self.show_settings))
         menu_items.append(item("Documentation", self.open_docs))
 
         startup_menu = pystray.Menu(
@@ -720,8 +721,8 @@ class LiteLLMControlPanel:
             "LiteLLM Router",
             menu=self.build_menu(),
         )
-        # Set primary click action to open Dashboard
-        self.icon.action = self.show_dashboard
+        # Set primary click action to open the LLM interface
+        self.icon.action = self.launch_interface
         self.icon.run()
 
 
