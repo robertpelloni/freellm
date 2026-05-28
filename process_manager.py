@@ -8,7 +8,7 @@ class LiteLLMProcess:
         self.config_path = config_path
         self.process = None
 
-    def start(self):
+    def start(self, env=None):
         if self.process and self.process.poll() is None:
             print("LiteLLM is already running.")
             return True
@@ -22,12 +22,18 @@ class LiteLLMProcess:
             if sys.platform == "win32":
                 creationflags = subprocess.CREATE_NO_WINDOW
 
+            # Prepare full environment
+            full_env = os.environ.copy()
+            if env:
+                full_env.update(env)
+
             self.process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
-                creationflags=creationflags
+                creationflags=creationflags,
+                env=full_env
             )
             return True
         except Exception as e:
@@ -45,11 +51,11 @@ class LiteLLMProcess:
             return True
         return False
 
-    def restart(self):
+    def restart(self, env=None):
         self.stop()
         import time
         time.sleep(1)
-        return self.start()
+        return self.start(env=env)
 
     def is_running(self):
         return self.process is not None and self.process.poll() is None
