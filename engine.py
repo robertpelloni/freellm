@@ -415,7 +415,7 @@ class ModelEngine:
 
         ranked_list = []
         # Add benchmarking results
-        for m, latency in zip(valid_candidates, latencies):
+        for m, latency in zip(benchmarking_models, latencies):
             if latency is not None:
                 score = self.calculate_score(m['parameters'], latency, m.get('context_length', 4096))
                 m['latency'] = latency
