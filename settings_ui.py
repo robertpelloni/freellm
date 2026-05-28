@@ -22,6 +22,7 @@ def load_settings():
         "AUTO_PILOT": False,
         "GLOBAL_EXCLUSIONS": "-preview, -base, vision, dummy",
         "CONFIG_PATH": "config.yaml",
+        "INTERFACE_URL": "http://localhost:4000",
         "START_WITH_WINDOWS": False,
         "ENABLE_NOTIFICATIONS": True,
         "SIZE_WEIGHT": 0.6,
@@ -45,7 +46,7 @@ class SettingsUI:
         self.create_widgets()
 
     def create_widgets(self):
-        self.root.geometry("450x750")
+        self.root.geometry("450x800")
         padding = {'padx': 10, 'pady': 2}
 
         container = ttk.Frame(self.root)
@@ -95,6 +96,12 @@ class SettingsUI:
         self.config_path.insert(0, self.settings.get("CONFIG_PATH", "config.yaml"))
         self.config_path.pack(fill='x', **padding)
 
+        # Interface URL
+        ttk.Label(container, text="LLM Interface URL:").pack(fill='x', **padding)
+        self.interface_url = ttk.Entry(container)
+        self.interface_url.insert(0, self.settings.get("INTERFACE_URL", "http://localhost:4000"))
+        self.interface_url.pack(fill='x', **padding)
+
         # Start with Windows
         self.start_with_windows_var = tk.BooleanVar(value=self.settings.get("START_WITH_WINDOWS", False))
         ttk.Checkbutton(container, text="Start with Windows", variable=self.start_with_windows_var).pack(fill='x', **padding)
@@ -133,6 +140,7 @@ class SettingsUI:
         self.settings["CEREBRAS_API_KEY"] = self.cerebras_key.get()
         self.settings["GLOBAL_EXCLUSIONS"] = self.exclusions.get()
         self.settings["CONFIG_PATH"] = self.config_path.get()
+        self.settings["INTERFACE_URL"] = self.interface_url.get()
         self.settings["START_WITH_WINDOWS"] = self.start_with_windows_var.get()
         self.settings["ENABLE_NOTIFICATIONS"] = self.enable_notifications_var.get()
         self.settings["SIZE_WEIGHT"] = float(self.size_weight.get())
