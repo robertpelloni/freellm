@@ -64,8 +64,10 @@ def save_settings(settings):
         json.dump(settings, f, indent=4)
 
 class SettingsUI:
-    def __init__(self, on_save_callback=None):
+    def __init__(self, on_save_callback=None, on_proxy_logs_callback=None, on_engine_logs_callback=None):
         self.on_save_callback = on_save_callback
+        self.on_proxy_logs_callback = on_proxy_logs_callback
+        self.on_engine_logs_callback = on_engine_logs_callback
         self.root = tk.Tk()
         self.root.title("LiteLLM Control Panel Settings")
         self.root.geometry("450x800")
@@ -222,6 +224,41 @@ class SettingsUI:
         ttk.Button(km_btn_frame, text="Remove Selected", command=self.km_remove).pack(side='left', padx=2)
         ttk.Button(km_btn_frame, text="Reset Defaults", command=self.km_reset).pack(side='left', padx=2)
 
+        # Live Logs Shortcut
+        logs_frame = ttk.LabelFrame(container, text="Live Monitoring")
+        logs_frame.pack(fill='x', **padding)
+
+        btn_row = ttk.Frame(logs_frame)
+        btn_row.pack(fill='x', padx=5, pady=5)
+
+        def safe_proxy():
+            if self.on_proxy_logs_callback: self.on_proxy_logs_callback()
+            else: messagebox.showinfo("Info", "Log viewer unavailable in standalone mode.")
+
+        def safe_engine():
+            if self.on_engine_logs_callback: self.on_engine_logs_callback()
+            else: messagebox.showinfo("Info", "Log viewer unavailable in standalone mode.")
+
+        ttk.Button(btn_row, text="Open Proxy Logs",
+                   command=safe_proxy).pack(side='left', padx=5)
+        ttk.Button(btn_row, text="Open Engine Logs",
+                   command=safe_engine).pack(side='left', padx=5)
+
+        # API Server Settings
+        api_frame = ttk.LabelFrame(container, text="External API")
+        api_frame.pack(fill='x', **padding)
+
+        self.enable_api_var = tk.BooleanVar(value=self.settings.get("ENABLE_API", False))
+        ttk.Checkbutton(api_frame, text="Enable External API Server",
+                        variable=self.enable_api_var).pack(fill='x', **padding)
+
+        port_row = ttk.Frame(api_frame)
+        port_row.pack(fill='x', padx=5, pady=2)
+        ttk.Label(port_row, text="API Port:").pack(side='left', padx=5)
+        self.api_port = ttk.Entry(port_row, width=10)
+        self.api_port.insert(0, str(self.settings.get("API_PORT", 8000)))
+        self.api_port.pack(side='left', padx=5)
+
         # Save Button
         ttk.Button(container, text="Save Settings", command=self.save).pack(pady=20)
 
@@ -251,6 +288,12 @@ class SettingsUI:
         self.settings["GLOBAL_EXCLUSIONS"] = self.exclusions.get()
         self.settings["CONFIG_PATH"] = self.config_path.get()
         self.settings["INTERFACE_URL"] = self.interface_url.get()
+        self.settings["ENABLE_API"] = self.enable_api_var.get()
+        try:
+            self.settings["API_PORT"] = int(self.api_port.get())
+        except ValueError:
+            messagebox.showerror("Error", "Invalid API Port. Reverting to default 8000.")
+            self.settings["API_PORT"] = 8000
         self.settings["AUTO_MANAGE_LITELLM"] = self.auto_manage_var.get()
         self.settings["START_WITH_WINDOWS"] = self.start_with_windows_var.get()
         self.settings["ENABLE_NOTIFICATIONS"] = self.enable_notifications_var.get()
