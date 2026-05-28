@@ -4,6 +4,7 @@ import re
 import time
 from typing import List, Dict, Any, Optional
 import database
+import known_models
 
 # Constants
 OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models"
@@ -29,101 +30,6 @@ SIZE_PATTERN = re.compile(r'(\d+)[bB]')
 
 # Global exclusions — configurable from settings. No longer defaults to "-preview".
 GLOBAL_EXCLUSIONS = ["-base", "vision", "dummy"]
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# KNOWN GOOD MODELS — built-in metadata for models whose IDs don't contain
-# parameter counts or whose provider metadata is incomplete.
-# key: model_id (as it appears in the API), value: {parameters, context_length}
-# ─────────────────────────────────────────────────────────────────────────────
-KNOWN_GOOD_MODELS: Dict[str, Dict[str, Any]] = {
-    # ── OpenAI / GitHub Models ──
-    "gpt-4.1-mini":           {"parameters": 200, "context_length": 1048576},
-    "gpt-4.1":                {"parameters": 200, "context_length": 1048576},
-    "gpt-4o":                 {"parameters": 200, "context_length": 128000},
-    "gpt-4o-mini":            {"parameters": 200, "context_length": 128000},
-    "o3-mini":                {"parameters": 200, "context_length": 200000},
-    "o4-mini":                {"parameters": 200, "context_length": 200000},
-    "o3":                     {"parameters": 200, "context_length": 200000},
-    "o1-mini":                {"parameters": 200, "context_length": 128000},
-    "o1":                     {"parameters": 200, "context_length": 200000},
-    "gpt-oss-120b:free":      {"parameters": 120, "context_length": 131072},
-    "gpt-oss-20b:free":       {"parameters": 20,  "context_length": 131072},
-
-    # ── Mistral ──
-    "mistral-large-3-675b-instruct-2512": {"parameters": 675, "context_length": 128000},
-    "mistral-large-3-2411":               {"parameters": 675, "context_length": 128000},
-    "mistral-large-2407":                 {"parameters": 123, "context_length": 128000},
-    "mistral-small-2501":                 {"parameters": 22,  "context_length": 128000},
-    "codestral-2501":                     {"parameters": 22,  "context_length": 256000},
-    "pixtral-large-2412":                 {"parameters": 123, "context_length": 128000},
-    "ministral-8b-2412":                  {"parameters": 8,   "context_length": 128000},
-
-    # ── Meta Llama ──
-    "Meta-Llama-3.1-405B-Instruct":       {"parameters": 405, "context_length": 131072},
-    "Meta-Llama-3.1-70B-Instruct":        {"parameters": 70,  "context_length": 131072},
-    "Meta-Llama-3.1-8B-Instruct":         {"parameters": 8,   "context_length": 131072},
-    "Meta-Llama-3.3-70B-Instruct":        {"parameters": 70,  "context_length": 128000},
-    "llama-3.3-70b-instruct":             {"parameters": 70,  "context_length": 128000},
-    "llama-4-maverick-17b-128e-instruct": {"parameters": 400, "context_length": 1048576},
-    "llama-4-scout-17b-16e-instruct":     {"parameters": 109, "context_length": 1048576},
-
-    # ── DeepSeek ──
-    "DeepSeek-V3-0324":                   {"parameters": 671, "context_length": 65536},
-    "deepseek-r1-0528":                   {"parameters": 671, "context_length": 65536},
-    "deepseek-r1":                        {"parameters": 671, "context_length": 65536},
-    "deepseek-v4-flash:free":             {"parameters": 284, "context_length": 131072},
-    "deepseek-chat":                      {"parameters": 671, "context_length": 65536},
-    "deepseek-reasoner":                  {"parameters": 671, "context_length": 65536},
-
-    # ── Qwen ──
-    "qwen3-coder-480b-a35b-instruct":     {"parameters": 480, "context_length": 128000},
-    "qwen3-coder:free":                   {"parameters": 480, "context_length": 128000},
-    "qwen3.5-397b-a17b":                  {"parameters": 397, "context_length": 128000},
-    "qwen2.5-72b-instruct":               {"parameters": 72,  "context_length": 131072},
-    "qwen2.5-coder-32b-instruct":         {"parameters": 32,  "context_length": 131072},
-    "qwen-qwq-32b":                       {"parameters": 32,  "context_length": 131072},
-
-    # ── NVIDIA Nemotron ──
-    "nvidia/nemotron-3-super-120b-a12b:free": {"parameters": 120, "context_length": 1048576},
-    "nvidia/nemotron-3-super-120b-a12b":      {"parameters": 120, "context_length": 1048576},
-    "nvidia/nemotron-nano-12b-v2-vl:free":    {"parameters": 12,  "context_length": 128000},
-
-    # ── Moonshot / Kimi ──
-    "moonshotai/kimi-k2.6":               {"parameters": 200, "context_length": 131072},
-    "moonshotai/kimi-k2":                 {"parameters": 200, "context_length": 131072},
-    "kimi-latest":                        {"parameters": 200, "context_length": 131072},
-
-    # ── Other ──
-    "owl-alpha":                          {"parameters": 200, "context_length": 1048576},
-    "liquid/lfm-2.5-1.2b-instruct:free":  {"parameters": 1,   "context_length": 32768},
-    "hermes-3-llama-3.1-405b:free":       {"parameters": 405, "context_length": 131072},
-}
-
-
-def _lookup_known_model(model_id: str) -> Optional[Dict[str, Any]]:
-    """Look up a model ID in the known good models list.
-    Handles both bare IDs and prefixed IDs (e.g. 'openrouter/nvidia/...').
-    """
-    # Direct match
-    if model_id in KNOWN_GOOD_MODELS:
-        return KNOWN_GOOD_MODELS[model_id]
-
-    # Try stripping provider prefixes: openrouter/..., nvidia_nim/..., etc.
-    for prefix in ["openrouter/", "nvidia_nim/", "github/", "groq/",
-                   "together/", "deepinfra/", "cerebras/", "huggingface/",
-                   "ollama/", "openai/"]:
-        if model_id.startswith(prefix):
-            stripped = model_id[len(prefix):]
-            if stripped in KNOWN_GOOD_MODELS:
-                return KNOWN_GOOD_MODELS[stripped]
-
-    # Try matching the tail of the ID (e.g. 'nvidia/nemotron-3-super-120b-a12b')
-    for known_id, info in KNOWN_GOOD_MODELS.items():
-        if model_id.endswith(known_id):
-            return info
-
-    return None
 
 
 class ModelEngine:
@@ -173,10 +79,10 @@ class ModelEngine:
         context_length = model_data.get("context_length", 0)
 
         # 1. Check known good models
-        known = _lookup_known_model(model_id)
+        known = known_models.lookup(model_id)
         if known:
-            params = known["parameters"]
-            ctx = known.get("context_length", 0)
+            params = known["params"]
+            ctx = known.get("ctx", 0)
             # If API provided context_length and it's larger, trust it
             if context_length and context_length > ctx:
                 ctx = context_length
@@ -540,7 +446,12 @@ class ModelEngine:
                 m['latency'] = latency
                 m['score'] = score
                 ranked_list.append(m)
-                database.update_model_latency(m['id'], m['provider'], latency)
+                database.record_probe(
+                    m['id'], m['provider'], latency, success=True,
+                    score=m.get('score', 0),
+                    context_length=m.get('context_length', 0),
+                    parameters=m.get('parameters', 0),
+                )
 
         # Add cached results
         for m, latency in cached_results:
@@ -620,15 +531,19 @@ class ModelEngine:
                             return ttft
                 elif response.status_code in [429, 504]:
                     print(f"Rate limited or timeout for {model_id} ({response.status_code})")
-                    database.handle_test_failure(model_id, provider)
+                    database.record_probe(model_id, provider, None, success=False,
+                                         error_code=response.status_code)
                     return None
                 else:
-                    print(f"Error {response.status_code} for {model_id}: {await response.aread()}")
-                    database.handle_test_failure(model_id, provider)
+                    err_body = await response.aread()
+                    print(f"Error {response.status_code} for {model_id}: {err_body}")
+                    database.record_probe(model_id, provider, None, success=False,
+                                         error_code=response.status_code)
                     return None
         except Exception as e:
             print(f"Exception measuring latency for {model_id}: {e}")
-            database.handle_test_failure(model_id, provider)
+            database.record_probe(model_id, provider, None, success=False,
+                                 error_message=str(e)[:200])
             return None
         return None
 

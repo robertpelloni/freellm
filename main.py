@@ -212,6 +212,10 @@ class LiteLLMControlPanel:
         database.reset_all_stats()
         self.notify("All provider and model stats reset.")
 
+    def maintenance_cleanup_probes(self, icon, item):
+        deleted = database.cleanup_old_probes(days=90)
+        self.notify(f"Cleaned up {deleted} old probe records.")
+
     def maintenance_backup_config(self, icon, item):
         config_manager.apply_ranked_models(self.ranked_models, self.config_path)
         self.notify(f"Config backed up to {self.config_path}.bak")
@@ -293,6 +297,12 @@ class LiteLLMControlPanel:
             ui = status_window.StatusWindow(self)
             ui.run()
         threading.Thread(target=run_status, daemon=True).start()
+
+    def show_leaderboard(self, icon=None, item=None):
+        def run_leaderboard():
+            ui = dashboard_ui.LeaderboardUI(self)
+            ui.run()
+        threading.Thread(target=run_leaderboard, daemon=True).start()
 
     def view_config(self, icon, item):
         if os.path.exists(self.config_path):
@@ -542,6 +552,7 @@ class LiteLLMControlPanel:
         menu_items.append(item("Open LLM Interface", self.launch_interface))
         menu_items.append(item("Quick Query", self.show_query))
         menu_items.append(item("Show Dashboard", self.show_dashboard, default=True))
+        menu_items.append(item("Model Leaderboard", self.show_leaderboard))
         menu_items.append(item("System Status", self.show_status))
         menu_items.append(pystray.Menu.SEPARATOR)
 
@@ -627,6 +638,7 @@ class LiteLLMControlPanel:
             item("Clear Skip List", self.maintenance_clear_skips),
             item("Clear Blacklist", self.maintenance_clear_blacklist),
             item("Reset Provider Stats", self.maintenance_reset_stats),
+            item("Cleanup Old Probes (>90d)", self.maintenance_cleanup_probes),
             item("Backup LiteLLM Config", self.maintenance_backup_config),
             item("Restore LiteLLM Config", self.maintenance_restore_config),
         )
