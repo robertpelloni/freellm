@@ -436,13 +436,21 @@ class ModelEngine:
         return ranked_list[:10]
 
     async def check_connectivity(self) -> bool:
-        """Simple check to see if the internet is accessible."""
-        try:
-            # Ping a very reliable endpoint
-            response = await self.client.get("https://1.1.1.1", timeout=2.0)
-            return response.status_code == 200
-        except:
-            return False
+        """Check if the internet is accessible by hitting reliable endpoints."""
+        # Try multiple endpoints — any success means we're online
+        endpoints = [
+            "https://api.github.com/zen",      # Returns a GitHub aphorism, very reliable
+            "https://httpbin.org/status/200",  # Returns 200 OK
+            "https://openrouter.ai/api/v1/models",  # OpenRouter models list
+        ]
+        for url in endpoints:
+            try:
+                response = await self.client.get(url, timeout=10.0)
+                if response.status_code < 500:
+                    return True
+            except Exception:
+                continue
+        return False
 
     async def measure_latency(self, model_id: str, provider: str) -> Optional[float]:
         """Measures Time-To-First-Token (TTFT) for a given model."""
