@@ -32,6 +32,7 @@ def load_settings():
         "INTERFACE_URL": "http://localhost:4000",
         "AUTO_MANAGE_LITELLM": True,
         "START_WITH_WINDOWS": False,
+        "ROUTING_ENABLED": True,
         "ENABLE_NOTIFICATIONS": True,
         "SIZE_WEIGHT": 0.6,
         "CONTEXT_WEIGHT": 0.2,

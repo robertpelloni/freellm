@@ -358,6 +358,15 @@ class ModelEngine:
         ranked_list.sort(key=lambda x: x['score'], reverse=True)
         return ranked_list[:10]
 
+    async def check_connectivity(self) -> bool:
+        """Simple check to see if the internet is accessible."""
+        try:
+            # Ping a very reliable endpoint
+            response = await self.client.get("https://1.1.1.1", timeout=2.0)
+            return response.status_code == 200
+        except:
+            return False
+
     async def measure_latency(self, model_id: str, provider: str) -> Optional[float]:
         """Measures Time-To-First-Token (TTFT) for a given model."""
         base = self.base_urls.get(provider)

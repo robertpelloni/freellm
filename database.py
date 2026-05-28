@@ -190,6 +190,30 @@ def get_provider_status():
     conn.close()
     return stats
 
+def get_last_rankings():
+    """Fetches top 10 models from history based on last success and latency."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    query = """
+        SELECT model_id, provider_name, avg_latency, last_success FROM model_history
+        WHERE manually_skipped = 0 AND is_blacklisted = 0 AND avg_latency > 0
+        ORDER BY last_success DESC, avg_latency ASC LIMIT 10
+    """
+    cursor.execute(query)
+    rows = cursor.fetchall()
+    conn.close()
+
+    results = []
+    for r in rows:
+        results.append({
+            "id": r[0],
+            "provider": r[1],
+            "parameters": 100, # Placeholder as we don't store it in DB yet
+            "latency": r[2],
+            "score": 0 # Recalculated later
+        })
+    return results
+
 def update_provider_cycle(provider_name, found_models: bool):
     """Updates consecutive empty cycles and flags if provider seems to have no free models."""
     conn = sqlite3.connect(DB_NAME)
