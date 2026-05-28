@@ -34,12 +34,13 @@ def load_settings():
         "MIN_PARAMETERS": 100,
         "AUTO_PILOT": False,
         "GLOBAL_EXCLUSIONS": "-preview, -base, vision, dummy",
-        "CONFIG_PATH": "config.yaml",
+        "CONFIG_PATH": "C:/Users/hyper/.hermes/litellm-config.yaml",
         "INTERFACE_URL": "http://localhost:4000",
         "AUTO_MANAGE_LITELLM": True,
         "START_WITH_WINDOWS": False,
         "ROUTING_ENABLED": True,
         "ENABLE_NOTIFICATIONS": True,
+    "PRIMARY_COUNT": 5,
         "SIZE_WEIGHT": 0.6,
         "CONTEXT_WEIGHT": 0.2,
         "LATENCY_WEIGHT": 0.2
@@ -212,6 +213,7 @@ class SettingsUI:
         self.settings["LATENCY_WEIGHT"] = float(self.latency_weight.get())
         try:
             self.settings["MIN_PARAMETERS"] = int(self.min_params.get())
+            self.settings["PRIMARY_COUNT"] = int(self.primary_count.get())
         except ValueError:
             messagebox.showerror("Error", "Invalid parameter value")
             return
