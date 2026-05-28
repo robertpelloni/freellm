@@ -7,6 +7,8 @@ import database
 
 # Constants
 OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models"
+GROQ_MODELS_URL = "https://api.groq.com/openai/v1/models"
+TOGETHER_MODELS_URL = "https://api.together.xyz/v1/models"
 MIN_PARAMETERS_BILLIONS = 100
 SIZE_WEIGHT = 0.8
 LATENCY_WEIGHT = 0.2
@@ -85,6 +87,50 @@ class ModelEngine:
         latency_penalty = latency * LATENCY_WEIGHT
         return size_score - latency_penalty
 
+    async def fetch_groq_models(self) -> List[Dict[str, Any]]:
+        """Fetches models from Groq."""
+        api_key = self.api_keys.get("groq")
+        if not api_key: return []
+        try:
+            response = await self.client.get(GROQ_MODELS_URL, headers={"Authorization": f"Bearer {api_key}"})
+            if response.status_code == 200:
+                data = response.json().get("data", [])
+                models = []
+                for m in data:
+                    # Groq doesn't easily flag 'free' in the models list, but many are free-tier.
+                    # For this tool, we assume the user knows their tier or we just test them.
+                    params = self.extract_parameters(m)
+                    if params >= MIN_PARAMETERS_BILLIONS:
+                        models.append({
+                            "id": m.get("id"),
+                            "provider": "groq",
+                            "parameters": params
+                        })
+                return models
+        except: pass
+        return []
+
+    async def fetch_together_models(self) -> List[Dict[str, Any]]:
+        """Fetches models from Together AI."""
+        api_key = self.api_keys.get("together")
+        if not api_key: return []
+        try:
+            response = await self.client.get(TOGETHER_MODELS_URL, headers={"Authorization": f"Bearer {api_key}"})
+            if response.status_code == 200:
+                data = response.json()
+                models = []
+                for m in data:
+                    params = self.extract_parameters(m)
+                    if params >= MIN_PARAMETERS_BILLIONS:
+                        models.append({
+                            "id": m.get("id"),
+                            "provider": "together",
+                            "parameters": params
+                        })
+                return models
+        except: pass
+        return []
+
     async def get_ranked_models(self) -> List[Dict[str, Any]]:
         """Main loop to fetch, test, and rank models."""
         # 0. Check which providers are still considered "free"
@@ -100,6 +146,16 @@ class ModelEngine:
             or_models = await self.fetch_openrouter_models()
             candidates.extend(or_models)
             database.update_provider_cycle("openrouter", len(or_models) > 0)
+
+        if "groq" not in blacklisted_providers:
+            groq_models = await self.fetch_groq_models()
+            candidates.extend(groq_models)
+            database.update_provider_cycle("groq", len(groq_models) > 0)
+
+        if "together" not in blacklisted_providers:
+            together_models = await self.fetch_together_models()
+            candidates.extend(together_models)
+            database.update_provider_cycle("together", len(together_models) > 0)
 
         # 2. Filter using database skip/failure status
         conn = database.sqlite3.connect(database.DB_NAME)
@@ -161,9 +217,15 @@ class ModelEngine:
 
     async def measure_latency(self, model_id: str, provider: str) -> Optional[float]:
         """Measures Time-To-First-Token (TTFT) for a given model."""
-        # Note: Different providers might need different headers/endpoints.
-        # For OpenRouter:
-        url = "https://openrouter.ai/api/v1/chat/completions"
+        if provider == "openrouter":
+            url = "https://openrouter.ai/api/v1/chat/completions"
+        elif provider == "groq":
+            url = "https://api.groq.com/openai/v1/chat/completions"
+        elif provider == "together":
+            url = "https://api.together.xyz/v1/chat/completions"
+        else:
+            return None
+
         api_key = self.api_keys.get(provider)
 
         if not api_key and provider == "openrouter":

@@ -9,14 +9,15 @@ from pystray import MenuItem as item
 import database
 import engine
 import config_manager
+import settings_ui
 
 class LiteLLMControlPanel:
     def __init__(self):
-        import os
+        self.settings = settings_ui.load_settings()
         api_keys = {
-            "openrouter": os.getenv("OPENROUTER_API_KEY", ""),
-            "groq": os.getenv("GROQ_API_KEY", ""),
-            "together": os.getenv("TOGETHER_API_KEY", "")
+            "openrouter": self.settings.get("OPENROUTER_API_KEY", ""),
+            "groq": self.settings.get("GROQ_API_KEY", ""),
+            "together": self.settings.get("TOGETHER_API_KEY", "")
         }
         self.engine = engine.ModelEngine(api_keys=api_keys)
         self.ranked_models: List[Dict[str, Any]] = []
@@ -42,7 +43,26 @@ class LiteLLMControlPanel:
 
     def toggle_auto_pilot(self, icon, item):
         self.auto_pilot = not self.auto_pilot
+        self.settings["AUTO_PILOT"] = self.auto_pilot
+        settings_ui.save_settings(self.settings)
         print(f"Auto-Pilot: {self.auto_pilot}")
+
+    def show_settings(self, icon, item):
+        def run_ui():
+            ui = settings_ui.SettingsUI(on_save_callback=self.on_settings_saved)
+            ui.run()
+        # Run in a separate thread to not block the icon
+        threading.Thread(target=run_ui, daemon=True).start()
+
+    def on_settings_saved(self, new_settings):
+        self.settings = new_settings
+        self.engine.api_keys = {
+            "openrouter": self.settings.get("OPENROUTER_API_KEY", ""),
+            "groq": self.settings.get("GROQ_API_KEY", ""),
+            "together": self.settings.get("TOGETHER_API_KEY", "")
+        }
+        # Force a refresh
+        asyncio.run_coroutine_threadsafe(self.refresh_logic(), self.loop)
 
     def select_model(self, model_id, provider):
         def inner(icon, item):
@@ -94,6 +114,7 @@ class LiteLLMControlPanel:
         menu_items.append(pystray.Menu.SEPARATOR)
         menu_items.append(item("Auto-Pilot Mode", self.toggle_auto_pilot, checked=lambda item: self.auto_pilot))
         menu_items.append(item("Refresh Now", self.refresh_now))
+        menu_items.append(item("Settings", self.show_settings))
         menu_items.append(pystray.Menu.SEPARATOR)
         menu_items.append(item("Quit", self.on_quit))
 
