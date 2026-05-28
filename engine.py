@@ -9,8 +9,14 @@ import database
 OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models"
 GROQ_MODELS_URL = "https://api.groq.com/openai/v1/models"
 TOGETHER_MODELS_URL = "https://api.together.xyz/v1/models"
+DEEPINFRA_MODELS_URL = "https://api.deepinfra.com/v1/openai/models"
+CEREBRAS_MODELS_URL = "https://api.cerebras.ai/v1/models"
+OLLAMA_MODELS_URL = "http://localhost:11434/api/tags"
+LM_STUDIO_MODELS_URL = "http://localhost:1234/v1/models"
 MIN_PARAMETERS_BILLIONS = 100
-SIZE_WEIGHT = 0.8
+# These are defaults, will be overridden by settings
+SIZE_WEIGHT = 0.6
+CONTEXT_WEIGHT = 0.2
 LATENCY_WEIGHT = 0.2
 
 # Regex to extract parameter size (e.g., 405b, 70B, 120b-instruct)
@@ -20,14 +26,18 @@ SIZE_PATTERN = re.compile(r'(\d+)[bB]')
 GLOBAL_EXCLUSIONS = ["-preview", "-base", "vision", "dummy"]
 
 class ModelEngine:
-    def __init__(self, api_keys: Dict[str, str]):
+    def __init__(self, api_keys: Dict[str, str], min_params: int = MIN_PARAMETERS_BILLIONS, weights: Dict[str, float] = None, base_urls: Dict[str, str] = None):
         self.api_keys = api_keys
+        self.min_params = min_params
+        self.weights = weights or {"size": 0.6, "context": 0.2, "latency": 0.2}
+        self.base_urls = base_urls or {}
         self.client = httpx.AsyncClient(timeout=10.0)
 
     async def fetch_openrouter_models(self) -> List[Dict[str, Any]]:
         """Fetches free models from OpenRouter."""
+        url = self.base_urls.get("openrouter", OPENROUTER_MODELS_URL.replace("/models", "")) + "/models"
         try:
-            response = await self.client.get(OPENROUTER_MODELS_URL)
+            response = await self.client.get(url)
             if response.status_code != 200:
                 print(f"Error fetching OpenRouter models: {response.status_code}")
                 return []
@@ -78,21 +88,22 @@ class ModelEngine:
 
         return 0
 
-    def calculate_score(self, params: int, latency: float) -> float:
+    def calculate_score(self, params: int, latency: float, context_length: int = 4096) -> float:
         """
-        Calculates the model score based on parameters and latency.
-        Score = (0.8 * (Parameter_Size / 100)) - (0.2 * TTFT_in_Seconds)
+        Calculates the model score based on parameters, context length, and latency.
         """
-        size_score = (params / 100.0) * SIZE_WEIGHT
-        latency_penalty = latency * LATENCY_WEIGHT
-        return size_score - latency_penalty
+        size_score = (params / 100.0) * self.weights.get("size", 0.6)
+        context_score = (min(context_length, 128000) / 128000.0) * self.weights.get("context", 0.2)
+        latency_penalty = latency * self.weights.get("latency", 0.2)
+        return size_score + context_score - latency_penalty
 
     async def fetch_groq_models(self) -> List[Dict[str, Any]]:
         """Fetches models from Groq."""
         api_key = self.api_keys.get("groq")
         if not api_key: return []
+        url = self.base_urls.get("groq", GROQ_MODELS_URL.replace("/models", "")) + "/models"
         try:
-            response = await self.client.get(GROQ_MODELS_URL, headers={"Authorization": f"Bearer {api_key}"})
+            response = await self.client.get(url, headers={"Authorization": f"Bearer {api_key}"})
             if response.status_code == 200:
                 data = response.json().get("data", [])
                 models = []
@@ -100,7 +111,7 @@ class ModelEngine:
                     # Groq doesn't easily flag 'free' in the models list, but many are free-tier.
                     # For this tool, we assume the user knows their tier or we just test them.
                     params = self.extract_parameters(m)
-                    if params >= MIN_PARAMETERS_BILLIONS:
+                    if params >= self.min_params:
                         models.append({
                             "id": m.get("id"),
                             "provider": "groq",
@@ -114,17 +125,105 @@ class ModelEngine:
         """Fetches models from Together AI."""
         api_key = self.api_keys.get("together")
         if not api_key: return []
+        url = self.base_urls.get("together", TOGETHER_MODELS_URL.replace("/v1/models", "")) + "/v1/models"
         try:
-            response = await self.client.get(TOGETHER_MODELS_URL, headers={"Authorization": f"Bearer {api_key}"})
+            response = await self.client.get(url, headers={"Authorization": f"Bearer {api_key}"})
             if response.status_code == 200:
                 data = response.json()
                 models = []
                 for m in data:
                     params = self.extract_parameters(m)
-                    if params >= MIN_PARAMETERS_BILLIONS:
+                    if params >= self.min_params:
                         models.append({
                             "id": m.get("id"),
                             "provider": "together",
+                            "parameters": params
+                        })
+                return models
+        except: pass
+        return []
+
+    async def fetch_deepinfra_models(self) -> List[Dict[str, Any]]:
+        """Fetches models from DeepInfra."""
+        api_key = self.api_keys.get("deepinfra")
+        if not api_key: return []
+        url = self.base_urls.get("deepinfra", DEEPINFRA_MODELS_URL.replace("/openai/models", "")) + "/openai/models"
+        try:
+            response = await self.client.get(url, headers={"Authorization": f"Bearer {api_key}"})
+            if response.status_code == 200:
+                data = response.json().get("data", [])
+                models = []
+                for m in data:
+                    params = self.extract_parameters(m)
+                    if params >= self.min_params:
+                        models.append({
+                            "id": m.get("id"),
+                            "provider": "deepinfra",
+                            "parameters": params
+                        })
+                return models
+        except: pass
+        return []
+
+    async def fetch_cerebras_models(self) -> List[Dict[str, Any]]:
+        """Fetches models from Cerebras."""
+        api_key = self.api_keys.get("cerebras")
+        if not api_key: return []
+        url = self.base_urls.get("cerebras", CEREBRAS_MODELS_URL.replace("/models", "")) + "/models"
+        try:
+            response = await self.client.get(url, headers={"Authorization": f"Bearer {api_key}"})
+            if response.status_code == 200:
+                data = response.json().get("data", [])
+                models = []
+                for m in data:
+                    params = self.extract_parameters(m)
+                    if params >= self.min_params:
+                        models.append({
+                            "id": m.get("id"),
+                            "provider": "cerebras",
+                            "parameters": params
+                        })
+                return models
+        except: pass
+        return []
+
+    async def fetch_ollama_models(self) -> List[Dict[str, Any]]:
+        """Fetches models from Ollama."""
+        url = self.base_urls.get("ollama", OLLAMA_MODELS_URL.replace("/api/tags", "")) + "/api/tags"
+        try:
+            response = await self.client.get(url)
+            if response.status_code == 200:
+                data = response.json().get("models", [])
+                models = []
+                for m in data:
+                    name = m.get("name")
+                    params = self.extract_parameters(m)
+                    # For local models, we might be more lenient or user wants to see them
+                    if params >= self.min_params or params == 0:
+                        models.append({
+                            "id": name,
+                            "provider": "ollama",
+                            "parameters": params
+                        })
+                return models
+        except: pass
+        return []
+
+    async def fetch_lm_studio_models(self) -> List[Dict[str, Any]]:
+        """Fetches models from LM Studio."""
+        url = self.base_urls.get("lm_studio", LM_STUDIO_MODELS_URL.replace("/v1/models", "")) + "/v1/models"
+        try:
+            response = await self.client.get(url)
+            if response.status_code == 200:
+                data = response.json().get("data", [])
+                models = []
+                for m in data:
+                    name = m.get("id")
+                    params = self.extract_parameters(m)
+                    if params >= self.min_params or params == 0:
+                        models.append({
+                            "id": name,
+                            "provider": "lm_studio",
                             "parameters": params
                         })
                 return models
@@ -157,10 +256,27 @@ class ModelEngine:
             candidates.extend(together_models)
             database.update_provider_cycle("together", len(together_models) > 0)
 
+        if "deepinfra" not in blacklisted_providers:
+            deepinfra_models = await self.fetch_deepinfra_models()
+            candidates.extend(deepinfra_models)
+            database.update_provider_cycle("deepinfra", len(deepinfra_models) > 0)
+
+        if "cerebras" not in blacklisted_providers:
+            cerebras_models = await self.fetch_cerebras_models()
+            candidates.extend(cerebras_models)
+            database.update_provider_cycle("cerebras", len(cerebras_models) > 0)
+
+        # Local providers
+        ollama_models = await self.fetch_ollama_models()
+        candidates.extend(ollama_models)
+
+        lms_models = await self.fetch_lm_studio_models()
+        candidates.extend(lms_models)
+
         # 2. Filter using database skip/failure status
         conn = database.sqlite3.connect(database.DB_NAME)
         cursor = conn.cursor()
-        cursor.execute("SELECT model_id, manually_skipped, skip_expiry, failure_count, retry_after, is_blacklisted FROM model_history")
+        cursor.execute("SELECT model_id, manually_skipped, skip_expiry, failure_count, retry_after, is_blacklisted, last_success, avg_latency FROM model_history")
         db_status = {row[0]: row[1:] for row in cursor.fetchall()}
         conn.close()
 
@@ -195,34 +311,81 @@ class ModelEngine:
             valid_candidates.append(m)
 
         # 3. Benchmark in parallel (limited concurrency)
+        # Smart Cache: identify local models and check if they need benchmarking
         tasks = []
+        benchmarking_models = []
+
+        now = database.datetime.datetime.now()
+        cached_results = []
+
         for m in valid_candidates:
+            is_local = m['provider'] in ['ollama', 'lm_studio']
+            status = db_status.get(m['id'])
+
+            # Smart Cache: If local and benchmarked in the last 15 minutes, reuse latency
+            if is_local and status:
+                last_success, avg_latency = status[5], status[6]
+                if last_success and avg_latency > 0:
+                    last_success_dt = database.datetime.datetime.fromisoformat(last_success) if isinstance(last_success, str) else last_success
+                    if now - last_success_dt < database.datetime.timedelta(minutes=15):
+                        cached_results.append((m, avg_latency))
+                        continue
+
             tasks.append(self.measure_latency(m['id'], m['provider']))
+            benchmarking_models.append(m)
 
         latencies = await asyncio.gather(*tasks)
 
         ranked_list = []
+        # Add benchmarking results
         for m, latency in zip(valid_candidates, latencies):
             if latency is not None:
-                score = self.calculate_score(m['parameters'], latency)
+                score = self.calculate_score(m['parameters'], latency, m.get('context_length', 4096))
                 m['latency'] = latency
                 m['score'] = score
                 ranked_list.append(m)
                 # Update DB
                 database.update_model_latency(m['id'], m['provider'], latency)
 
+        # Add cached results
+        for m, latency in cached_results:
+            score = self.calculate_score(m['parameters'], latency, m.get('context_length', 4096))
+            m['latency'] = latency
+            m['score'] = score
+            ranked_list.append(m)
+
         # 4. Sort by score
         ranked_list.sort(key=lambda x: x['score'], reverse=True)
         return ranked_list[:10]
 
+    async def check_connectivity(self) -> bool:
+        """Simple check to see if the internet is accessible."""
+        try:
+            # Ping a very reliable endpoint
+            response = await self.client.get("https://1.1.1.1", timeout=2.0)
+            return response.status_code == 200
+        except:
+            return False
+
     async def measure_latency(self, model_id: str, provider: str) -> Optional[float]:
         """Measures Time-To-First-Token (TTFT) for a given model."""
+        base = self.base_urls.get(provider)
+
         if provider == "openrouter":
-            url = "https://openrouter.ai/api/v1/chat/completions"
+            url = (base or "https://openrouter.ai/api/v1") + "/chat/completions"
         elif provider == "groq":
-            url = "https://api.groq.com/openai/v1/chat/completions"
+            url = (base or "https://api.groq.com/openai/v1") + "/chat/completions"
         elif provider == "together":
-            url = "https://api.together.xyz/v1/chat/completions"
+            url = (base or "https://api.together.xyz/v1") + "/chat/completions"
+        elif provider == "deepinfra":
+            url = (base or "https://api.deepinfra.com/v1/openai") + "/chat/completions"
+        elif provider == "cerebras":
+            url = (base or "https://api.cerebras.ai/v1") + "/chat/completions"
+        elif provider == "ollama":
+            # Ollama /v1/chat/completions is usually at /v1/chat/completions or /api/chat
+            url = (base or "http://localhost:11434") + "/v1/chat/completions"
+        elif provider == "lm_studio":
+            url = (base or "http://localhost:1234") + "/v1/chat/completions"
         else:
             return None
 

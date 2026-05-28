@@ -6,3 +6,4 @@ dist/
 provider_metrics.db
 test_metrics.db
 test_config.yaml
+settings.json

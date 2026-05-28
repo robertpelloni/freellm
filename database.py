@@ -35,6 +35,17 @@ def init_db():
         )
     """)
 
+    # Usage table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS usage (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            model_id TEXT,
+            timestamp TIMESTAMP,
+            prompt_tokens INTEGER,
+            completion_tokens INTEGER
+        )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -126,6 +137,82 @@ def set_model_blacklist_status(model_id, blacklisted=True):
     cursor.execute("UPDATE model_history SET is_blacklisted = ? WHERE model_id = ?", (1 if blacklisted else 0, model_id))
     conn.commit()
     conn.close()
+
+def clear_skip_list():
+    """Resets all manual skips."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE model_history SET manually_skipped = 0, skip_expiry = NULL")
+    conn.commit()
+    conn.close()
+
+def clear_blacklist():
+    """Resets all blacklisted models."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE model_history SET is_blacklisted = 0")
+    conn.commit()
+    conn.close()
+
+def log_usage(model_id, prompt_tokens=0, completion_tokens=0):
+    """Logs model usage."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO usage (model_id, timestamp, prompt_tokens, completion_tokens) VALUES (?, ?, ?, ?)",
+                   (model_id, datetime.datetime.now(), prompt_tokens, completion_tokens))
+    conn.commit()
+    conn.close()
+
+def get_total_usage():
+    """Returns total query count and token counts."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*), SUM(prompt_tokens), SUM(completion_tokens) FROM usage")
+    row = cursor.fetchone()
+    conn.close()
+    return row if row else (0, 0, 0)
+
+def reset_all_stats():
+    """Resets provider failures and model histories."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE providers SET consecutive_empty_cycles = 0, is_free_provider = 1")
+    cursor.execute("UPDATE model_history SET failure_count = 0, retry_after = NULL, avg_latency = 0")
+    conn.commit()
+    conn.close()
+
+def get_provider_status():
+    """Fetches all provider health info."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT provider_name, is_free_provider, consecutive_empty_cycles, last_checked FROM providers")
+    stats = cursor.fetchall()
+    conn.close()
+    return stats
+
+def get_last_rankings():
+    """Fetches top 10 models from history based on last success and latency."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    query = """
+        SELECT model_id, provider_name, avg_latency, last_success FROM model_history
+        WHERE manually_skipped = 0 AND is_blacklisted = 0 AND avg_latency > 0
+        ORDER BY last_success DESC, avg_latency ASC LIMIT 10
+    """
+    cursor.execute(query)
+    rows = cursor.fetchall()
+    conn.close()
+
+    results = []
+    for r in rows:
+        results.append({
+            "id": r[0],
+            "provider": r[1],
+            "parameters": 100, # Placeholder as we don't store it in DB yet
+            "latency": r[2],
+            "score": 0 # Recalculated later
+        })
+    return results
 
 def update_provider_cycle(provider_name, found_models: bool):
     """Updates consecutive empty cycles and flags if provider seems to have no free models."""
