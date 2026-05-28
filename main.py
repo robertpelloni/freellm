@@ -265,14 +265,49 @@ class LiteLLMControlPanel:
             r.destroy()
             self.notify(f"Copied {self.ranked_models[0]['id']} to clipboard.")
 
+    def get_litellm_env(self):
+        """Prepare environment variables for the LiteLLM child process.
+        Ensures API keys from settings (or env) are propagated so
+        litellm can actually authenticate with providers.
+        """
+        import os as _os
+        env = {}
+        key_map = {
+            "OPENROUTER_API_KEY": "OPENROUTER_API_KEY",
+            "GROQ_API_KEY": "GROQ_API_KEY",
+            "TOGETHER_API_KEY": "TOGETHER_API_KEY",
+            "DEEPINFRA_API_KEY": "DEEPINFRA_API_KEY",
+            "CEREBRAS_API_KEY": "CEREBRAS_API_KEY",
+            "GITHUB_API_KEY": "GITHUB_TOKEN",
+            "HUGGINGFACE_API_KEY": "HUGGINGFACE_API_KEY",
+            "NVIDIA_API_KEY": "NVIDIA_NIM_API_KEY",
+        }
+        for settings_key, env_var in key_map.items():
+            val = self.settings.get(settings_key, "")
+            if not val:
+                val = _os.environ.get(env_var, "")
+            if val:
+                env[env_var] = val
+        return env
+
     def launch_litellm(self, icon, item):
-        self.process_mgr.start()
+        if self.process_mgr.start(env=self.get_litellm_env()):
+            self.notify("LiteLLM Proxy started.", "Process Update")
+        else:
+            self.notify("Failed to start LiteLLM Proxy.", "Process Error")
+        self.update_tray_status()
 
     def stop_litellm(self, icon, item):
-        self.process_mgr.stop()
+        if self.process_mgr.stop():
+            self.notify("LiteLLM Proxy stopped.", "Process Update")
+        self.update_tray_status()
 
     def restart_litellm(self, icon, item):
-        self.process_mgr.restart()
+        if self.process_mgr.restart(env=self.get_litellm_env()):
+            self.notify("LiteLLM Proxy restarted.", "Process Update")
+        else:
+            self.notify("Failed to restart LiteLLM Proxy.", "Process Error")
+        self.update_tray_status()
 
     def show_logs(self, icon, item):
         def run_logs():
@@ -369,6 +404,7 @@ class LiteLLMControlPanel:
         self.engine.min_params = int(self.settings.get("MIN_PARAMETERS", 100))
         engine.GLOBAL_EXCLUSIONS = [x.strip() for x in self.settings.get("GLOBAL_EXCLUSIONS", "").split(",") if x.strip()]
         self.primary_count = int(self.settings.get("PRIMARY_COUNT", 5))
+        self.notify("Settings saved and applied.", "Configuration Update")
 
         asyncio.run_coroutine_threadsafe(self.refresh_logic(), self.loop)
 
@@ -532,6 +568,11 @@ class LiteLLMControlPanel:
         if self.icon:
             self.icon.menu = self.build_menu()
         self.update_tray_status()
+        if self.ranked_models:
+            best = self.ranked_models[0]
+            lat = best.get('latency', 0)
+            lat_str = f"{lat:.2f}s" if lat > 0 else "?"
+            self.notify(f"Refresh complete. Top: {best['id']} ({lat_str})", "Sync Complete")
         print("Refresh complete.")
         return True
 
@@ -549,9 +590,11 @@ class LiteLLMControlPanel:
         menu_items.append(item(f"LiteLLM: {status_text} | Primary: {active_model_name}", lambda: None, enabled=False))
         menu_items.append(pystray.Menu.SEPARATOR)
 
-        menu_items.append(item("Open LLM Interface", self.launch_interface))
+        menu_items.append(item("Open LLM Interface", self.launch_interface, default=True))
+        menu_items.append(item("Settings", self.show_settings))
+        menu_items.append(pystray.Menu.SEPARATOR)
         menu_items.append(item("Quick Query", self.show_query))
-        menu_items.append(item("Show Dashboard", self.show_dashboard, default=True))
+        menu_items.append(item("Show Dashboard", self.show_dashboard))
         menu_items.append(item("Model Leaderboard", self.show_leaderboard))
         menu_items.append(item("System Status", self.show_status))
         menu_items.append(pystray.Menu.SEPARATOR)
@@ -625,7 +668,6 @@ class LiteLLMControlPanel:
                 toggle_items.append(item(name, self.toggle_provider(name), checked=lambda item, ns=is_free: ns))
             menu_items.append(item("Enable Providers", pystray.Menu(*toggle_items)))
 
-        menu_items.append(item("Settings", self.show_settings))
         menu_items.append(item("Documentation", self.open_docs))
 
         startup_menu = pystray.Menu(
@@ -704,7 +746,7 @@ class LiteLLMControlPanel:
     def run(self):
         # Start LiteLLM if configured
         if self.settings.get("AUTO_MANAGE_LITELLM", True):
-            self.process_mgr.start()
+            self.process_mgr.start(env=self.get_litellm_env())
 
         # Start background thread
         threading.Thread(target=self.run_async_loop, daemon=True).start()
@@ -716,6 +758,9 @@ class LiteLLMControlPanel:
             "LiteLLM Router",
             menu=self.build_menu(),
         )
+        # Set primary click action to open the LLM interface
+        self.icon.action = self.launch_interface
+
         # Update tray tooltip after icon starts (use a short delayed call)
         def _delayed_update():
             import time
