@@ -12,6 +12,8 @@
 - [x] Blacklist/Skip functionality in the UI.
 - [x] Local provider support (Ollama, LM Studio).
 - [x] Automatic Fallback health monitor.
+- [x] Direct LiteLLM Control (Start/Stop/Restart) from tray.
+- [x] Streamlined System Status and Dashboard UIs.
 
 ## Bug Fixes & Refinements
 - [x] Ensure background threads don't block the UI.

@@ -1,5 +1,11 @@
 # Changelog: LiteLLM Control Panel
 
+## [1.3.0] - 2024-06-08
+### Added
+- Direct LiteLLM Control: Start, Stop, and Restart the proxy directly from the top-level tray menu.
+- Refactored Menu: Grouped actions into logical sections (Actions, Control, Rankings, Providers).
+- Enhanced Status: Live "LiteLLM + Active Model" status line at the top of the menu.
+
 ## [1.2.0] - 2024-06-07
 ### Added
 - System Status Window: A centralized dashboard for LiteLLM proxy status, active model, and provider health.

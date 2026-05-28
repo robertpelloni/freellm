@@ -45,6 +45,12 @@ class LiteLLMProcess:
             return True
         return False
 
+    def restart(self):
+        self.stop()
+        import time
+        time.sleep(1)
+        return self.start()
+
     def is_running(self):
         return self.process is not None and self.process.poll() is None
 
