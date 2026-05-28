@@ -20,7 +20,8 @@ def load_settings():
         "CEREBRAS_API_KEY": "",
         "MIN_PARAMETERS": 100,
         "AUTO_PILOT": False,
-        "GLOBAL_EXCLUSIONS": "-preview, -base, vision, dummy"
+        "GLOBAL_EXCLUSIONS": "-preview, -base, vision, dummy",
+        "CONFIG_PATH": "config.yaml"
     }
 
 def save_settings(settings):
@@ -39,7 +40,7 @@ class SettingsUI:
         self.create_widgets()
 
     def create_widgets(self):
-        self.root.geometry("450x550")
+        self.root.geometry("450x600")
         padding = {'padx': 10, 'pady': 2}
 
         container = ttk.Frame(self.root)
@@ -83,6 +84,12 @@ class SettingsUI:
         self.exclusions.insert(0, self.settings.get("GLOBAL_EXCLUSIONS", "-preview, -base, vision, dummy"))
         self.exclusions.pack(fill='x', **padding)
 
+        # Config Path
+        ttk.Label(container, text="LiteLLM Config Path:").pack(fill='x', **padding)
+        self.config_path = ttk.Entry(container)
+        self.config_path.insert(0, self.settings.get("CONFIG_PATH", "config.yaml"))
+        self.config_path.pack(fill='x', **padding)
+
         # Save Button
         ttk.Button(container, text="Save Settings", command=self.save).pack(pady=20)
 
@@ -93,6 +100,7 @@ class SettingsUI:
         self.settings["DEEPINFRA_API_KEY"] = self.deepinfra_key.get()
         self.settings["CEREBRAS_API_KEY"] = self.cerebras_key.get()
         self.settings["GLOBAL_EXCLUSIONS"] = self.exclusions.get()
+        self.settings["CONFIG_PATH"] = self.config_path.get()
         try:
             self.settings["MIN_PARAMETERS"] = int(self.min_params.get())
         except ValueError:
