@@ -26,6 +26,13 @@
 - Lifecycle Automation: Option to automatically start and stop the LiteLLM proxy with the Control Panel.
 - UX Refinements: Added Quick Query to the top of the tray menu for instant access.
 
+## [1.9.0] - 2024-06-14
+### Added
+- Provider Expansion: Added direct support for GitHub Models, Hugging Face, and NVIDIA NIM.
+- Custom Endpoints: All providers now support user-configurable Base URLs in Settings.
+- Professional README: Complete rewrite highlighting advanced features and provider list.
+- Improved UI Layout: Refined Settings GUI for better organization of the expanded provider list.
+
 ## [1.8.0] - 2024-06-13
 ### Added
 - Working State Indicator: Tray icon now turns blue when a benchmarking cycle is in progress.
