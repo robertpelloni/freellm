@@ -16,3 +16,5 @@
 ## Discovered Optimizations
 - Using LiteLLM's native file-watching allows for zero-downtime model switching.
 - Caching provider status prevents unnecessary network calls to paid-only or dead endpoints.
+- The `ModelEngine` maintains a `log_queue` for real-time benchmarking events, which is consumed by the `LogViewer` in 'engine log' mode.
+- Dynamic Hugging Face discovery is implemented via the HF API, supplementing the static `known_models` list.

@@ -2,6 +2,7 @@ import asyncio
 import httpx
 import re
 import time
+from collections import deque
 from typing import List, Dict, Any, Optional
 import database
 import known_models
@@ -29,8 +30,7 @@ LATENCY_WEIGHT = 0.2
 SIZE_PATTERN = re.compile(r'(\d+)[bB]')
 
 # Global exclusions — set by main.py from settings at runtime.
-# Default is deliberately minimal; -preview is NOT excluded by default.
-GLOBAL_EXCLUSIONS = ["-base", "dummy"]
+GLOBAL_EXCLUSIONS = ["-preview", "-base", "vision", "dummy"]
 
 
 class ModelEngine:
@@ -41,9 +41,20 @@ class ModelEngine:
         self.weights = weights or {"size": 0.6, "context": 0.2, "latency": 0.2}
         self.base_urls = base_urls or {}
         self.client = httpx.AsyncClient(timeout=10.0)
+        self.log_queue = deque(maxlen=1000)
+        self.log_counter = 0
+
+    def log(self, message: str):
+        """Add a timestamped message to the engine log queue."""
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        msg = f"[{timestamp}] {message}"
+        print(msg)
+        self.log_queue.append((self.log_counter, msg + "\n"))
+        self.log_counter += 1
 
     async def fetch_openrouter_models(self) -> List[Dict[str, Any]]:
         """Fetches free models from OpenRouter."""
+        self.log("Fetching models from OpenRouter...")
         url = self.base_urls.get("openrouter", OPENROUTER_MODELS_URL.replace("/models", "")) + "/models"
         try:
             response = await self.client.get(url)
@@ -90,10 +101,10 @@ class ModelEngine:
             return params, ctx
 
         # 2. Regex extraction from ID, name, description
-        params = self._extract_parameters_from_text(model_data)
+        params = self.extract_parameters(model_data)
         return params, context_length
 
-    def _extract_parameters_from_text(self, model_data: Dict[str, Any]) -> int:
+    def extract_parameters(self, model_data: Dict[str, Any]) -> int:
         """Extract parameter count from model ID, name, or description via regex."""
         model_id = model_data.get("id", "")
         name = model_data.get("name", "")
@@ -284,16 +295,38 @@ class ModelEngine:
         return []
 
     async def fetch_huggingface_models(self) -> List[Dict[str, Any]]:
-        """Fetches models from Hugging Face Inference API."""
+        """Fetches models from Hugging Face Inference API dynamically."""
         api_key = self.api_keys.get("huggingface")
         if not api_key:
             return []
-        return [
-            {"id": "meta-llama/Llama-3.1-405B-Instruct", "provider": "huggingface",
-             "parameters": 405, "context_length": 131072},
-            {"id": "meta-llama/Llama-3.1-70B-Instruct", "provider": "huggingface",
-             "parameters": 70, "context_length": 131072},
-        ]
+        url = "https://huggingface.co/api/models?pipeline_tag=text-generation&sort=downloads&direction=-1&limit=50"
+        try:
+            response = await self.client.get(url)
+            if response.status_code == 200:
+                data = response.json()
+                models = []
+                for m in data:
+                    model_id = m.get("modelId")
+                    params, context = self._resolve_model_metadata({"id": model_id}, "huggingface")
+                    if params >= self.min_params:
+                        models.append({
+                            "id": model_id,
+                            "provider": "huggingface",
+                            "parameters": params,
+                            "context_length": context or 131072,
+                        })
+                # Fallback to known models if dynamic discovery yields nothing
+                if not models:
+                    return [
+                        {"id": "meta-llama/Llama-3.1-405B-Instruct", "provider": "huggingface",
+                         "parameters": 405, "context_length": 131072},
+                        {"id": "meta-llama/Llama-3.1-70B-Instruct", "provider": "huggingface",
+                         "parameters": 70, "context_length": 131072},
+                    ]
+                return models
+        except Exception as e:
+            print(f"Exception fetching Hugging Face models: {e}")
+        return []
 
     async def fetch_nvidia_models(self) -> List[Dict[str, Any]]:
         """Fetches models from NVIDIA NIM."""
@@ -323,7 +356,7 @@ class ModelEngine:
 
     async def get_ranked_models(self) -> List[Dict[str, Any]]:
         """Main loop to fetch, test, and rank models."""
-
+        self.log("Starting model ranking cycle...")
         # 0. Check which providers are still considered "free"
         conn = database.sqlite3.connect(database.DB_NAME)
         cursor = conn.cursor()
@@ -464,6 +497,7 @@ class ModelEngine:
             tasks.append(self.measure_latency(m['id'], m['provider']))
             benchmarking_models.append(m)
 
+        self.log(f"Benchmarking {len(tasks)} models...")
         latencies = await asyncio.gather(*tasks)
 
         ranked_list = []
@@ -471,6 +505,7 @@ class ModelEngine:
         # Add benchmarking results
         for m, latency in zip(benchmarking_models, latencies):
             if latency is not None:
+                self.log(f"Model {m['id']} ({m['provider']}): {latency:.3f}s")
                 score = self.calculate_score(m['parameters'], latency, m.get('context_length', 4096))
                 m['latency'] = latency
                 m['score'] = score
