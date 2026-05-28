@@ -5,6 +5,18 @@ import os
 
 SETTINGS_FILE = "settings.json"
 
+# Map: settings key -> environment variable name
+ENV_KEY_MAP = {
+    "OPENROUTER_API_KEY": "OPENROUTER_API_KEY",
+    "GROQ_API_KEY": "GROQ_API_KEY",
+    "TOGETHER_API_KEY": "TOGETHER_API_KEY",
+    "DEEPINFRA_API_KEY": "DEEPINFRA_API_KEY",
+    "CEREBRAS_API_KEY": "CEREBRAS_API_KEY",
+    "GITHUB_API_KEY": "GITHUB_TOKEN",
+    "HUGGINGFACE_API_KEY": "HUGGINGFACE_API_KEY",
+    "NVIDIA_API_KEY": "NVIDIA_NIM_API_KEY",
+}
+
 def load_settings():
     if os.path.exists(SETTINGS_FILE):
         try:
@@ -13,14 +25,14 @@ def load_settings():
         except:
             pass
     return {
-        "OPENROUTER_API_KEY": "",
-        "GROQ_API_KEY": "",
-        "TOGETHER_API_KEY": "",
-        "DEEPINFRA_API_KEY": "",
-        "CEREBRAS_API_KEY": "",
-        "GITHUB_API_KEY": "",
-        "HUGGINGFACE_API_KEY": "",
-        "NVIDIA_API_KEY": "",
+        "OPENROUTER_API_KEY": os.environ.get("OPENROUTER_API_KEY", ""),
+        "GROQ_API_KEY": os.environ.get("GROQ_API_KEY", ""),
+        "TOGETHER_API_KEY": os.environ.get("TOGETHER_API_KEY", ""),
+        "DEEPINFRA_API_KEY": os.environ.get("DEEPINFRA_API_KEY", ""),
+        "CEREBRAS_API_KEY": os.environ.get("CEREBRAS_API_KEY", ""),
+        "GITHUB_API_KEY": os.environ.get("GITHUB_TOKEN", ""),
+        "HUGGINGFACE_API_KEY": os.environ.get("HUGGINGFACE_API_KEY", ""),
+        "NVIDIA_API_KEY": os.environ.get("NVIDIA_NIM_API_KEY", ""),
         "OPENROUTER_BASE_URL": "https://openrouter.ai/api/v1",
         "GROQ_BASE_URL": "https://api.groq.com/openai/v1",
         "TOGETHER_BASE_URL": "https://api.together.xyz",
