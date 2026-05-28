@@ -127,23 +127,42 @@ def apply_ranked_models(ranked_models: list, path=DEFAULT_CONFIG_PATH,
                          primary_group="free-llm",
                          fallback_group="free-llm-fallback",
                          primary_count=5):
-    """Rewrite the config with ranked models split into two groups.
+    """Write the config merging benchmarked models with existing entries.
 
     ranked_models: list of dicts with at least: id, provider, latency, score, parameters
     primary_count: top N go into primary_group, rest into fallback_group
 
+    Models from ranked_models are placed by score. Any models already in the
+    config that were NOT in this benchmark run are preserved in fallback.
     Preserves router_settings, litellm_settings, and fallbacks structure.
-    Adds a header comment with probe results.
     """
-    # Read existing config for settings we want to preserve
+    # Read existing config for settings and existing model entries to preserve
     existing_config = read_config(path)
     router_settings = CommentedMap()
     litellm_settings = CommentedMap()
+    existing_entries = {}  # model_id -> raw_entry (for preserving un-benchmarked models)
     if existing_config:
         if existing_config.get("router_settings"):
             router_settings = existing_config["router_settings"]
         if existing_config.get("litellm_settings"):
             litellm_settings = existing_config["litellm_settings"]
+        # Collect existing model entries so we can preserve ones not in this benchmark
+        for entry in existing_config.get("model_list", []):
+            if entry is None:
+                continue
+            lp = entry.get("litellm_params", {})
+            litellm_model = lp.get("model", "")
+            if litellm_model:
+                existing_entries[litellm_model] = entry
+
+    # Identify which models from ranked_models are already in the config
+    ranked_model_ids = set()
+    for m in ranked_models:
+        info = PROVIDER_MAP.get(m.get("provider", ""), {"prefix": m.get("provider", "")})
+        prefix = info.get("prefix", m.get("provider", ""))
+        model_id = m["id"]
+        litellm_model = f"{prefix}/{model_id}" if not model_id.startswith(prefix + "/") else model_id
+        ranked_model_ids.add(litellm_model)
 
     # Build header comment with probe results
     import datetime
@@ -162,6 +181,11 @@ def apply_ranked_models(ranked_models: list, path=DEFAULT_CONFIG_PATH,
         lat = m.get("latency", 0)
         score = m.get("score", 0)
         comment_lines.append(f"  {m['provider']}/{m['id']}  {lat:.1f}s score={score:.1f} ({ctx} ctx)")
+
+    # Cap primary_count to available models
+    effective_primary = min(primary_count, len(ranked_models))
+    if effective_primary < 1 and len(ranked_models) > 0:
+        effective_primary = 1
 
     # Build model_list as CommentedSeq
     model_list = CommentedSeq()
@@ -197,6 +221,16 @@ def apply_ranked_models(ranked_models: list, path=DEFAULT_CONFIG_PATH,
 
         model_list.append(entry)
         model_list.yaml_add_eol_comment(comment_text, fallback_start + j)
+
+    # Preserve existing models that were NOT in this benchmark run
+    preserved_count = 0
+    for litellm_model, entry in existing_entries.items():
+        if litellm_model not in ranked_model_ids:
+            entry["model_name"] = fallback_group
+            model_list.append(entry)
+            preserved_count += 1
+    if preserved_count:
+        print(f"Preserved {preserved_count} existing models not in this benchmark.")
 
     # Build full config as CommentedMap
     config = CommentedMap()
