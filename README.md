@@ -150,6 +150,13 @@ Software\Microsoft\Windows\CurrentVersion\Run
 
 [ ] Compile via PyInstaller using the --noconsole flag to completely suppress the pop-up CMD windows upon execution.
 
+## Quick Start: 1-2 Steps to Accessibility
+
+1. **Run `setup.bat`**: This will automatically install all necessary Python dependencies (pystray, httpx, ruamel.yaml, etc.).
+2. **Run `start.bat`**: This launches the application in the background. Look for the LiteLLM icon in your system tray to configure your API keys and start routing!
+
+---
+
 Where do you want to start first? We can flesh out the API mapping script logic for the free provider lists, or jump straight into drafting the boilerplate structure for the Windows system tray loop wrapper.
 
 i also want to have it search/scrape and remember the providers that provide free models and ignore the ones that don't so that it becomes more efficient over time, free models are constantly getting overloaded and timing out and stuff and i want the ability to skip over models that are not suitable even if they qualify 
