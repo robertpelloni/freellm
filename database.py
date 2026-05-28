@@ -127,6 +127,31 @@ def set_model_blacklist_status(model_id, blacklisted=True):
     conn.commit()
     conn.close()
 
+def clear_skip_list():
+    """Resets all manual skips."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE model_history SET manually_skipped = 0, skip_expiry = NULL")
+    conn.commit()
+    conn.close()
+
+def clear_blacklist():
+    """Resets all blacklisted models."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE model_history SET is_blacklisted = 0")
+    conn.commit()
+    conn.close()
+
+def reset_all_stats():
+    """Resets provider failures and model histories."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE providers SET consecutive_empty_cycles = 0, is_free_provider = 1")
+    cursor.execute("UPDATE model_history SET failure_count = 0, retry_after = NULL, avg_latency = 0")
+    conn.commit()
+    conn.close()
+
 def update_provider_cycle(provider_name, found_models: bool):
     """Updates consecutive empty cycles and flags if provider seems to have no free models."""
     conn = sqlite3.connect(DB_NAME)

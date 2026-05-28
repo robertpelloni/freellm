@@ -1,5 +1,12 @@
 # Changelog: LiteLLM Control Panel
 
+## [0.9.0] - 2024-06-04
+### Added
+- Main Dashboard: A structured GUI to view all model rankings, scores, and status at once.
+- Dynamic Tooltip: System tray icon now shows the active model and TTFT latency on hover.
+- Maintenance Tools: New menu options to clear skips, clear blacklist, and reset provider statistics.
+- Refined UX: Dashboard is now the primary tray icon action.
+
 ## [0.8.0] - 2024-06-03
 ### Added
 - Click-to-open functionality: Double-clicking or selecting the tray icon now opens the LLM Interface.
