@@ -152,6 +152,15 @@ def reset_all_stats():
     conn.commit()
     conn.close()
 
+def get_provider_status():
+    """Fetches all provider health info."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT provider_name, is_free_provider, consecutive_empty_cycles, last_checked FROM providers")
+    stats = cursor.fetchall()
+    conn.close()
+    return stats
+
 def update_provider_cycle(provider_name, found_models: bool):
     """Updates consecutive empty cycles and flags if provider seems to have no free models."""
     conn = sqlite3.connect(DB_NAME)
