@@ -1,6 +1,7 @@
 import asyncio
 import threading
 import time
+import datetime
 from typing import List, Dict, Any
 from PIL import Image, ImageDraw
 import pystray
@@ -17,6 +18,7 @@ import dashboard_ui
 class LiteLLMControlPanel:
     def __init__(self):
         self.settings = settings_ui.load_settings()
+        self.last_benchmark_time = None
         self.process_mgr = process_manager.LiteLLMProcess(config_path=self.settings.get("CONFIG_PATH", "config.yaml"))
         api_keys = {
             "openrouter": self.settings.get("OPENROUTER_API_KEY", ""),
@@ -79,6 +81,9 @@ class LiteLLMControlPanel:
             color = 'red'
             tooltip = "No models available"
 
+        status = " (Running)" if self.process_mgr.is_running() else " (Stopped)"
+        tooltip += status
+
         self.icon.icon = self.create_image(64, 64, color)
         self.icon.title = tooltip
 
@@ -117,6 +122,20 @@ class LiteLLMControlPanel:
     def maintenance_reset_stats(self, icon, item):
         database.reset_all_stats()
         self.notify("All provider and model stats reset.")
+
+    def toggle_provider(self, provider_name):
+        def inner(icon, item):
+            # Toggle is_free_provider status in DB
+            conn = database.sqlite3.connect(database.DB_NAME)
+            cursor = conn.cursor()
+            cursor.execute("SELECT is_free_provider FROM providers WHERE provider_name = ?", (provider_name,))
+            row = cursor.fetchone()
+            new_status = 0 if row and row[0] else 1
+            cursor.execute("UPDATE providers SET is_free_provider = ? WHERE provider_name = ?", (new_status, provider_name))
+            conn.commit()
+            conn.close()
+            self.refresh_now(None, None)
+        return inner
 
     def launch_interface(self, icon=None, item=None):
         import webbrowser
@@ -209,6 +228,7 @@ class LiteLLMControlPanel:
     async def refresh_logic(self, auto_pilot=False):
         print("Refreshing model rankings...")
         self.ranked_models = await self.engine.get_ranked_models()
+        self.last_benchmark_time = datetime.datetime.now()
 
         if auto_pilot and self.ranked_models:
             best = self.ranked_models[0]
@@ -225,9 +245,38 @@ class LiteLLMControlPanel:
     def build_menu(self):
         menu_items = []
 
+        # Active Model Status
+        active_model_name = "None"
+        if self.ranked_models:
+            active_model_name = self.ranked_models[0]['id']
+        menu_items.append(item(f"Active Model: {active_model_name}", lambda: None, enabled=False))
+
+        if self.last_benchmark_time:
+            time_str = self.last_benchmark_time.strftime("%H:%M:%S")
+            menu_items.append(item(f"Last Benchmark: {time_str}", lambda: None, enabled=False))
+
+        menu_items.append(pystray.Menu.SEPARATOR)
+
         # Default action
         menu_items.append(item("Show Dashboard", self.show_dashboard, default=True))
         menu_items.append(item("Open LLM Interface", self.launch_interface))
+        menu_items.append(pystray.Menu.SEPARATOR)
+
+        # Provider Health & Quick Toggle
+        provider_stats = database.get_provider_status()
+        if provider_stats:
+            p_menu_items = []
+            toggle_items = []
+            for name, is_free, empty_cycles, last_check in provider_stats:
+                status = "Online" if is_free else "Offline"
+                p_label = f"{name}: {status}"
+                p_menu_items.append(item(p_label, lambda: None, enabled=False))
+
+                toggle_items.append(item(name, self.toggle_provider(name), checked=lambda item, ns=is_free: ns))
+
+            menu_items.append(item("Provider Status", pystray.Menu(*p_menu_items)))
+            menu_items.append(item("Quick Enable Providers", pystray.Menu(*toggle_items)))
+
         menu_items.append(pystray.Menu.SEPARATOR)
 
         # Top 10 models
@@ -311,7 +360,7 @@ class LiteLLMControlPanel:
                 # Update menu and icon
                 if self.icon:
                     self.icon.menu = self.build_menu()
-                    self.update_icon_color()
+                    self.update_tray_status()
 
                 print("Rankings updated.")
             except Exception as e:

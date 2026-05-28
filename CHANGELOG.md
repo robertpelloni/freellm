@@ -1,5 +1,13 @@
 # Changelog: LiteLLM Control Panel
 
+## [1.0.0] - 2024-06-05
+### Added
+- Official 1.0.0 Release!
+- Enhanced Tray Menu: Real-time "Active Model" and "Last Benchmark" display.
+- Provider Status Dashboard: View health of all model providers at a glance from the tray.
+- Quick Route Configuration: Toggle providers on/off directly from the context menu.
+- Integrated Process Status: Tooltip now shows if LiteLLM proxy is Running or Stopped.
+
 ## [0.9.0] - 2024-06-04
 ### Added
 - Main Dashboard: A structured GUI to view all model rankings, scores, and status at once.

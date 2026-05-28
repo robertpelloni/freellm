@@ -39,14 +39,13 @@ class SettingsUI:
         self.on_save_callback = on_save_callback
         self.root = tk.Tk()
         self.root.title("LiteLLM Control Panel Settings")
-        self.root.geometry("400x350")
+        self.root.geometry("450x800")
         self.root.resizable(False, False)
 
         self.settings = load_settings()
         self.create_widgets()
 
     def create_widgets(self):
-        self.root.geometry("450x800")
         padding = {'padx': 10, 'pady': 2}
 
         container = ttk.Frame(self.root)
