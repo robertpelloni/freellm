@@ -11,6 +11,7 @@ import engine
 import config_manager
 import settings_ui
 import process_manager
+import log_viewer
 
 class LiteLLMControlPanel:
     def __init__(self):
@@ -93,6 +94,12 @@ class LiteLLMControlPanel:
     def stop_litellm(self, icon, item):
         self.process_mgr.stop()
 
+    def show_logs(self, icon, item):
+        def run_logs():
+            viewer = log_viewer.LogViewer(self.process_mgr)
+            viewer.run()
+        threading.Thread(target=run_logs, daemon=True).start()
+
     def view_config(self, icon, item):
         import os
         config_path = self.settings.get("CONFIG_PATH", "config.yaml")
@@ -113,6 +120,14 @@ class LiteLLMControlPanel:
     def on_settings_saved(self, new_settings):
         self.settings = new_settings
         self.process_mgr.config_path = self.settings.get("CONFIG_PATH", "config.yaml")
+
+        # Apply startup setting
+        import startup
+        if self.settings.get("START_WITH_WINDOWS", False):
+            startup.add_to_startup()
+        else:
+            startup.remove_from_startup()
+
         self.engine.api_keys = {
             "openrouter": self.settings.get("OPENROUTER_API_KEY", ""),
             "groq": self.settings.get("GROQ_API_KEY", ""),
@@ -177,9 +192,12 @@ class LiteLLMControlPanel:
         menu_items.append(item("Auto-Pilot Mode", self.toggle_auto_pilot, checked=lambda item: self.auto_pilot))
         menu_items.append(item("Refresh Now", self.refresh_now))
 
+        status_text = "Status: Running" if self.process_mgr.is_running() else "Status: Stopped"
         instance_menu = pystray.Menu(
+            item(status_text, lambda: None, enabled=False),
             item("Launch", self.launch_litellm, enabled=lambda item: not self.process_mgr.is_running()),
             item("Stop", self.stop_litellm, enabled=lambda item: self.process_mgr.is_running()),
+            item("View Logs", self.show_logs),
             item("View Config", self.view_config)
         )
         menu_items.append(item("LiteLLM Instance", instance_menu))

@@ -21,7 +21,8 @@ def load_settings():
         "MIN_PARAMETERS": 100,
         "AUTO_PILOT": False,
         "GLOBAL_EXCLUSIONS": "-preview, -base, vision, dummy",
-        "CONFIG_PATH": "config.yaml"
+        "CONFIG_PATH": "config.yaml",
+        "START_WITH_WINDOWS": False
     }
 
 def save_settings(settings):
@@ -40,7 +41,7 @@ class SettingsUI:
         self.create_widgets()
 
     def create_widgets(self):
-        self.root.geometry("450x600")
+        self.root.geometry("450x650")
         padding = {'padx': 10, 'pady': 2}
 
         container = ttk.Frame(self.root)
@@ -90,6 +91,10 @@ class SettingsUI:
         self.config_path.insert(0, self.settings.get("CONFIG_PATH", "config.yaml"))
         self.config_path.pack(fill='x', **padding)
 
+        # Start with Windows
+        self.start_with_windows_var = tk.BooleanVar(value=self.settings.get("START_WITH_WINDOWS", False))
+        ttk.Checkbutton(container, text="Start with Windows", variable=self.start_with_windows_var).pack(fill='x', **padding)
+
         # Save Button
         ttk.Button(container, text="Save Settings", command=self.save).pack(pady=20)
 
@@ -101,6 +106,7 @@ class SettingsUI:
         self.settings["CEREBRAS_API_KEY"] = self.cerebras_key.get()
         self.settings["GLOBAL_EXCLUSIONS"] = self.exclusions.get()
         self.settings["CONFIG_PATH"] = self.config_path.get()
+        self.settings["START_WITH_WINDOWS"] = self.start_with_windows_var.get()
         try:
             self.settings["MIN_PARAMETERS"] = int(self.min_params.get())
         except ValueError:
