@@ -14,6 +14,7 @@ import settings_ui
 import process_manager
 import log_viewer
 import dashboard_ui
+import query_ui
 
 class LiteLLMControlPanel:
     def __init__(self):
@@ -89,6 +90,8 @@ class LiteLLMControlPanel:
 
     def on_quit(self, icon, item):
         self.running = False
+        if self.settings.get("AUTO_MANAGE_LITELLM", True):
+            self.process_mgr.stop()
         icon.stop()
 
     def toggle_auto_pilot(self, icon, item):
@@ -159,6 +162,12 @@ class LiteLLMControlPanel:
             ui = dashboard_ui.DashboardUI(self)
             ui.run()
         threading.Thread(target=run_dashboard, daemon=True).start()
+
+    def show_query(self, icon=None, item=None):
+        def run_query():
+            ui = query_ui.QueryUI(self.settings)
+            ui.run()
+        threading.Thread(target=run_query, daemon=True).start()
 
     def view_config(self, icon, item):
         import os
@@ -244,6 +253,9 @@ class LiteLLMControlPanel:
 
     def build_menu(self):
         menu_items = []
+
+        menu_items.append(item("Quick Query", self.show_query))
+        menu_items.append(pystray.Menu.SEPARATOR)
 
         # Active Model Status
         active_model_name = "None"
@@ -382,6 +394,10 @@ class LiteLLMControlPanel:
             self.notify(f"The background worker has crashed: {e}. Please restart the application.", "Critical Error")
 
     def run(self):
+        # Start LiteLLM if configured
+        if self.settings.get("AUTO_MANAGE_LITELLM", True):
+            self.process_mgr.start()
+
         # Start background thread
         threading.Thread(target=self.run_async_loop, daemon=True).start()
 

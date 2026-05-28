@@ -23,6 +23,7 @@ def load_settings():
         "GLOBAL_EXCLUSIONS": "-preview, -base, vision, dummy",
         "CONFIG_PATH": "config.yaml",
         "INTERFACE_URL": "http://localhost:4000",
+        "AUTO_MANAGE_LITELLM": True,
         "START_WITH_WINDOWS": False,
         "ENABLE_NOTIFICATIONS": True,
         "SIZE_WEIGHT": 0.6,
@@ -101,6 +102,10 @@ class SettingsUI:
         self.interface_url.insert(0, self.settings.get("INTERFACE_URL", "http://localhost:4000"))
         self.interface_url.pack(fill='x', **padding)
 
+        # Lifecycle
+        self.auto_manage_var = tk.BooleanVar(value=self.settings.get("AUTO_MANAGE_LITELLM", True))
+        ttk.Checkbutton(container, text="Auto-Manage LiteLLM Proxy (Start/Stop with App)", variable=self.auto_manage_var).pack(fill='x', **padding)
+
         # Start with Windows
         self.start_with_windows_var = tk.BooleanVar(value=self.settings.get("START_WITH_WINDOWS", False))
         ttk.Checkbutton(container, text="Start with Windows", variable=self.start_with_windows_var).pack(fill='x', **padding)
@@ -140,6 +145,7 @@ class SettingsUI:
         self.settings["GLOBAL_EXCLUSIONS"] = self.exclusions.get()
         self.settings["CONFIG_PATH"] = self.config_path.get()
         self.settings["INTERFACE_URL"] = self.interface_url.get()
+        self.settings["AUTO_MANAGE_LITELLM"] = self.auto_manage_var.get()
         self.settings["START_WITH_WINDOWS"] = self.start_with_windows_var.get()
         self.settings["ENABLE_NOTIFICATIONS"] = self.enable_notifications_var.get()
         self.settings["SIZE_WEIGHT"] = float(self.size_weight.get())

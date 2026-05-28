@@ -1,5 +1,12 @@
 # Changelog: LiteLLM Control Panel
 
+## [1.1.0] - 2024-06-06
+### Added
+- Quick Query UI: Integrated a minimalist chat window for direct interaction with the active model.
+- Streaming Support: Real-time response streaming in the Quick Query window.
+- Lifecycle Automation: Option to automatically start and stop the LiteLLM proxy with the Control Panel.
+- UX Refinements: Added Quick Query to the top of the tray menu for instant access.
+
 ## [1.0.0] - 2024-06-05
 ### Added
 - Official 1.0.0 Release!
