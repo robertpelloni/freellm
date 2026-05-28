@@ -34,19 +34,25 @@ class LiteLLMControlPanel:
         self.config_path = self.settings.get("CONFIG_PATH", HERMES_CONFIG_PATH)
         self.process_mgr = process_manager.LiteLLMProcess(config_path=self.config_path)
 
-        # Filter out empty API keys to avoid "Illegal header value" errors
-        api_keys = {
-            k: v for k, v in {
-                "openrouter": self.settings.get("OPENROUTER_API_KEY", ""),
-                "groq": self.settings.get("GROQ_API_KEY", ""),
-                "together": self.settings.get("TOGETHER_API_KEY", ""),
-                "deepinfra": self.settings.get("DEEPINFRA_API_KEY", ""),
-                "cerebras": self.settings.get("CEREBRAS_API_KEY", ""),
-                "github": self.settings.get("GITHUB_API_KEY", ""),
-                "huggingface": self.settings.get("HUGGINGFACE_API_KEY", ""),
-                "nvidia": self.settings.get("NVIDIA_API_KEY", ""),
-            }.items() if v
+        # Load API keys: settings first, then fall back to environment variables
+        import os
+        _env_map = {
+            "openrouter": "OPENROUTER_API_KEY",
+            "groq": "GROQ_API_KEY",
+            "together": "TOGETHER_API_KEY",
+            "deepinfra": "DEEPINFRA_API_KEY",
+            "cerebras": "CEREBRAS_API_KEY",
+            "github": "GITHUB_TOKEN",
+            "huggingface": "HUGGINGFACE_API_KEY",
+            "nvidia": "NVIDIA_NIM_API_KEY",
         }
+        api_keys = {}
+        for provider, env_name in _env_map.items():
+            key = self.settings.get(f"{provider.upper()}_API_KEY", "") if provider != "github" else self.settings.get("GITHUB_API_KEY", "")
+            if not key:
+                key = os.environ.get(env_name, "")
+            if key:
+                api_keys[provider] = key
 
         weights = {
             "size": float(self.settings.get("SIZE_WEIGHT", 0.6)),
@@ -313,18 +319,26 @@ class LiteLLMControlPanel:
         else:
             startup.remove_from_startup()
 
-        self.engine.api_keys = {
-            k: v for k, v in {
-                "openrouter": self.settings.get("OPENROUTER_API_KEY", ""),
-                "groq": self.settings.get("GROQ_API_KEY", ""),
-                "together": self.settings.get("TOGETHER_API_KEY", ""),
-                "deepinfra": self.settings.get("DEEPINFRA_API_KEY", ""),
-                "cerebras": self.settings.get("CEREBRAS_API_KEY", ""),
-                "github": self.settings.get("GITHUB_API_KEY", ""),
-                "huggingface": self.settings.get("HUGGINGFACE_API_KEY", ""),
-                "nvidia": self.settings.get("NVIDIA_API_KEY", ""),
-            }.items() if v
+        # Reload API keys with env var fallback
+        import os as _os
+        _env_map = {
+            "openrouter": "OPENROUTER_API_KEY",
+            "groq": "GROQ_API_KEY",
+            "together": "TOGETHER_API_KEY",
+            "deepinfra": "DEEPINFRA_API_KEY",
+            "cerebras": "CEREBRAS_API_KEY",
+            "github": "GITHUB_TOKEN",
+            "huggingface": "HUGGINGFACE_API_KEY",
+            "nvidia": "NVIDIA_NIM_API_KEY",
         }
+        new_api_keys = {}
+        for provider, env_name in _env_map.items():
+            key = self.settings.get(f"{provider.upper()}_API_KEY", "") if provider != "github" else self.settings.get("GITHUB_API_KEY", "")
+            if not key:
+                key = _os.environ.get(env_name, "")
+            if key:
+                new_api_keys[provider] = key
+        self.engine.api_keys = new_api_keys
         self.engine.base_urls = {
             "openrouter": self.settings.get("OPENROUTER_BASE_URL", ""),
             "groq": self.settings.get("GROQ_BASE_URL", ""),
