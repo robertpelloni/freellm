@@ -3,10 +3,12 @@ from tkinter import scrolledtext, ttk
 import threading
 
 class LogViewer:
-    def __init__(self, process_mgr):
+    def __init__(self, process_mgr=None, engine=None):
         self.process_mgr = process_mgr
+        self.engine = engine
         self.root = tk.Tk()
-        self.root.title("LiteLLM Process Logs")
+        title = "LiteLLM Process Logs" if process_mgr else "Model Engine Benchmarking Logs"
+        self.root.title(title)
         self.root.geometry("900x700")
 
         self.create_widgets()
@@ -15,7 +17,10 @@ class LogViewer:
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
 
         # Start log polling
-        threading.Thread(target=self.poll_logs, daemon=True).start()
+        if self.process_mgr:
+            threading.Thread(target=self.poll_logs, daemon=True).start()
+        elif self.engine:
+            threading.Thread(target=self.poll_engine_logs, daemon=True).start()
 
     def create_widgets(self):
         # Toolbar
@@ -51,25 +56,33 @@ class LogViewer:
                 self.log_area.insert(tk.END, line)
         self.log_area.see(tk.END)
 
-        self.running = True
-        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
-
-        # Start log polling
-        threading.Thread(target=self.poll_logs, daemon=True).start()
-
     def on_close(self):
         self.running = False
         self.root.destroy()
 
     def poll_logs(self):
+        import time
         while self.running:
-            if self.process_mgr.process and self.process_mgr.process.stdout:
+            if self.process_mgr and self.process_mgr.process and self.process_mgr.process.stdout:
                 line = self.process_mgr.process.stdout.readline()
                 if line:
                     self.root.after(0, self.append_log, line)
             else:
-                import time
                 time.sleep(1)
+
+    def poll_engine_logs(self):
+        """Polls the ModelEngine log queue for new entries."""
+        import time
+        last_log_id = -1
+        while self.running:
+            if self.engine:
+                # Thread-safe snapshot of the queue
+                current_logs = list(self.engine.log_queue)
+                for log_id, line in current_logs:
+                    if log_id > last_log_id:
+                        self.root.after(0, self.append_log, line)
+                        last_log_id = log_id
+            time.sleep(0.5)
 
     def append_log(self, message):
         self.full_logs.append(message)

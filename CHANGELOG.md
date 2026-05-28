@@ -1,5 +1,23 @@
 # Changelog: LiteLLM Control Panel
 
+## [2.1.1] - 2024-06-15
+### Added
+- Dynamic Hugging Face Discovery: The engine now fetches text-generation models directly from HF API.
+- Live Engine Logs: New log viewer specifically for monitoring benchmarking and ranking events in real-time.
+- Multi-Log Support: Separated "Proxy Logs" and "Engine Logs" in the LiteLLM Control menu.
+
+### Fixed
+- Fixed bug where `log_viewer.py` would start redundant polling threads on every filter application.
+- Renamed internal parameter extraction method to align with the test suite.
+- Fixed log viewer stalling after 1000 lines by using a more robust ID-based tracking system.
+- Restored inadvertently removed features: Model Leaderboard, Probe Cleanup, and Env Var API key fallbacks.
+
+## [2.1.0] - 2024-06-14
+### Added
+- Complete known models integration.
+- Exclusions from settings.
+- Models management UI.
+
 ## [1.4.0] - 2024-06-09
 ### Added
 - Advanced Log Viewer: Added live search, filtering, and data management tools.

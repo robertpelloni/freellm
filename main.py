@@ -35,6 +35,7 @@ class LiteLLMControlPanel:
         self.process_mgr = process_manager.LiteLLMProcess(config_path=self.config_path)
 
         # Load API keys: settings first, then fall back to environment variables
+        # Filter out empty API keys to avoid "Illegal header value" errors
         import os
         _env_map = {
             "openrouter": "OPENROUTER_API_KEY",
@@ -292,7 +293,7 @@ class LiteLLMControlPanel:
 
     def launch_litellm(self, icon, item):
         if self.process_mgr.start(env=self.get_litellm_env()):
-            self.notify("LiteLLM Proxy started.", "Process Update")
+            self.notify("LiteLLM Proxy started successfully.", "Process Update")
         else:
             self.notify("Failed to start LiteLLM Proxy.", "Process Error")
         self.update_tray_status()
@@ -311,7 +312,13 @@ class LiteLLMControlPanel:
 
     def show_logs(self, icon, item):
         def run_logs():
-            viewer = log_viewer.LogViewer(self.process_mgr)
+            viewer = log_viewer.LogViewer(process_mgr=self.process_mgr)
+            viewer.run()
+        threading.Thread(target=run_logs, daemon=True).start()
+
+    def show_engine_logs(self, icon, item):
+        def run_logs():
+            viewer = log_viewer.LogViewer(engine=self.engine)
             viewer.run()
         threading.Thread(target=run_logs, daemon=True).start()
 
@@ -404,8 +411,8 @@ class LiteLLMControlPanel:
         self.engine.min_params = int(self.settings.get("MIN_PARAMETERS", 100))
         engine.GLOBAL_EXCLUSIONS = [x.strip() for x in self.settings.get("GLOBAL_EXCLUSIONS", "").split(",") if x.strip()]
         self.primary_count = int(self.settings.get("PRIMARY_COUNT", 5))
-        self.notify("Settings saved and applied.", "Configuration Update")
 
+        self.notify("Settings saved and applied.", "Configuration Update")
         asyncio.run_coroutine_threadsafe(self.refresh_logic(), self.loop)
 
     # ── Model Selection & Reordering ──────────────────────────────────────
@@ -568,11 +575,12 @@ class LiteLLMControlPanel:
         if self.icon:
             self.icon.menu = self.build_menu()
         self.update_tray_status()
+
         if self.ranked_models:
             best = self.ranked_models[0]
             lat = best.get('latency', 0)
-            lat_str = f"{lat:.2f}s" if lat > 0 else "?"
-            self.notify(f"Refresh complete. Top: {best['id']} ({lat_str})", "Sync Complete")
+            self.notify(f"Refresh complete. Top model: {best['id']} ({lat:.2f}s)", "Sync Complete")
+
         print("Refresh complete.")
         return True
 
@@ -604,7 +612,8 @@ class LiteLLMControlPanel:
             item("Start Proxy", self.launch_litellm, enabled=not is_running),
             item("Stop Proxy", self.stop_litellm, enabled=is_running),
             item("Restart Proxy", self.restart_litellm, enabled=is_running),
-            item("View Logs", self.show_logs),
+            item("View Proxy Logs", self.show_logs),
+            item("View Engine Logs", self.show_engine_logs),
             item("View Config", self.view_config),
         ]
         menu_items.append(item("LiteLLM Control", pystray.Menu(*control_items)))
@@ -711,7 +720,7 @@ class LiteLLMControlPanel:
             elif auto_manage:
                 print("LiteLLM process stopped unexpectedly. Attempting restart...")
                 self.notify("LiteLLM process stopped. Attempting restart...", "Process Alert")
-                self.process_mgr.start()
+                self.process_mgr.start(env=self.get_litellm_env())
             await asyncio.sleep(60)
 
     async def background_worker(self):
@@ -760,13 +769,6 @@ class LiteLLMControlPanel:
         )
         # Set primary click action to open the LLM interface
         self.icon.action = self.launch_interface
-
-        # Update tray tooltip after icon starts (use a short delayed call)
-        def _delayed_update():
-            import time
-            time.sleep(1)
-            self.update_tray_status()
-        threading.Thread(target=_delayed_update, daemon=True).start()
         self.icon.run()
 
 
