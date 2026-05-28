@@ -1,5 +1,12 @@
 # Changelog: LiteLLM Control Panel
 
+## [0.5.0] - 2024-05-31
+### Added
+- Real-time Log Viewer for LiteLLM proxy process.
+- Status indicator (Running/Stopped) in the system tray menu.
+- Integrated "Start with Windows" toggle in the Settings GUI.
+- Improved process management and status reporting.
+
 ## [0.4.0] - 2024-05-30
 ### Added
 - LiteLLM process management: Launch and Stop the proxy directly from the system tray.
