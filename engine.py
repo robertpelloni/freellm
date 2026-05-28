@@ -13,6 +13,9 @@ DEEPINFRA_MODELS_URL = "https://api.deepinfra.com/v1/openai/models"
 CEREBRAS_MODELS_URL = "https://api.cerebras.ai/v1/models"
 OLLAMA_MODELS_URL = "http://localhost:11434/api/tags"
 LM_STUDIO_MODELS_URL = "http://localhost:1234/v1/models"
+GITHUB_MODELS_URL = "https://models.inference.ai.azure.com/models"
+HF_MODELS_URL = "https://api-inference.huggingface.co/models"
+NVIDIA_MODELS_URL = "https://integrate.api.nvidia.com/v1/models"
 MIN_PARAMETERS_BILLIONS = 100
 # These are defaults, will be overridden by settings
 SIZE_WEIGHT = 0.6
@@ -230,6 +233,65 @@ class ModelEngine:
         except: pass
         return []
 
+    async def fetch_github_models(self) -> List[Dict[str, Any]]:
+        """Fetches models from GitHub Models (Azure Inference)."""
+        api_key = self.api_keys.get("github")
+        if not api_key: return []
+        url = self.base_urls.get("github", GITHUB_MODELS_URL)
+        try:
+            response = await self.client.get(url, headers={"Authorization": f"Bearer {api_key}"})
+            if response.status_code == 200:
+                data = response.json()
+                models = []
+                for m in data:
+                    name = m.get("name")
+                    params = self.extract_parameters(m)
+                    if params >= self.min_params:
+                        models.append({
+                            "id": name,
+                            "provider": "github",
+                            "parameters": params
+                        })
+                return models
+        except: pass
+        return []
+
+    async def fetch_huggingface_models(self) -> List[Dict[str, Any]]:
+        """Fetches models from Hugging Face Inference API."""
+        api_key = self.api_keys.get("huggingface")
+        if not api_key: return []
+        # HF has thousands of models, usually we want to search for specific large ones
+        # For simplicity, we just return a few known large ones if API keys exist
+        # because the full /models endpoint is too slow or limited.
+        # This is a placeholder for a more complex search if needed.
+        return [
+            {"id": "meta-llama/Llama-3.1-405B-Instruct", "provider": "huggingface", "parameters": 405},
+            {"id": "meta-llama/Llama-3.1-70B-Instruct", "provider": "huggingface", "parameters": 70}
+        ]
+
+    async def fetch_nvidia_models(self) -> List[Dict[str, Any]]:
+        """Fetches models from NVIDIA NIM."""
+        api_key = self.api_keys.get("nvidia")
+        if not api_key: return []
+        url = self.base_urls.get("nvidia", NVIDIA_MODELS_URL)
+        try:
+            response = await self.client.get(url, headers={"Authorization": f"Bearer {api_key}"})
+            if response.status_code == 200:
+                data = response.json().get("data", [])
+                models = []
+                for m in data:
+                    name = m.get("id")
+                    params = self.extract_parameters(m)
+                    if params >= self.min_params:
+                        models.append({
+                            "id": name,
+                            "provider": "nvidia",
+                            "parameters": params
+                        })
+                return models
+        except: pass
+        return []
+
     async def get_ranked_models(self) -> List[Dict[str, Any]]:
         """Main loop to fetch, test, and rank models."""
         # 0. Check which providers are still considered "free"
@@ -272,6 +334,21 @@ class ModelEngine:
 
         lms_models = await self.fetch_lm_studio_models()
         candidates.extend(lms_models)
+
+        if "github" not in blacklisted_providers:
+            github_models = await self.fetch_github_models()
+            candidates.extend(github_models)
+            database.update_provider_cycle("github", len(github_models) > 0)
+
+        if "huggingface" not in blacklisted_providers:
+            hf_models = await self.fetch_huggingface_models()
+            candidates.extend(hf_models)
+            database.update_provider_cycle("huggingface", len(hf_models) > 0)
+
+        if "nvidia" not in blacklisted_providers:
+            nvidia_models = await self.fetch_nvidia_models()
+            candidates.extend(nvidia_models)
+            database.update_provider_cycle("nvidia", len(nvidia_models) > 0)
 
         # 2. Filter using database skip/failure status
         conn = database.sqlite3.connect(database.DB_NAME)
@@ -386,6 +463,13 @@ class ModelEngine:
             url = (base or "http://localhost:11434") + "/v1/chat/completions"
         elif provider == "lm_studio":
             url = (base or "http://localhost:1234") + "/v1/chat/completions"
+        elif provider == "github":
+            url = (base or "https://models.inference.ai.azure.com") + "/chat/completions"
+        elif provider == "huggingface":
+            # For HF, it depends on the model's inference endpoint
+            url = f"https://api-inference.huggingface.co/models/{model_id}/v1/chat/completions"
+        elif provider == "nvidia":
+            url = (base or "https://integrate.api.nvidia.com/v1") + "/chat/completions"
         else:
             return None
 

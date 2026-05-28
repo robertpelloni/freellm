@@ -29,7 +29,10 @@ class LiteLLMControlPanel:
             "groq": self.settings.get("GROQ_API_KEY", ""),
             "together": self.settings.get("TOGETHER_API_KEY", ""),
             "deepinfra": self.settings.get("DEEPINFRA_API_KEY", ""),
-            "cerebras": self.settings.get("CEREBRAS_API_KEY", "")
+            "cerebras": self.settings.get("CEREBRAS_API_KEY", ""),
+            "github": self.settings.get("GITHUB_API_KEY", ""),
+            "huggingface": self.settings.get("HUGGINGFACE_API_KEY", ""),
+            "nvidia": self.settings.get("NVIDIA_API_KEY", "")
         }
         weights = {
             "size": float(self.settings.get("SIZE_WEIGHT", 0.6)),
@@ -271,7 +274,10 @@ class LiteLLMControlPanel:
             "groq": self.settings.get("GROQ_API_KEY", ""),
             "together": self.settings.get("TOGETHER_API_KEY", ""),
             "deepinfra": self.settings.get("DEEPINFRA_API_KEY", ""),
-            "cerebras": self.settings.get("CEREBRAS_API_KEY", "")
+            "cerebras": self.settings.get("CEREBRAS_API_KEY", ""),
+            "github": self.settings.get("GITHUB_API_KEY", ""),
+            "huggingface": self.settings.get("HUGGINGFACE_API_KEY", ""),
+            "nvidia": self.settings.get("NVIDIA_API_KEY", "")
         }
         self.engine.base_urls = {
             "openrouter": self.settings.get("OPENROUTER_BASE_URL", ""),
@@ -279,6 +285,9 @@ class LiteLLMControlPanel:
             "together": self.settings.get("TOGETHER_BASE_URL", ""),
             "deepinfra": self.settings.get("DEEPINFRA_BASE_URL", ""),
             "cerebras": self.settings.get("CEREBRAS_BASE_URL", ""),
+            "github": self.settings.get("GITHUB_BASE_URL", ""),
+            "huggingface": self.settings.get("HUGGINGFACE_BASE_URL", ""),
+            "nvidia": self.settings.get("NVIDIA_BASE_URL", ""),
             "ollama": self.settings.get("OLLAMA_BASE_URL", ""),
             "lm_studio": self.settings.get("LM_STUDIO_BASE_URL", "")
         }
