@@ -123,7 +123,7 @@ class SettingsUI:
         ttk.Label(keys_frame, text="Ollama URL:").grid(row=8, column=0, sticky='w', **padding)
         self.ollama_url = ttk.Entry(keys_frame)
         self.ollama_url.insert(0, self.settings.get("OLLAMA_BASE_URL", "http://localhost:11434"))
-        self.ollama_url.grid(row=5, column=1, columnspan=3, sticky='ew', **padding)
+        self.ollama_url.grid(row=8, column=1, columnspan=3, sticky='ew', **padding)
 
         ttk.Label(keys_frame, text="LM Studio URL:").grid(row=9, column=0, sticky='w', **padding)
         self.lms_url = ttk.Entry(keys_frame)
