@@ -1,26 +1,24 @@
 # Session Handoff: LiteLLM Control Panel
 
 ## Overview
-Successfully implemented the LiteLLM Control Panel v1.0.0. The application is now a feature-complete, production-ready Windows utility for autonomous LLM routing.
+Successfully implemented the LiteLLM Control Panel v1.3.0. The application is now a high-performance Windows tray utility that provides centralized, autonomous routing and management for various LLM backends.
 
 ## Completed Tasks
-- **Official 1.0.0 Release:** Finalized all core features and documentation.
-- **Dashboard & Monitoring:** Implemented a full Dashboard UI for ranking oversight and a Log Viewer for the LiteLLM proxy.
-- **Multi-Provider support:** Integrated 7+ providers including OpenRouter, Groq, Together, DeepInfra, Cerebras, Ollama, and LM Studio.
-- **Adaptive Routing:** Autonomous "Auto-Pilot" mode using a weighted scoring algorithm (Size, Context, Latency) and persistent health tracking.
-- **Visual Feedback:** Dynamic icon color coding and live tooltips for real-time status at a glance.
-- **Maintenance Tools:** Added quick-actions to clear skips, blacklist, and reset provider performance stats.
-- **Zero-Friction UX:** 1-2 step setup with `setup.bat` and `start.bat`, and click-to-open tray functionality.
+- **Direct Control:** Added Start, Stop, and Restart proxy actions directly to the top-level tray menu.
+- **Rich Interaction:** Integrated a Quick Query window for instant model testing and a comprehensive Dashboard for ranking oversight.
+- **Multi-Provider support:** Native integration for 7+ cloud and local providers (OpenRouter, Groq, Together, etc.).
+- **OS-Level Integration:** System tray notifications, "Start with Windows" support, and automated proxy lifecycle management.
+- **Adaptive Intelligence:** Persistent performance tracking and autonomous "Auto-Pilot" routing using configurable weighted scoring.
 
 ## Current Project State
-- Robust multi-threaded architecture separating Win32 UI, benchmarking, and settings management.
+- High-stability multi-threaded architecture (Win32 UI + Async Worker).
+- Unified settings management and data persistence.
 - Verified build for production distribution via PyInstaller.
-- Persistent state tracking and error-recovery mechanisms.
 
 ## Future Steps
-- Add support for per-model usage limits and rate-limiting indicators.
-- Implement "Smart Cache" to optimize benchmarking for static local models.
-- Add support for custom benchmarking prompt/test strings.
+- Implement "Smart Cache" to reduce redundant benchmarks for static local models.
+- Add per-provider rate-limiting and cost-tracking indicators.
+- Refine the Log Viewer with search, filtering, and session export.
 
 ## Notable Discoveries
 - `ruamel.yaml` is essential for preserving user-added comments in `config.yaml`.

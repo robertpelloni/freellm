@@ -152,6 +152,9 @@ class LiteLLMControlPanel:
     def stop_litellm(self, icon, item):
         self.process_mgr.stop()
 
+    def restart_litellm(self, icon, item):
+        self.process_mgr.restart()
+
     def show_logs(self, icon, item):
         def run_logs():
             viewer = log_viewer.LogViewer(self.process_mgr)
@@ -261,74 +264,58 @@ class LiteLLMControlPanel:
     def build_menu(self):
         menu_items = []
 
+        # 1. Primary Actions & Status
+        is_running = self.process_mgr.is_running()
+        status_text = "Running" if is_running else "Stopped"
+        active_model_name = self.ranked_models[0]['id'] if self.ranked_models else "None"
+
+        menu_items.append(item(f"LiteLLM: {status_text} | Active: {active_model_name}", lambda: None, enabled=False))
+        menu_items.append(pystray.Menu.SEPARATOR)
+
         menu_items.append(item("Open LLM Interface", self.launch_interface))
         menu_items.append(item("Quick Query", self.show_query))
-        menu_items.append(item("System Status", self.show_status))
-        menu_items.append(pystray.Menu.SEPARATOR)
-
-        # Active Model Status
-        active_model_name = "None"
-        if self.ranked_models:
-            active_model_name = self.ranked_models[0]['id']
-        menu_items.append(item(f"Active Model: {active_model_name}", lambda: None, enabled=False))
-
-        if self.last_benchmark_time:
-            time_str = self.last_benchmark_time.strftime("%H:%M:%S")
-            menu_items.append(item(f"Last Benchmark: {time_str}", lambda: None, enabled=False))
-
-        menu_items.append(pystray.Menu.SEPARATOR)
-
-        # Default action
         menu_items.append(item("Show Dashboard", self.show_dashboard, default=True))
-        menu_items.append(pystray.Menu.SEPARATOR)
-
-        # Provider Health & Quick Toggle
-        provider_stats = database.get_provider_status()
-        if provider_stats:
-            p_menu_items = []
-            toggle_items = []
-            for name, is_free, empty_cycles, last_check in provider_stats:
-                status = "Online" if is_free else "Offline"
-                p_label = f"{name}: {status}"
-                p_menu_items.append(item(p_label, lambda: None, enabled=False))
-
-                toggle_items.append(item(name, self.toggle_provider(name), checked=lambda item, ns=is_free: ns))
-
-            menu_items.append(item("Provider Status", pystray.Menu(*p_menu_items)))
-            menu_items.append(item("Quick Enable Providers", pystray.Menu(*toggle_items)))
+        menu_items.append(item("System Status", self.show_status))
 
         menu_items.append(pystray.Menu.SEPARATOR)
 
-        # Top 10 models
+        # 2. LiteLLM Session Control
+        control_items = [
+            item("Start Proxy", self.launch_litellm, enabled=not is_running),
+            item("Stop Proxy", self.stop_litellm, enabled=is_running),
+            item("Restart Proxy", self.restart_litellm, enabled=is_running),
+            item("View Logs", self.show_logs),
+            item("View Config", self.view_config)
+        ]
+        menu_items.append(item("LiteLLM Control", pystray.Menu(*control_items)))
+
+        # 3. Routing & Ranking
+        ranking_items = []
         if self.ranked_models:
-            menu_items.append(item("Top Models:", lambda: None, enabled=False))
             for m in self.ranked_models:
                 model_label = f"{m['id']} ({m['parameters']}B) - {m['latency']:.2f}s"
-
-                # Submenu for each model
                 submenu = pystray.Menu(
                     item("Switch to Model", self.select_model(m['id'], m['provider'])),
                     item("Skip (24h)", self.skip_model(m['id'])),
                     item("Blacklist", self.blacklist_model(m['id']))
                 )
-
-                menu_items.append(item(model_label, submenu))
+                ranking_items.append(item(model_label, submenu))
         else:
-            menu_items.append(item("Discovering models...", lambda: None, enabled=False))
+            ranking_items.append(item("Benchmarking models...", lambda: None, enabled=False))
 
-        menu_items.append(pystray.Menu.SEPARATOR)
+        menu_items.append(item("Model Rankings", pystray.Menu(*ranking_items)))
         menu_items.append(item("Auto-Pilot Mode", self.toggle_auto_pilot, checked=lambda item: self.auto_pilot))
         menu_items.append(item("Refresh Now", self.refresh_now))
 
-        status_text = "Status: Running" if self.process_mgr.is_running() else "Status: Stopped"
-        instance_menu = pystray.Menu(
-            item(status_text, lambda: None, enabled=False),
-            item("Launch", self.launch_litellm, enabled=lambda item: not self.process_mgr.is_running()),
-            item("Stop", self.stop_litellm, enabled=lambda item: self.process_mgr.is_running()),
-            item("View Logs", self.show_logs),
-            item("View Config", self.view_config)
-        )
-        menu_items.append(item("LiteLLM Instance", instance_menu))
+        menu_items.append(pystray.Menu.SEPARATOR)
+
+        # 4. Providers & Maintenance
+        provider_stats = database.get_provider_status()
+        if provider_stats:
+            toggle_items = []
+            for name, is_free, empty_cycles, last_check in provider_stats:
+                toggle_items.append(item(name, self.toggle_provider(name), checked=lambda item, ns=is_free: ns))
+            menu_items.append(item("Enable Providers", pystray.Menu(*toggle_items)))
 
         menu_items.append(item("Settings", self.show_settings))
 
