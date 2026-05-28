@@ -28,8 +28,9 @@ LATENCY_WEIGHT = 0.2
 # Regex to extract parameter size (e.g., 405b, 70B, 120b-instruct)
 SIZE_PATTERN = re.compile(r'(\d+)[bB]')
 
-# Global exclusions — configurable from settings. No longer defaults to "-preview".
-GLOBAL_EXCLUSIONS = ["-base", "vision", "dummy"]
+# Global exclusions — set by main.py from settings at runtime.
+# Default is deliberately minimal; -preview is NOT excluded by default.
+GLOBAL_EXCLUSIONS = ["-base", "dummy"]
 
 
 class ModelEngine:
@@ -413,6 +414,34 @@ class ModelEngine:
                             continue
 
             valid_candidates.append(m)
+
+        # 2b. Force-in known good models that the provider fetches may have missed
+        # (e.g. models with no parameter count in their ID, or provider API gaps)
+        known_to_force = []
+        for litellm_id, spec in known_models.all_models().items():
+            # Skip if already in candidates
+            if any(c['id'] == litellm_id or c['id'] == litellm_id.split('/', 1)[-1] for c in valid_candidates):
+                continue
+            # Skip if blacklisted in DB
+            db_stat = db_status.get(litellm_id) or db_status.get(litellm_id.split('/', 1)[-1])
+            if db_stat and db_stat[4]:  # is_blacklisted
+                continue
+            # Only force models from providers we have API keys for
+            prov = spec.get("provider", "")
+            if prov and prov not in self.api_keys:
+                continue
+            known_to_force.append({
+                "id": litellm_id,
+                "provider": prov,
+                "parameters": spec["params"],
+                "context_length": spec["ctx"],
+                "score": 0,
+                "latency": 0,
+            })
+
+        if known_to_force:
+            print(f"Force-including {len(known_to_force)} known good models not found in provider fetches.")
+            valid_candidates.extend(known_to_force)
 
         # 3. Benchmark in parallel (limited concurrency)
         tasks = []

@@ -2,6 +2,7 @@ import os
 import shutil
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
+import known_models
 
 yaml = YAML()
 yaml.preserve_quotes = True
@@ -231,6 +232,37 @@ def apply_ranked_models(ranked_models: list, path=DEFAULT_CONFIG_PATH,
             preserved_count += 1
     if preserved_count:
         print(f"Preserved {preserved_count} existing models not in this benchmark.")
+
+    # Ensure all known good models from our DB are present in the config
+    # even if they weren't in the benchmark or existing config
+    current_models_in_config = set()
+    for entry in model_list:
+        if entry is None:
+            continue
+        lp = entry.get("litellm_params", {})
+        if lp:
+            current_models_in_config.add(lp.get("model", ""))
+    injected_count = 0
+    for litellm_id, spec in known_models.all_models().items():
+        if litellm_id in current_models_in_config:
+            continue
+        # Only inject if we have the provider's API key in the config already
+        # (i.e. the provider is configured)
+        info = PROVIDER_MAP.get(spec.get("provider", ""), {})
+        env_key = info.get("env_key", "")
+        if not env_key:
+            continue  # Local providers like ollama - skip auto-injection
+        # Build entry from known model spec
+        new_entry = _build_model_entry(
+            litellm_id.split("/", 1)[-1] if "/" in litellm_id else litellm_id,
+            spec.get("provider", ""),
+            fallback_group,
+            timeout=30,
+        )
+        model_list.append(new_entry)
+        injected_count += 1
+    if injected_count:
+        print(f"Injected {injected_count} known good models from database.")
 
     # Build full config as CommentedMap
     config = CommentedMap()
