@@ -1,19 +1,19 @@
 # TODO: LiteLLM Control Panel
 
 ## Immediate Tasks
-- [ ] Initialize `database.py` with SQLite schema.
-- [ ] Implement `engine.py` with OpenRouter/Groq/Together AI integration.
-- [ ] Create `config_manager.py` using `ruamel.yaml`.
-- [ ] Build the basic `pystray` loop in `main.py`.
+- [ ] Implement a "Live Logs" or "Event Stream" viewer in the settings UI to monitor benchmarking in real-time.
+- [ ] Refine the Log Viewer with search and filtering capabilities.
 
 ## Features
-- [ ] Parameter size regex parser for various model ID formats.
-- [ ] TTFT (Time-To-First-Token) benchmarking logic.
-- [ ] Scoring algorithm implementation.
-- [ ] System tray menu for "Auto-Pilot" and "Manual Selection".
-- [ ] Blacklist/Skip functionality in the UI.
+- [x] Parameter size regex parser for various model ID formats.
+- [x] TTFT (Time-To-First-Token) benchmarking logic.
+- [x] Scoring algorithm implementation with Context Length weighting.
+- [x] System tray menu for "Auto-Pilot" and "Manual Selection".
+- [x] Blacklist/Skip functionality in the UI.
+- [x] Local provider support (Ollama, LM Studio).
+- [x] Automatic Fallback health monitor.
 
 ## Bug Fixes & Refinements
-- [ ] Ensure background threads don't block the UI.
-- [ ] Handle API rate limits (429) gracefully.
-- [ ] Verify LiteLLM hot-reloading works as expected.
+- [x] Ensure background threads don't block the UI.
+- [x] Handle API rate limits (429) gracefully.
+- [x] Verify LiteLLM hot-reloading works as expected.

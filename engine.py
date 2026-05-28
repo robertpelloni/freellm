@@ -11,8 +11,12 @@ GROQ_MODELS_URL = "https://api.groq.com/openai/v1/models"
 TOGETHER_MODELS_URL = "https://api.together.xyz/v1/models"
 DEEPINFRA_MODELS_URL = "https://api.deepinfra.com/v1/openai/models"
 CEREBRAS_MODELS_URL = "https://api.cerebras.ai/v1/models"
+OLLAMA_MODELS_URL = "http://localhost:11434/api/tags"
+LM_STUDIO_MODELS_URL = "http://localhost:1234/v1/models"
 MIN_PARAMETERS_BILLIONS = 100
-SIZE_WEIGHT = 0.8
+# These are defaults, will be overridden by settings
+SIZE_WEIGHT = 0.6
+CONTEXT_WEIGHT = 0.2
 LATENCY_WEIGHT = 0.2
 
 # Regex to extract parameter size (e.g., 405b, 70B, 120b-instruct)
@@ -22,9 +26,10 @@ SIZE_PATTERN = re.compile(r'(\d+)[bB]')
 GLOBAL_EXCLUSIONS = ["-preview", "-base", "vision", "dummy"]
 
 class ModelEngine:
-    def __init__(self, api_keys: Dict[str, str], min_params: int = MIN_PARAMETERS_BILLIONS):
+    def __init__(self, api_keys: Dict[str, str], min_params: int = MIN_PARAMETERS_BILLIONS, weights: Dict[str, float] = None):
         self.api_keys = api_keys
         self.min_params = min_params
+        self.weights = weights or {"size": 0.6, "context": 0.2, "latency": 0.2}
         self.client = httpx.AsyncClient(timeout=10.0)
 
     async def fetch_openrouter_models(self) -> List[Dict[str, Any]]:
@@ -81,14 +86,14 @@ class ModelEngine:
 
         return 0
 
-    def calculate_score(self, params: int, latency: float) -> float:
+    def calculate_score(self, params: int, latency: float, context_length: int = 4096) -> float:
         """
-        Calculates the model score based on parameters and latency.
-        Score = (0.8 * (Parameter_Size / 100)) - (0.2 * TTFT_in_Seconds)
+        Calculates the model score based on parameters, context length, and latency.
         """
-        size_score = (params / 100.0) * SIZE_WEIGHT
-        latency_penalty = latency * LATENCY_WEIGHT
-        return size_score - latency_penalty
+        size_score = (params / 100.0) * self.weights.get("size", 0.6)
+        context_score = (min(context_length, 128000) / 128000.0) * self.weights.get("context", 0.2)
+        latency_penalty = latency * self.weights.get("latency", 0.2)
+        return size_score + context_score - latency_penalty
 
     async def fetch_groq_models(self) -> List[Dict[str, Any]]:
         """Fetches models from Groq."""
@@ -176,6 +181,47 @@ class ModelEngine:
         except: pass
         return []
 
+    async def fetch_ollama_models(self) -> List[Dict[str, Any]]:
+        """Fetches models from Ollama."""
+        try:
+            response = await self.client.get(OLLAMA_MODELS_URL)
+            if response.status_code == 200:
+                data = response.json().get("models", [])
+                models = []
+                for m in data:
+                    name = m.get("name")
+                    params = self.extract_parameters(m)
+                    # For local models, we might be more lenient or user wants to see them
+                    if params >= self.min_params or params == 0:
+                        models.append({
+                            "id": name,
+                            "provider": "ollama",
+                            "parameters": params
+                        })
+                return models
+        except: pass
+        return []
+
+    async def fetch_lm_studio_models(self) -> List[Dict[str, Any]]:
+        """Fetches models from LM Studio."""
+        try:
+            response = await self.client.get(LM_STUDIO_MODELS_URL)
+            if response.status_code == 200:
+                data = response.json().get("data", [])
+                models = []
+                for m in data:
+                    name = m.get("id")
+                    params = self.extract_parameters(m)
+                    if params >= self.min_params or params == 0:
+                        models.append({
+                            "id": name,
+                            "provider": "lm_studio",
+                            "parameters": params
+                        })
+                return models
+        except: pass
+        return []
+
     async def get_ranked_models(self) -> List[Dict[str, Any]]:
         """Main loop to fetch, test, and rank models."""
         # 0. Check which providers are still considered "free"
@@ -211,6 +257,13 @@ class ModelEngine:
             cerebras_models = await self.fetch_cerebras_models()
             candidates.extend(cerebras_models)
             database.update_provider_cycle("cerebras", len(cerebras_models) > 0)
+
+        # Local providers
+        ollama_models = await self.fetch_ollama_models()
+        candidates.extend(ollama_models)
+
+        lms_models = await self.fetch_lm_studio_models()
+        candidates.extend(lms_models)
 
         # 2. Filter using database skip/failure status
         conn = database.sqlite3.connect(database.DB_NAME)
@@ -259,7 +312,7 @@ class ModelEngine:
         ranked_list = []
         for m, latency in zip(valid_candidates, latencies):
             if latency is not None:
-                score = self.calculate_score(m['parameters'], latency)
+                score = self.calculate_score(m['parameters'], latency, m.get('context_length', 4096))
                 m['latency'] = latency
                 m['score'] = score
                 ranked_list.append(m)
@@ -282,6 +335,10 @@ class ModelEngine:
             url = "https://api.deepinfra.com/v1/openai/chat/completions"
         elif provider == "cerebras":
             url = "https://api.cerebras.ai/v1/chat/completions"
+        elif provider == "ollama":
+            url = "http://localhost:11434/v1/chat/completions"
+        elif provider == "lm_studio":
+            url = "http://localhost:1234/v1/chat/completions"
         else:
             return None
 

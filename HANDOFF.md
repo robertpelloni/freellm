@@ -1,27 +1,25 @@
 # Session Handoff: LiteLLM Control Panel
 
 ## Overview
-Successfully implemented the LiteLLM Control Panel v0.5.0. The application is now a mature Windows utility with integrated process management, real-time logging, and deep OS integration.
+Successfully implemented the LiteLLM Control Panel v0.6.0. The application is now a comprehensive model routing solution with support for both cloud and local providers, adaptive fallback mechanisms, and advanced scoring logic.
 
 ## Completed Tasks
-- **Log Viewer:** Implemented `log_viewer.py` for real-time monitoring of the LiteLLM proxy output directly from the tray.
-- **Process Management:** Added "Launch", "Stop", and "View Logs" functionality with a "Running/Stopped" status indicator.
-- **Settings Integration:** Integrated the "Start with Windows" toggle and "LiteLLM Config Path" directly into the Tkinter Settings GUI.
-- **Multi-Provider support:** Direct API integration for OpenRouter, Groq, Together AI, DeepInfra, and Cerebras.
-- **Adaptive Learning:** 2h isolation for failing models, 24h manual skips, and permanent blacklisting with persistent SQLite storage.
-- **Visual Status:** Dynamic icon color coding (Green/Yellow/Red) based on live TTFT latency.
-- **Accessibility:** 1-2 step setup and execution via `setup.bat` and `start.bat`.
+- **Local Providers:** Added automatic detection and benchmarking for Ollama and LM Studio.
+- **Context-Length Weighting:** Integrated context length into the scoring algorithm (0.6 Size, 0.2 Context, 0.2 Latency by default).
+- **Automatic Fallback:** Implemented a health monitor that triggers a model switch if LiteLLM becomes unresponsive.
+- **Configurable Weights:** Exposed scoring weights for Size, Context, and Latency in the Settings GUI.
+- **Log Viewer:** Implemented `log_viewer.py` for real-time monitoring of the LiteLLM proxy output.
+- **OS Integration:** Full Windows support with "Start with Windows" and process management.
 
 ## Current Project State
-- Complete decoupled architecture: Blocking Win32 tray loop in main thread, Benchmarking in async background thread, GUI in separate daemon threads.
-- Robust configuration management via `ruamel.yaml` and `settings.json`.
-- Verified with 9 unit tests and PyInstaller build confirmation.
+- Mature multi-threaded architecture with persistent health tracking.
+- Supports 7+ cloud/local providers.
+- Verified buildability with PyInstaller.
 
 ## Future Steps (for next session)
-- Add context-length weighting as a user-configurable factor in the scoring algorithm.
-- Implement automatic fallback to the next-best model if the active model returns an error.
-- Add support for local providers (Ollama/LM Studio) via auto-detection.
-- Refine the Log Viewer with search and filtering capabilities.
+- Implement a detailed "Live Logs" or "Event Stream" viewer in the settings UI.
+- Refine the Log Viewer with search, filtering, and auto-scrolling options.
+- Add support for more granular health checks (e.g. per-model endpoint ping).
 
 ## Notable Discoveries
 - `ruamel.yaml` is essential for preserving user-added comments in `config.yaml`.

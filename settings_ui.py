@@ -22,7 +22,10 @@ def load_settings():
         "AUTO_PILOT": False,
         "GLOBAL_EXCLUSIONS": "-preview, -base, vision, dummy",
         "CONFIG_PATH": "config.yaml",
-        "START_WITH_WINDOWS": False
+        "START_WITH_WINDOWS": False,
+        "SIZE_WEIGHT": 0.6,
+        "CONTEXT_WEIGHT": 0.2,
+        "LATENCY_WEIGHT": 0.2
     }
 
 def save_settings(settings):
@@ -41,7 +44,7 @@ class SettingsUI:
         self.create_widgets()
 
     def create_widgets(self):
-        self.root.geometry("450x650")
+        self.root.geometry("450x750")
         padding = {'padx': 10, 'pady': 2}
 
         container = ttk.Frame(self.root)
@@ -95,6 +98,25 @@ class SettingsUI:
         self.start_with_windows_var = tk.BooleanVar(value=self.settings.get("START_WITH_WINDOWS", False))
         ttk.Checkbutton(container, text="Start with Windows", variable=self.start_with_windows_var).pack(fill='x', **padding)
 
+        # Weights
+        weights_frame = ttk.LabelFrame(container, text="Scoring Weights")
+        weights_frame.pack(fill='x', **padding)
+
+        ttk.Label(weights_frame, text="Size:").grid(row=0, column=0, **padding)
+        self.size_weight = ttk.Spinbox(weights_frame, from_=0, to=1, increment=0.1, width=5)
+        self.size_weight.set(self.settings.get("SIZE_WEIGHT", 0.6))
+        self.size_weight.grid(row=0, column=1, **padding)
+
+        ttk.Label(weights_frame, text="Context:").grid(row=0, column=2, **padding)
+        self.context_weight = ttk.Spinbox(weights_frame, from_=0, to=1, increment=0.1, width=5)
+        self.context_weight.set(self.settings.get("CONTEXT_WEIGHT", 0.2))
+        self.context_weight.grid(row=0, column=3, **padding)
+
+        ttk.Label(weights_frame, text="Latency:").grid(row=0, column=4, **padding)
+        self.latency_weight = ttk.Spinbox(weights_frame, from_=0, to=1, increment=0.1, width=5)
+        self.latency_weight.set(self.settings.get("LATENCY_WEIGHT", 0.2))
+        self.latency_weight.grid(row=0, column=5, **padding)
+
         # Save Button
         ttk.Button(container, text="Save Settings", command=self.save).pack(pady=20)
 
@@ -107,6 +129,9 @@ class SettingsUI:
         self.settings["GLOBAL_EXCLUSIONS"] = self.exclusions.get()
         self.settings["CONFIG_PATH"] = self.config_path.get()
         self.settings["START_WITH_WINDOWS"] = self.start_with_windows_var.get()
+        self.settings["SIZE_WEIGHT"] = float(self.size_weight.get())
+        self.settings["CONTEXT_WEIGHT"] = float(self.context_weight.get())
+        self.settings["LATENCY_WEIGHT"] = float(self.latency_weight.get())
         try:
             self.settings["MIN_PARAMETERS"] = int(self.min_params.get())
         except ValueError:

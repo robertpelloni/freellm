@@ -47,3 +47,13 @@ class LiteLLMProcess:
 
     def is_running(self):
         return self.process is not None and self.process.poll() is None
+
+    def check_health(self):
+        """Checks if the LiteLLM proxy is responding."""
+        import httpx
+        try:
+            # Standard LiteLLM health check or model list
+            response = httpx.get("http://localhost:4000/health", timeout=2.0)
+            return response.status_code == 200
+        except:
+            return False
