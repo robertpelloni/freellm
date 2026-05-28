@@ -23,6 +23,7 @@ def load_settings():
         "GLOBAL_EXCLUSIONS": "-preview, -base, vision, dummy",
         "CONFIG_PATH": "config.yaml",
         "START_WITH_WINDOWS": False,
+        "ENABLE_NOTIFICATIONS": True,
         "SIZE_WEIGHT": 0.6,
         "CONTEXT_WEIGHT": 0.2,
         "LATENCY_WEIGHT": 0.2
@@ -98,6 +99,10 @@ class SettingsUI:
         self.start_with_windows_var = tk.BooleanVar(value=self.settings.get("START_WITH_WINDOWS", False))
         ttk.Checkbutton(container, text="Start with Windows", variable=self.start_with_windows_var).pack(fill='x', **padding)
 
+        # Enable Notifications
+        self.enable_notifications_var = tk.BooleanVar(value=self.settings.get("ENABLE_NOTIFICATIONS", True))
+        ttk.Checkbutton(container, text="Enable Notifications", variable=self.enable_notifications_var).pack(fill='x', **padding)
+
         # Weights
         weights_frame = ttk.LabelFrame(container, text="Scoring Weights")
         weights_frame.pack(fill='x', **padding)
@@ -129,6 +134,7 @@ class SettingsUI:
         self.settings["GLOBAL_EXCLUSIONS"] = self.exclusions.get()
         self.settings["CONFIG_PATH"] = self.config_path.get()
         self.settings["START_WITH_WINDOWS"] = self.start_with_windows_var.get()
+        self.settings["ENABLE_NOTIFICATIONS"] = self.enable_notifications_var.get()
         self.settings["SIZE_WEIGHT"] = float(self.size_weight.get())
         self.settings["CONTEXT_WEIGHT"] = float(self.context_weight.get())
         self.settings["LATENCY_WEIGHT"] = float(self.latency_weight.get())

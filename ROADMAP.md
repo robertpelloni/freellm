@@ -10,11 +10,13 @@
 - [ ] Circuit breaker implementation to isolate failing endpoints.
 
 ## Milestone 3: System Tray UI & User Control
-- [ ] Non-blocking Windows System Tray implementation.
-- [ ] Dynamic menu rendering for top-tier models and manual overrides.
-- [ ] "Auto-Pilot" mode for autonomous model switching.
+- [x] Non-blocking Windows System Tray implementation.
+- [x] Dynamic menu rendering for top-tier models and manual overrides.
+- [x] "Auto-Pilot" mode for autonomous model switching.
+- [x] Real-time status indicators and log viewing.
 
 ## Milestone 4: Deployment & Optimization
-- [ ] Windows startup integration.
-- [ ] Standalone executable packaging with PyInstaller.
-- [ ] Adaptive learning for provider efficiency.
+- [x] Windows startup integration.
+- [x] Standalone executable packaging with PyInstaller.
+- [x] Adaptive learning for provider efficiency.
+- [x] Background notification system for alerts and updates.
