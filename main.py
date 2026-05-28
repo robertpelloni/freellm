@@ -704,6 +704,12 @@ class LiteLLMControlPanel:
             "LiteLLM Router",
             menu=self.build_menu(),
         )
+        # Update tray tooltip after icon starts (use a short delayed call)
+        def _delayed_update():
+            import time
+            time.sleep(1)
+            self.update_tray_status()
+        threading.Thread(target=_delayed_update, daemon=True).start()
         self.icon.run()
 
 

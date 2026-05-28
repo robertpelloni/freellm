@@ -16,7 +16,9 @@ LM_STUDIO_MODELS_URL = "http://localhost:1234/v1/models"
 GITHUB_MODELS_URL = "https://models.inference.ai.azure.com/models"
 HF_MODELS_URL = "https://api-inference.huggingface.co/models"
 NVIDIA_MODELS_URL = "https://integrate.api.nvidia.com/v1/models"
+
 MIN_PARAMETERS_BILLIONS = 100
+
 # These are defaults, will be overridden by settings
 SIZE_WEIGHT = 0.6
 CONTEXT_WEIGHT = 0.2
@@ -25,11 +27,108 @@ LATENCY_WEIGHT = 0.2
 # Regex to extract parameter size (e.g., 405b, 70B, 120b-instruct)
 SIZE_PATTERN = re.compile(r'(\d+)[bB]')
 
-# Global exclusions for models we don't want
-GLOBAL_EXCLUSIONS = ["-preview", "-base", "vision", "dummy"]
+# Global exclusions — configurable from settings. No longer defaults to "-preview".
+GLOBAL_EXCLUSIONS = ["-base", "vision", "dummy"]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# KNOWN GOOD MODELS — built-in metadata for models whose IDs don't contain
+# parameter counts or whose provider metadata is incomplete.
+# key: model_id (as it appears in the API), value: {parameters, context_length}
+# ─────────────────────────────────────────────────────────────────────────────
+KNOWN_GOOD_MODELS: Dict[str, Dict[str, Any]] = {
+    # ── OpenAI / GitHub Models ──
+    "gpt-4.1-mini":           {"parameters": 200, "context_length": 1048576},
+    "gpt-4.1":                {"parameters": 200, "context_length": 1048576},
+    "gpt-4o":                 {"parameters": 200, "context_length": 128000},
+    "gpt-4o-mini":            {"parameters": 200, "context_length": 128000},
+    "o3-mini":                {"parameters": 200, "context_length": 200000},
+    "o4-mini":                {"parameters": 200, "context_length": 200000},
+    "o3":                     {"parameters": 200, "context_length": 200000},
+    "o1-mini":                {"parameters": 200, "context_length": 128000},
+    "o1":                     {"parameters": 200, "context_length": 200000},
+    "gpt-oss-120b:free":      {"parameters": 120, "context_length": 131072},
+    "gpt-oss-20b:free":       {"parameters": 20,  "context_length": 131072},
+
+    # ── Mistral ──
+    "mistral-large-3-675b-instruct-2512": {"parameters": 675, "context_length": 128000},
+    "mistral-large-3-2411":               {"parameters": 675, "context_length": 128000},
+    "mistral-large-2407":                 {"parameters": 123, "context_length": 128000},
+    "mistral-small-2501":                 {"parameters": 22,  "context_length": 128000},
+    "codestral-2501":                     {"parameters": 22,  "context_length": 256000},
+    "pixtral-large-2412":                 {"parameters": 123, "context_length": 128000},
+    "ministral-8b-2412":                  {"parameters": 8,   "context_length": 128000},
+
+    # ── Meta Llama ──
+    "Meta-Llama-3.1-405B-Instruct":       {"parameters": 405, "context_length": 131072},
+    "Meta-Llama-3.1-70B-Instruct":        {"parameters": 70,  "context_length": 131072},
+    "Meta-Llama-3.1-8B-Instruct":         {"parameters": 8,   "context_length": 131072},
+    "Meta-Llama-3.3-70B-Instruct":        {"parameters": 70,  "context_length": 128000},
+    "llama-3.3-70b-instruct":             {"parameters": 70,  "context_length": 128000},
+    "llama-4-maverick-17b-128e-instruct": {"parameters": 400, "context_length": 1048576},
+    "llama-4-scout-17b-16e-instruct":     {"parameters": 109, "context_length": 1048576},
+
+    # ── DeepSeek ──
+    "DeepSeek-V3-0324":                   {"parameters": 671, "context_length": 65536},
+    "deepseek-r1-0528":                   {"parameters": 671, "context_length": 65536},
+    "deepseek-r1":                        {"parameters": 671, "context_length": 65536},
+    "deepseek-v4-flash:free":             {"parameters": 284, "context_length": 131072},
+    "deepseek-chat":                      {"parameters": 671, "context_length": 65536},
+    "deepseek-reasoner":                  {"parameters": 671, "context_length": 65536},
+
+    # ── Qwen ──
+    "qwen3-coder-480b-a35b-instruct":     {"parameters": 480, "context_length": 128000},
+    "qwen3-coder:free":                   {"parameters": 480, "context_length": 128000},
+    "qwen3.5-397b-a17b":                  {"parameters": 397, "context_length": 128000},
+    "qwen2.5-72b-instruct":               {"parameters": 72,  "context_length": 131072},
+    "qwen2.5-coder-32b-instruct":         {"parameters": 32,  "context_length": 131072},
+    "qwen-qwq-32b":                       {"parameters": 32,  "context_length": 131072},
+
+    # ── NVIDIA Nemotron ──
+    "nvidia/nemotron-3-super-120b-a12b:free": {"parameters": 120, "context_length": 1048576},
+    "nvidia/nemotron-3-super-120b-a12b":      {"parameters": 120, "context_length": 1048576},
+    "nvidia/nemotron-nano-12b-v2-vl:free":    {"parameters": 12,  "context_length": 128000},
+
+    # ── Moonshot / Kimi ──
+    "moonshotai/kimi-k2.6":               {"parameters": 200, "context_length": 131072},
+    "moonshotai/kimi-k2":                 {"parameters": 200, "context_length": 131072},
+    "kimi-latest":                        {"parameters": 200, "context_length": 131072},
+
+    # ── Other ──
+    "owl-alpha":                          {"parameters": 200, "context_length": 1048576},
+    "liquid/lfm-2.5-1.2b-instruct:free":  {"parameters": 1,   "context_length": 32768},
+    "hermes-3-llama-3.1-405b:free":       {"parameters": 405, "context_length": 131072},
+}
+
+
+def _lookup_known_model(model_id: str) -> Optional[Dict[str, Any]]:
+    """Look up a model ID in the known good models list.
+    Handles both bare IDs and prefixed IDs (e.g. 'openrouter/nvidia/...').
+    """
+    # Direct match
+    if model_id in KNOWN_GOOD_MODELS:
+        return KNOWN_GOOD_MODELS[model_id]
+
+    # Try stripping provider prefixes: openrouter/..., nvidia_nim/..., etc.
+    for prefix in ["openrouter/", "nvidia_nim/", "github/", "groq/",
+                   "together/", "deepinfra/", "cerebras/", "huggingface/",
+                   "ollama/", "openai/"]:
+        if model_id.startswith(prefix):
+            stripped = model_id[len(prefix):]
+            if stripped in KNOWN_GOOD_MODELS:
+                return KNOWN_GOOD_MODELS[stripped]
+
+    # Try matching the tail of the ID (e.g. 'nvidia/nemotron-3-super-120b-a12b')
+    for known_id, info in KNOWN_GOOD_MODELS.items():
+        if model_id.endswith(known_id):
+            return info
+
+    return None
+
 
 class ModelEngine:
-    def __init__(self, api_keys: Dict[str, str], min_params: int = MIN_PARAMETERS_BILLIONS, weights: Dict[str, float] = None, base_urls: Dict[str, str] = None):
+    def __init__(self, api_keys: Dict[str, str], min_params: int = MIN_PARAMETERS_BILLIONS,
+                 weights: Dict[str, float] = None, base_urls: Dict[str, str] = None):
         self.api_keys = api_keys
         self.min_params = min_params
         self.weights = weights or {"size": 0.6, "context": 0.2, "latency": 0.2}
@@ -44,57 +143,62 @@ class ModelEngine:
             if response.status_code != 200:
                 print(f"Error fetching OpenRouter models: {response.status_code}")
                 return []
-
             data = response.json()
             all_models = data.get("data", [])
-
             free_models = []
             for m in all_models:
                 pricing = m.get("pricing", {})
-                # Check if free
                 if float(pricing.get("prompt", 0)) == 0 and float(pricing.get("completion", 0)) == 0:
                     model_id = m.get("id")
-                    params = self.extract_parameters(m)
-
-                    if params >= MIN_PARAMETERS_BILLIONS:
+                    params, context = self._resolve_model_metadata(m, "openrouter")
+                    if params >= self.min_params:
                         free_models.append({
                             "id": model_id,
                             "provider": "openrouter",
                             "parameters": params,
-                            "context_length": m.get("context_length", 0)
+                            "context_length": context,
                         })
             return free_models
         except Exception as e:
             print(f"Exception fetching OpenRouter models: {e}")
             return []
 
-    def extract_parameters(self, model_data: Dict[str, Any]) -> int:
-        """Extracts parameter count from model ID or description."""
+    def _resolve_model_metadata(self, model_data: Dict[str, Any],
+                                 provider: str) -> tuple:
+        """Resolve parameters and context_length for a model.
+        Uses known good models list first, then falls back to regex extraction.
+        Returns (parameters, context_length).
+        """
+        model_id = model_data.get("id", "")
+        context_length = model_data.get("context_length", 0)
+
+        # 1. Check known good models
+        known = _lookup_known_model(model_id)
+        if known:
+            params = known["parameters"]
+            ctx = known.get("context_length", 0)
+            # If API provided context_length and it's larger, trust it
+            if context_length and context_length > ctx:
+                ctx = context_length
+            return params, ctx
+
+        # 2. Regex extraction from ID, name, description
+        params = self._extract_parameters_from_text(model_data)
+        return params, context_length
+
+    def _extract_parameters_from_text(self, model_data: Dict[str, Any]) -> int:
+        """Extract parameter count from model ID, name, or description via regex."""
         model_id = model_data.get("id", "")
         name = model_data.get("name", "")
         description = model_data.get("description", "")
-
-        # Try metadata if available (some APIs provide it)
-        # OpenRouter doesn't always have it in a structured way in the list view
-
-        # Search in ID, name, and description
         for text in [model_id, name, description]:
             match = SIZE_PATTERN.search(text)
             if match:
                 return int(match.group(1))
-
-        # Hardcoded fallback for known large models if regex fails
-        if "llama-3.1-405b" in model_id:
-            return 405
-        if "llama-3-70b" in model_id:
-            return 70 # Below threshold but just for example
-
         return 0
 
     def calculate_score(self, params: int, latency: float, context_length: int = 4096) -> float:
-        """
-        Calculates the model score based on parameters, context length, and latency.
-        """
+        """Calculates the model score based on parameters, context length, and latency."""
         size_score = (params / 100.0) * self.weights.get("size", 0.6)
         context_score = (min(context_length, 128000) / 128000.0) * self.weights.get("context", 0.2)
         latency_penalty = latency * self.weights.get("latency", 0.2)
@@ -103,7 +207,8 @@ class ModelEngine:
     async def fetch_groq_models(self) -> List[Dict[str, Any]]:
         """Fetches models from Groq."""
         api_key = self.api_keys.get("groq")
-        if not api_key: return []
+        if not api_key:
+            return []
         url = self.base_urls.get("groq", GROQ_MODELS_URL.replace("/models", "")) + "/models"
         try:
             response = await self.client.get(url, headers={"Authorization": f"Bearer {api_key}"})
@@ -111,23 +216,24 @@ class ModelEngine:
                 data = response.json().get("data", [])
                 models = []
                 for m in data:
-                    # Groq doesn't easily flag 'free' in the models list, but many are free-tier.
-                    # For this tool, we assume the user knows their tier or we just test them.
-                    params = self.extract_parameters(m)
+                    params, context = self._resolve_model_metadata(m, "groq")
                     if params >= self.min_params:
                         models.append({
                             "id": m.get("id"),
                             "provider": "groq",
-                            "parameters": params
+                            "parameters": params,
+                            "context_length": context,
                         })
                 return models
-        except: pass
+        except:
+            pass
         return []
 
     async def fetch_together_models(self) -> List[Dict[str, Any]]:
         """Fetches models from Together AI."""
         api_key = self.api_keys.get("together")
-        if not api_key: return []
+        if not api_key:
+            return []
         url = self.base_urls.get("together", TOGETHER_MODELS_URL.replace("/v1/models", "")) + "/v1/models"
         try:
             response = await self.client.get(url, headers={"Authorization": f"Bearer {api_key}"})
@@ -135,21 +241,24 @@ class ModelEngine:
                 data = response.json()
                 models = []
                 for m in data:
-                    params = self.extract_parameters(m)
+                    params, context = self._resolve_model_metadata(m, "together")
                     if params >= self.min_params:
                         models.append({
                             "id": m.get("id"),
                             "provider": "together",
-                            "parameters": params
+                            "parameters": params,
+                            "context_length": context,
                         })
                 return models
-        except: pass
+        except:
+            pass
         return []
 
     async def fetch_deepinfra_models(self) -> List[Dict[str, Any]]:
         """Fetches models from DeepInfra."""
         api_key = self.api_keys.get("deepinfra")
-        if not api_key: return []
+        if not api_key:
+            return []
         url = self.base_urls.get("deepinfra", DEEPINFRA_MODELS_URL.replace("/openai/models", "")) + "/openai/models"
         try:
             response = await self.client.get(url, headers={"Authorization": f"Bearer {api_key}"})
@@ -157,21 +266,24 @@ class ModelEngine:
                 data = response.json().get("data", [])
                 models = []
                 for m in data:
-                    params = self.extract_parameters(m)
+                    params, context = self._resolve_model_metadata(m, "deepinfra")
                     if params >= self.min_params:
                         models.append({
                             "id": m.get("id"),
                             "provider": "deepinfra",
-                            "parameters": params
+                            "parameters": params,
+                            "context_length": context,
                         })
                 return models
-        except: pass
+        except:
+            pass
         return []
 
     async def fetch_cerebras_models(self) -> List[Dict[str, Any]]:
         """Fetches models from Cerebras."""
         api_key = self.api_keys.get("cerebras")
-        if not api_key: return []
+        if not api_key:
+            return []
         url = self.base_urls.get("cerebras", CEREBRAS_MODELS_URL.replace("/models", "")) + "/models"
         try:
             response = await self.client.get(url, headers={"Authorization": f"Bearer {api_key}"})
@@ -179,15 +291,17 @@ class ModelEngine:
                 data = response.json().get("data", [])
                 models = []
                 for m in data:
-                    params = self.extract_parameters(m)
+                    params, context = self._resolve_model_metadata(m, "cerebras")
                     if params >= self.min_params:
                         models.append({
                             "id": m.get("id"),
                             "provider": "cerebras",
-                            "parameters": params
+                            "parameters": params,
+                            "context_length": context,
                         })
                 return models
-        except: pass
+        except:
+            pass
         return []
 
     async def fetch_ollama_models(self) -> List[Dict[str, Any]]:
@@ -200,16 +314,17 @@ class ModelEngine:
                 models = []
                 for m in data:
                     name = m.get("name")
-                    params = self.extract_parameters(m)
-                    # For local models, we might be more lenient or user wants to see them
+                    params, context = self._resolve_model_metadata(m, "ollama")
                     if params >= self.min_params or params == 0:
                         models.append({
                             "id": name,
                             "provider": "ollama",
-                            "parameters": params
+                            "parameters": params,
+                            "context_length": context,
                         })
                 return models
-        except: pass
+        except:
+            pass
         return []
 
     async def fetch_lm_studio_models(self) -> List[Dict[str, Any]]:
@@ -222,21 +337,24 @@ class ModelEngine:
                 models = []
                 for m in data:
                     name = m.get("id")
-                    params = self.extract_parameters(m)
+                    params, context = self._resolve_model_metadata(m, "lm_studio")
                     if params >= self.min_params or params == 0:
                         models.append({
                             "id": name,
                             "provider": "lm_studio",
-                            "parameters": params
+                            "parameters": params,
+                            "context_length": context,
                         })
                 return models
-        except: pass
+        except:
+            pass
         return []
 
     async def fetch_github_models(self) -> List[Dict[str, Any]]:
         """Fetches models from GitHub Models (Azure Inference)."""
         api_key = self.api_keys.get("github")
-        if not api_key: return []
+        if not api_key:
+            return []
         url = self.base_urls.get("github", GITHUB_MODELS_URL)
         try:
             response = await self.client.get(url, headers={"Authorization": f"Bearer {api_key}"})
@@ -245,34 +363,36 @@ class ModelEngine:
                 models = []
                 for m in data:
                     name = m.get("name")
-                    params = self.extract_parameters(m)
+                    params, context = self._resolve_model_metadata(m, "github")
                     if params >= self.min_params:
                         models.append({
                             "id": name,
                             "provider": "github",
-                            "parameters": params
+                            "parameters": params,
+                            "context_length": context,
                         })
                 return models
-        except: pass
+        except:
+            pass
         return []
 
     async def fetch_huggingface_models(self) -> List[Dict[str, Any]]:
         """Fetches models from Hugging Face Inference API."""
         api_key = self.api_keys.get("huggingface")
-        if not api_key: return []
-        # HF has thousands of models, usually we want to search for specific large ones
-        # For simplicity, we just return a few known large ones if API keys exist
-        # because the full /models endpoint is too slow or limited.
-        # This is a placeholder for a more complex search if needed.
+        if not api_key:
+            return []
         return [
-            {"id": "meta-llama/Llama-3.1-405B-Instruct", "provider": "huggingface", "parameters": 405},
-            {"id": "meta-llama/Llama-3.1-70B-Instruct", "provider": "huggingface", "parameters": 70}
+            {"id": "meta-llama/Llama-3.1-405B-Instruct", "provider": "huggingface",
+             "parameters": 405, "context_length": 131072},
+            {"id": "meta-llama/Llama-3.1-70B-Instruct", "provider": "huggingface",
+             "parameters": 70, "context_length": 131072},
         ]
 
     async def fetch_nvidia_models(self) -> List[Dict[str, Any]]:
         """Fetches models from NVIDIA NIM."""
         api_key = self.api_keys.get("nvidia")
-        if not api_key: return []
+        if not api_key:
+            return []
         url = self.base_urls.get("nvidia", NVIDIA_MODELS_URL)
         try:
             response = await self.client.get(url, headers={"Authorization": f"Bearer {api_key}"})
@@ -281,19 +401,22 @@ class ModelEngine:
                 models = []
                 for m in data:
                     name = m.get("id")
-                    params = self.extract_parameters(m)
+                    params, context = self._resolve_model_metadata(m, "nvidia")
                     if params >= self.min_params:
                         models.append({
                             "id": name,
                             "provider": "nvidia",
-                            "parameters": params
+                            "parameters": params,
+                            "context_length": context,
                         })
                 return models
-        except: pass
+        except:
+            pass
         return []
 
     async def get_ranked_models(self) -> List[Dict[str, Any]]:
         """Main loop to fetch, test, and rank models."""
+
         # 0. Check which providers are still considered "free"
         conn = database.sqlite3.connect(database.DB_NAME)
         cursor = conn.cursor()
@@ -303,6 +426,7 @@ class ModelEngine:
 
         # 1. Fetch from providers
         candidates = []
+
         if "openrouter" not in blacklisted_providers:
             or_models = await self.fetch_openrouter_models()
             candidates.extend(or_models)
@@ -331,7 +455,6 @@ class ModelEngine:
         # Local providers
         ollama_models = await self.fetch_ollama_models()
         candidates.extend(ollama_models)
-
         lms_models = await self.fetch_lm_studio_models()
         candidates.extend(lms_models)
 
@@ -359,25 +482,23 @@ class ModelEngine:
 
         valid_candidates = []
         now = database.datetime.datetime.now()
+
         for m in candidates:
-            # Global keyword exclusion check
+            # Global keyword exclusion check (configurable from settings)
             if any(exc in m['id'].lower() for exc in GLOBAL_EXCLUSIONS):
                 continue
 
             status = db_status.get(m['id'])
             if status:
-                skipped, skip_expiry, failures, retry_after, blacklisted = status
-
+                skipped, skip_expiry, failures, retry_after, blacklisted = status[:5]
                 if blacklisted:
                     continue
-
                 # Manual skip check
                 if skipped:
                     if skip_expiry:
                         expiry_dt = database.datetime.datetime.fromisoformat(skip_expiry) if isinstance(skip_expiry, str) else skip_expiry
                         if now < expiry_dt:
                             continue
-
                 # Circuit breaker check
                 if failures >= 3:
                     if retry_after:
@@ -388,11 +509,8 @@ class ModelEngine:
             valid_candidates.append(m)
 
         # 3. Benchmark in parallel (limited concurrency)
-        # Smart Cache: identify local models and check if they need benchmarking
         tasks = []
         benchmarking_models = []
-
-        now = database.datetime.datetime.now()
         cached_results = []
 
         for m in valid_candidates:
@@ -402,7 +520,7 @@ class ModelEngine:
             # Smart Cache: If local and benchmarked in the last 15 minutes, reuse latency
             if is_local and status:
                 last_success, avg_latency = status[5], status[6]
-                if last_success and avg_latency > 0:
+                if last_success and avg_latency and avg_latency > 0:
                     last_success_dt = database.datetime.datetime.fromisoformat(last_success) if isinstance(last_success, str) else last_success
                     if now - last_success_dt < database.datetime.timedelta(minutes=15):
                         cached_results.append((m, avg_latency))
@@ -414,14 +532,14 @@ class ModelEngine:
         latencies = await asyncio.gather(*tasks)
 
         ranked_list = []
+
         # Add benchmarking results
-        for m, latency in zip(valid_candidates, latencies):
+        for m, latency in zip(benchmarking_models, latencies):
             if latency is not None:
                 score = self.calculate_score(m['parameters'], latency, m.get('context_length', 4096))
                 m['latency'] = latency
                 m['score'] = score
                 ranked_list.append(m)
-                # Update DB
                 database.update_model_latency(m['id'], m['provider'], latency)
 
         # Add cached results
@@ -437,11 +555,10 @@ class ModelEngine:
 
     async def check_connectivity(self) -> bool:
         """Check if the internet is accessible by hitting reliable endpoints."""
-        # Try multiple endpoints — any success means we're online
         endpoints = [
-            "https://api.github.com/zen",      # Returns a GitHub aphorism, very reliable
-            "https://httpbin.org/status/200",  # Returns 200 OK
-            "https://openrouter.ai/api/v1/models",  # OpenRouter models list
+            "https://api.github.com/zen",
+            "https://httpbin.org/status/200",
+            "https://openrouter.ai/api/v1/models",
         ]
         for url in endpoints:
             try:
@@ -467,14 +584,12 @@ class ModelEngine:
         elif provider == "cerebras":
             url = (base or "https://api.cerebras.ai/v1") + "/chat/completions"
         elif provider == "ollama":
-            # Ollama /v1/chat/completions is usually at /v1/chat/completions or /api/chat
             url = (base or "http://localhost:11434") + "/v1/chat/completions"
         elif provider == "lm_studio":
             url = (base or "http://localhost:1234") + "/v1/chat/completions"
         elif provider == "github":
             url = (base or "https://models.inference.ai.azure.com") + "/chat/completions"
         elif provider == "huggingface":
-            # For HF, it depends on the model's inference endpoint
             url = f"https://api-inference.huggingface.co/models/{model_id}/v1/chat/completions"
         elif provider == "nvidia":
             url = (base or "https://integrate.api.nvidia.com/v1") + "/chat/completions"
@@ -483,22 +598,16 @@ class ModelEngine:
 
         api_key = self.api_keys.get(provider)
 
-        if not api_key and provider == "openrouter":
-            # Some models on OpenRouter are free without an API key?
-            # Actually, usually a key is required even for free models to track limits.
-            # But let's assume one is provided in the actual app.
-            pass
-
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        }
+        headers = {}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        headers["Content-Type"] = "application/json"
 
         payload = {
             "model": model_id,
             "messages": [{"role": "user", "content": "hi"}],
             "max_tokens": 1,
-            "stream": True # Streaming helps measure TTFT precisely
+            "stream": True
         }
 
         try:
@@ -521,21 +630,21 @@ class ModelEngine:
             print(f"Exception measuring latency for {model_id}: {e}")
             database.handle_test_failure(model_id, provider)
             return None
-
         return None
 
     async def close(self):
         await self.client.aclose()
 
+
 async def main():
-    # Simple test run
     engine = ModelEngine(api_keys={})
     print("Fetching models...")
     models = await engine.fetch_openrouter_models()
     print(f"Found {len(models)} free models >= 100B:")
     for m in models:
-        print(f" - {m['id']} ({m['parameters']}B)")
+        print(f" - {m['id']} ({m['parameters']}B, {m.get('context_length', 0)} ctx)")
     await engine.close()
+
 
 if __name__ == "__main__":
     asyncio.run(main())

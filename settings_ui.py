@@ -45,7 +45,7 @@ def load_settings():
         "LM_STUDIO_BASE_URL": "http://localhost:1234",
         "MIN_PARAMETERS": 100,
         "AUTO_PILOT": False,
-        "GLOBAL_EXCLUSIONS": "-preview, -base, vision, dummy",
+        "GLOBAL_EXCLUSIONS": "-base, vision, dummy",
         "CONFIG_PATH": "C:/Users/hyper/.hermes/litellm-config.yaml",
         "INTERFACE_URL": "http://localhost:4000",
         "AUTO_MANAGE_LITELLM": True,
@@ -142,7 +142,7 @@ class SettingsUI:
         # Global Exclusions
         ttk.Label(container, text="Global Exclusions (comma separated):").pack(fill='x', **padding)
         self.exclusions = ttk.Entry(container)
-        self.exclusions.insert(0, self.settings.get("GLOBAL_EXCLUSIONS", "-preview, -base, vision, dummy"))
+        self.exclusions.insert(0, self.settings.get("GLOBAL_EXCLUSIONS", "-base, vision, dummy"))
         self.exclusions.pack(fill='x', **padding)
 
         # Config Path
