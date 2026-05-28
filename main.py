@@ -51,6 +51,11 @@ class LiteLLMControlPanel:
         dc.ellipse([margin, margin, width-margin, height-margin], fill=color)
         return image
 
+    def notify(self, message, title="LiteLLM Router"):
+        if not self.icon or not self.settings.get("ENABLE_NOTIFICATIONS", True):
+            return
+        self.icon.notify(message, title)
+
     def update_icon_color(self):
         if not self.icon:
             return
@@ -176,7 +181,10 @@ class LiteLLMControlPanel:
 
         if auto_pilot and self.ranked_models:
             best = self.ranked_models[0]
+            # Check if current is different from best
+            # For simplicity, we just notify every time for now or we could check a state
             config_manager.apply_model_to_litellm(best['id'], best['provider'])
+            self.notify(f"Switched to {best['id']} ({best['provider']})", "Autonomous Model Switch")
 
         if self.icon:
             self.icon.menu = self.build_menu()
@@ -243,6 +251,7 @@ class LiteLLMControlPanel:
 
                 if consecutive_failures >= 3:
                     print("Active model seems unhealthy, triggering refresh/fallback...")
+                    self.notify("LiteLLM health check failed multiple times. Triggering fallback...", "Health Alert")
                     await self.refresh_logic(auto_pilot=self.auto_pilot)
                     consecutive_failures = 0
             await asyncio.sleep(60)
@@ -273,7 +282,12 @@ class LiteLLMControlPanel:
 
     def run_async_loop(self):
         asyncio.set_event_loop(self.loop)
-        self.loop.run_until_complete(self.background_worker())
+        try:
+            self.loop.run_until_complete(self.background_worker())
+        except Exception as e:
+            print(f"Critical error in async loop: {e}")
+            # Notify user of crash
+            self.notify(f"The background worker has crashed: {e}. Please restart the application.", "Critical Error")
 
     def run(self):
         # Start background thread

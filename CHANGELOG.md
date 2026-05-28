@@ -1,5 +1,12 @@
 # Changelog: LiteLLM Control Panel
 
+## [0.7.0] - 2024-06-02
+### Added
+- Background Notification System: Alerts for model switches, health failures, and crashes.
+- Notification toggle in Settings GUI.
+- Enhanced Persistence: Global exception handling in the background worker to prevent silent exits.
+- Improved reliability and user alerting.
+
 ## [0.6.0] - 2024-06-01
 ### Added
 - Local provider support: Automatically detect and benchmark Ollama and LM Studio models.
