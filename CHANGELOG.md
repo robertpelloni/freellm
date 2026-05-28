@@ -1,5 +1,11 @@
 # Changelog: LiteLLM Control Panel
 
+## [1.2.0] - 2024-06-07
+### Added
+- System Status Window: A centralized dashboard for LiteLLM proxy status, active model, and provider health.
+- UX Improvements: Prominent "Open LLM Interface" option and streamlined menu structure.
+- Enhanced Status Reporting: Integrated real-time monitoring into the status window.
+
 ## [1.1.0] - 2024-06-06
 ### Added
 - Quick Query UI: Integrated a minimalist chat window for direct interaction with the active model.
