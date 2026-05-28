@@ -18,6 +18,13 @@ def load_settings():
         "TOGETHER_API_KEY": "",
         "DEEPINFRA_API_KEY": "",
         "CEREBRAS_API_KEY": "",
+        "OPENROUTER_BASE_URL": "https://openrouter.ai/api/v1",
+        "GROQ_BASE_URL": "https://api.groq.com/openai/v1",
+        "TOGETHER_BASE_URL": "https://api.together.xyz",
+        "DEEPINFRA_BASE_URL": "https://api.deepinfra.com/v1/openai",
+        "CEREBRAS_BASE_URL": "https://api.cerebras.ai/v1",
+        "OLLAMA_BASE_URL": "http://localhost:11434",
+        "LM_STUDIO_BASE_URL": "http://localhost:1234",
         "MIN_PARAMETERS": 100,
         "AUTO_PILOT": False,
         "GLOBAL_EXCLUSIONS": "-preview, -base, vision, dummy",
@@ -49,34 +56,59 @@ class SettingsUI:
     def create_widgets(self):
         padding = {'padx': 10, 'pady': 2}
 
-        container = ttk.Frame(self.root)
-        container.pack(fill='both', expand=True, padx=10, pady=10)
+        # Use a canvas and scrollbar for the long settings form
+        canvas = tk.Canvas(self.root)
+        scrollbar = ttk.Scrollbar(self.root, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
 
-        # API Keys
-        ttk.Label(container, text="OpenRouter API Key:").pack(fill='x', **padding)
-        self.or_key = ttk.Entry(container, show="*")
-        self.or_key.insert(0, self.settings.get("OPENROUTER_API_KEY", ""))
-        self.or_key.pack(fill='x', **padding)
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(
+                scrollregion=canvas.bbox("all")
+            )
+        )
 
-        ttk.Label(container, text="Groq API Key:").pack(fill='x', **padding)
-        self.groq_key = ttk.Entry(container, show="*")
-        self.groq_key.insert(0, self.settings.get("GROQ_API_KEY", ""))
-        self.groq_key.pack(fill='x', **padding)
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
 
-        ttk.Label(container, text="Together API Key:").pack(fill='x', **padding)
-        self.together_key = ttk.Entry(container, show="*")
-        self.together_key.insert(0, self.settings.get("TOGETHER_API_KEY", ""))
-        self.together_key.pack(fill='x', **padding)
+        container = scrollable_frame
 
-        ttk.Label(container, text="DeepInfra API Key:").pack(fill='x', **padding)
-        self.deepinfra_key = ttk.Entry(container, show="*")
-        self.deepinfra_key.insert(0, self.settings.get("DEEPINFRA_API_KEY", ""))
-        self.deepinfra_key.pack(fill='x', **padding)
+        # API Keys and Base URLs
+        keys_frame = ttk.LabelFrame(container, text="Provider Configuration")
+        keys_frame.pack(fill='x', **padding)
 
-        ttk.Label(container, text="Cerebras API Key:").pack(fill='x', **padding)
-        self.cerebras_key = ttk.Entry(container, show="*")
-        self.cerebras_key.insert(0, self.settings.get("CEREBRAS_API_KEY", ""))
-        self.cerebras_key.pack(fill='x', **padding)
+        # Helper to add key + url
+        def add_provider_fields(frame, name, key_pref, url_pref, row):
+            ttk.Label(frame, text=f"{name} Key:").grid(row=row, column=0, sticky='w', **padding)
+            ent_key = ttk.Entry(frame, show="*")
+            ent_key.insert(0, self.settings.get(key_pref, ""))
+            ent_key.grid(row=row, column=1, sticky='ew', **padding)
+
+            ttk.Label(frame, text="URL:").grid(row=row, column=2, sticky='w', **padding)
+            ent_url = ttk.Entry(frame)
+            ent_url.insert(0, self.settings.get(url_pref, ""))
+            ent_url.grid(row=row, column=3, sticky='ew', **padding)
+            return ent_key, ent_url
+
+        self.or_key, self.or_url = add_provider_fields(keys_frame, "OpenRouter", "OPENROUTER_API_KEY", "OPENROUTER_BASE_URL", 0)
+        self.groq_key, self.groq_url = add_provider_fields(keys_frame, "Groq", "GROQ_API_KEY", "GROQ_BASE_URL", 1)
+        self.together_key, self.together_url = add_provider_fields(keys_frame, "Together", "TOGETHER_API_KEY", "TOGETHER_BASE_URL", 2)
+        self.deepinfra_key, self.deepinfra_url = add_provider_fields(keys_frame, "DeepInfra", "DEEPINFRA_API_KEY", "DEEPINFRA_BASE_URL", 3)
+        self.cerebras_key, self.cerebras_url = add_provider_fields(keys_frame, "Cerebras", "CEREBRAS_API_KEY", "CEREBRAS_BASE_URL", 4)
+
+        # Local URLs
+        ttk.Label(keys_frame, text="Ollama URL:").grid(row=5, column=0, sticky='w', **padding)
+        self.ollama_url = ttk.Entry(keys_frame)
+        self.ollama_url.insert(0, self.settings.get("OLLAMA_BASE_URL", "http://localhost:11434"))
+        self.ollama_url.grid(row=5, column=1, columnspan=3, sticky='ew', **padding)
+
+        ttk.Label(keys_frame, text="LM Studio URL:").grid(row=6, column=0, sticky='w', **padding)
+        self.lms_url = ttk.Entry(keys_frame)
+        self.lms_url.insert(0, self.settings.get("LM_STUDIO_BASE_URL", "http://localhost:1234"))
+        self.lms_url.grid(row=6, column=1, columnspan=3, sticky='ew', **padding)
+
+        keys_frame.columnconfigure(1, weight=1)
+        keys_frame.columnconfigure(3, weight=1)
 
         # Min Parameters
         ttk.Label(container, text="Minimum Parameters (Billions):").pack(fill='x', **padding)
@@ -136,12 +168,23 @@ class SettingsUI:
         # Save Button
         ttk.Button(container, text="Save Settings", command=self.save).pack(pady=20)
 
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
     def save(self):
         self.settings["OPENROUTER_API_KEY"] = self.or_key.get()
         self.settings["GROQ_API_KEY"] = self.groq_key.get()
         self.settings["TOGETHER_API_KEY"] = self.together_key.get()
         self.settings["DEEPINFRA_API_KEY"] = self.deepinfra_key.get()
         self.settings["CEREBRAS_API_KEY"] = self.cerebras_key.get()
+
+        self.settings["OPENROUTER_BASE_URL"] = self.or_url.get()
+        self.settings["GROQ_BASE_URL"] = self.groq_url.get()
+        self.settings["TOGETHER_BASE_URL"] = self.together_url.get()
+        self.settings["DEEPINFRA_BASE_URL"] = self.deepinfra_url.get()
+        self.settings["CEREBRAS_BASE_URL"] = self.cerebras_url.get()
+        self.settings["OLLAMA_BASE_URL"] = self.ollama_url.get()
+        self.settings["LM_STUDIO_BASE_URL"] = self.lms_url.get()
         self.settings["GLOBAL_EXCLUSIONS"] = self.exclusions.get()
         self.settings["CONFIG_PATH"] = self.config_path.get()
         self.settings["INTERFACE_URL"] = self.interface_url.get()

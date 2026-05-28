@@ -34,11 +34,21 @@ class LiteLLMControlPanel:
             "context": float(self.settings.get("CONTEXT_WEIGHT", 0.2)),
             "latency": float(self.settings.get("LATENCY_WEIGHT", 0.2))
         }
-        self.engine = engine.ModelEngine(api_keys=api_keys, weights=weights)
+        base_urls = {
+            "openrouter": self.settings.get("OPENROUTER_BASE_URL", ""),
+            "groq": self.settings.get("GROQ_BASE_URL", ""),
+            "together": self.settings.get("TOGETHER_BASE_URL", ""),
+            "deepinfra": self.settings.get("DEEPINFRA_BASE_URL", ""),
+            "cerebras": self.settings.get("CEREBRAS_BASE_URL", ""),
+            "ollama": self.settings.get("OLLAMA_BASE_URL", ""),
+            "lm_studio": self.settings.get("LM_STUDIO_BASE_URL", "")
+        }
+        self.engine = engine.ModelEngine(api_keys=api_keys, weights=weights, base_urls=base_urls)
         # Apply exclusions from settings
         engine.GLOBAL_EXCLUSIONS = [x.strip() for x in self.settings.get("GLOBAL_EXCLUSIONS", "").split(",") if x.strip()]
 
         self.ranked_models: List[Dict[str, Any]] = []
+        self.routing_enabled = True
         self.auto_pilot = self.settings.get("AUTO_PILOT", False)
         self.running = True
         self.icon = None
@@ -94,6 +104,10 @@ class LiteLLMControlPanel:
         if self.settings.get("AUTO_MANAGE_LITELLM", True):
             self.process_mgr.stop()
         icon.stop()
+
+    def toggle_routing(self, icon, item):
+        self.routing_enabled = not self.routing_enabled
+        print(f"Master Routing: {self.routing_enabled}")
 
     def toggle_auto_pilot(self, icon, item):
         self.auto_pilot = not self.auto_pilot
@@ -214,6 +228,15 @@ class LiteLLMControlPanel:
             "deepinfra": self.settings.get("DEEPINFRA_API_KEY", ""),
             "cerebras": self.settings.get("CEREBRAS_API_KEY", "")
         }
+        self.engine.base_urls = {
+            "openrouter": self.settings.get("OPENROUTER_BASE_URL", ""),
+            "groq": self.settings.get("GROQ_BASE_URL", ""),
+            "together": self.settings.get("TOGETHER_BASE_URL", ""),
+            "deepinfra": self.settings.get("DEEPINFRA_BASE_URL", ""),
+            "cerebras": self.settings.get("CEREBRAS_BASE_URL", ""),
+            "ollama": self.settings.get("OLLAMA_BASE_URL", ""),
+            "lm_studio": self.settings.get("LM_STUDIO_BASE_URL", "")
+        }
         self.engine.weights = {
             "size": float(self.settings.get("SIZE_WEIGHT", 0.6)),
             "context": float(self.settings.get("CONTEXT_WEIGHT", 0.2)),
@@ -249,7 +272,7 @@ class LiteLLMControlPanel:
         self.ranked_models = await self.engine.get_ranked_models()
         self.last_benchmark_time = datetime.datetime.now()
 
-        if auto_pilot and self.ranked_models:
+        if self.routing_enabled and auto_pilot and self.ranked_models:
             best = self.ranked_models[0]
             # Check if current is different from best
             # For simplicity, we just notify every time for now or we could check a state
@@ -263,6 +286,9 @@ class LiteLLMControlPanel:
 
     def build_menu(self):
         menu_items = []
+
+        menu_items.append(item("Master Routing", self.toggle_routing, checked=lambda item: self.routing_enabled))
+        menu_items.append(pystray.Menu.SEPARATOR)
 
         # 1. Primary Actions & Status
         is_running = self.process_mgr.is_running()
