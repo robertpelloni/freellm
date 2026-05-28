@@ -10,10 +10,12 @@ import database
 import engine
 import config_manager
 import settings_ui
+import process_manager
 
 class LiteLLMControlPanel:
     def __init__(self):
         self.settings = settings_ui.load_settings()
+        self.process_mgr = process_manager.LiteLLMProcess(config_path=self.settings.get("CONFIG_PATH", "config.yaml"))
         api_keys = {
             "openrouter": self.settings.get("OPENROUTER_API_KEY", ""),
             "groq": self.settings.get("GROQ_API_KEY", ""),
@@ -85,6 +87,22 @@ class LiteLLMControlPanel:
         import startup
         startup.remove_from_startup()
 
+    def launch_litellm(self, icon, item):
+        self.process_mgr.start()
+
+    def stop_litellm(self, icon, item):
+        self.process_mgr.stop()
+
+    def view_config(self, icon, item):
+        import os
+        config_path = self.settings.get("CONFIG_PATH", "config.yaml")
+        if os.path.exists(config_path):
+            if os.name == 'nt':
+                os.startfile(config_path)
+            else:
+                import subprocess
+                subprocess.call(['open', config_path])
+
     def show_settings(self, icon, item):
         def run_ui():
             ui = settings_ui.SettingsUI(on_save_callback=self.on_settings_saved)
@@ -94,6 +112,7 @@ class LiteLLMControlPanel:
 
     def on_settings_saved(self, new_settings):
         self.settings = new_settings
+        self.process_mgr.config_path = self.settings.get("CONFIG_PATH", "config.yaml")
         self.engine.api_keys = {
             "openrouter": self.settings.get("OPENROUTER_API_KEY", ""),
             "groq": self.settings.get("GROQ_API_KEY", ""),
@@ -157,6 +176,14 @@ class LiteLLMControlPanel:
         menu_items.append(pystray.Menu.SEPARATOR)
         menu_items.append(item("Auto-Pilot Mode", self.toggle_auto_pilot, checked=lambda item: self.auto_pilot))
         menu_items.append(item("Refresh Now", self.refresh_now))
+
+        instance_menu = pystray.Menu(
+            item("Launch", self.launch_litellm, enabled=lambda item: not self.process_mgr.is_running()),
+            item("Stop", self.stop_litellm, enabled=lambda item: self.process_mgr.is_running()),
+            item("View Config", self.view_config)
+        )
+        menu_items.append(item("LiteLLM Instance", instance_menu))
+
         menu_items.append(item("Settings", self.show_settings))
 
         startup_menu = pystray.Menu(

@@ -1,5 +1,12 @@
 # Changelog: LiteLLM Control Panel
 
+## [0.4.0] - 2024-05-30
+### Added
+- LiteLLM process management: Launch and Stop the proxy directly from the system tray.
+- View Config: Quickly open the LiteLLM configuration file from the tray menu.
+- Configurable LiteLLM path in the Settings GUI.
+- Improved "Start with Windows" enable/disable menu items.
+
 ## [0.3.0] - 2024-05-29
 ### Added
 - Direct support for DeepInfra and Cerebras providers.
