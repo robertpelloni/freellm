@@ -240,7 +240,7 @@ def apply_ranked_models(ranked_models: list, path=DEFAULT_CONFIG_PATH,
         shutil.copy2(path, path + ".bak")
 
     write_config(config, path)
-    print(f"Applied {len(ranked_models)} models to {path} (primary={primary_count}, fallback={len(ranked_models)-primary_count})")
+    print(f"Applied {len(ranked_models)} models to {path} (primary={effective_primary}, fallback={len(ranked_models)-effective_primary})")
 
 
 def reorder_primary(models_in_primary: list, path=DEFAULT_CONFIG_PATH,
