@@ -1,0 +1,224 @@
+import asyncio
+import httpx
+import re
+import time
+from typing import List, Dict, Any, Optional
+import database
+
+# Constants
+OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models"
+MIN_PARAMETERS_BILLIONS = 100
+SIZE_WEIGHT = 0.8
+LATENCY_WEIGHT = 0.2
+
+# Regex to extract parameter size (e.g., 405b, 70B, 120b-instruct)
+SIZE_PATTERN = re.compile(r'(\d+)[bB]')
+
+# Global exclusions for models we don't want
+GLOBAL_EXCLUSIONS = ["-preview", "-base", "vision", "dummy"]
+
+class ModelEngine:
+    def __init__(self, api_keys: Dict[str, str]):
+        self.api_keys = api_keys
+        self.client = httpx.AsyncClient(timeout=10.0)
+
+    async def fetch_openrouter_models(self) -> List[Dict[str, Any]]:
+        """Fetches free models from OpenRouter."""
+        try:
+            response = await self.client.get(OPENROUTER_MODELS_URL)
+            if response.status_code != 200:
+                print(f"Error fetching OpenRouter models: {response.status_code}")
+                return []
+
+            data = response.json()
+            all_models = data.get("data", [])
+
+            free_models = []
+            for m in all_models:
+                pricing = m.get("pricing", {})
+                # Check if free
+                if float(pricing.get("prompt", 0)) == 0 and float(pricing.get("completion", 0)) == 0:
+                    model_id = m.get("id")
+                    params = self.extract_parameters(m)
+
+                    if params >= MIN_PARAMETERS_BILLIONS:
+                        free_models.append({
+                            "id": model_id,
+                            "provider": "openrouter",
+                            "parameters": params,
+                            "context_length": m.get("context_length", 0)
+                        })
+            return free_models
+        except Exception as e:
+            print(f"Exception fetching OpenRouter models: {e}")
+            return []
+
+    def extract_parameters(self, model_data: Dict[str, Any]) -> int:
+        """Extracts parameter count from model ID or description."""
+        model_id = model_data.get("id", "")
+        name = model_data.get("name", "")
+        description = model_data.get("description", "")
+
+        # Try metadata if available (some APIs provide it)
+        # OpenRouter doesn't always have it in a structured way in the list view
+
+        # Search in ID, name, and description
+        for text in [model_id, name, description]:
+            match = SIZE_PATTERN.search(text)
+            if match:
+                return int(match.group(1))
+
+        # Hardcoded fallback for known large models if regex fails
+        if "llama-3.1-405b" in model_id:
+            return 405
+        if "llama-3-70b" in model_id:
+            return 70 # Below threshold but just for example
+
+        return 0
+
+    def calculate_score(self, params: int, latency: float) -> float:
+        """
+        Calculates the model score based on parameters and latency.
+        Score = (0.8 * (Parameter_Size / 100)) - (0.2 * TTFT_in_Seconds)
+        """
+        size_score = (params / 100.0) * SIZE_WEIGHT
+        latency_penalty = latency * LATENCY_WEIGHT
+        return size_score - latency_penalty
+
+    async def get_ranked_models(self) -> List[Dict[str, Any]]:
+        """Main loop to fetch, test, and rank models."""
+        # 0. Check which providers are still considered "free"
+        conn = database.sqlite3.connect(database.DB_NAME)
+        cursor = conn.cursor()
+        cursor.execute("SELECT provider_name FROM providers WHERE is_free_provider = 0")
+        blacklisted_providers = {row[0] for row in cursor.fetchall()}
+        conn.close()
+
+        # 1. Fetch from providers
+        candidates = []
+        if "openrouter" not in blacklisted_providers:
+            or_models = await self.fetch_openrouter_models()
+            candidates.extend(or_models)
+            database.update_provider_cycle("openrouter", len(or_models) > 0)
+
+        # 2. Filter using database skip/failure status
+        conn = database.sqlite3.connect(database.DB_NAME)
+        cursor = conn.cursor()
+        cursor.execute("SELECT model_id, manually_skipped, skip_expiry, failure_count, retry_after, is_blacklisted FROM model_history")
+        db_status = {row[0]: row[1:] for row in cursor.fetchall()}
+        conn.close()
+
+        valid_candidates = []
+        now = database.datetime.datetime.now()
+        for m in candidates:
+            # Global keyword exclusion check
+            if any(exc in m['id'].lower() for exc in GLOBAL_EXCLUSIONS):
+                continue
+
+            status = db_status.get(m['id'])
+            if status:
+                skipped, skip_expiry, failures, retry_after, blacklisted = status
+
+                if blacklisted:
+                    continue
+
+                # Manual skip check
+                if skipped:
+                    if skip_expiry:
+                        expiry_dt = database.datetime.datetime.fromisoformat(skip_expiry) if isinstance(skip_expiry, str) else skip_expiry
+                        if now < expiry_dt:
+                            continue
+
+                # Circuit breaker check
+                if failures >= 3:
+                    if retry_after:
+                        retry_dt = database.datetime.datetime.fromisoformat(retry_after) if isinstance(retry_after, str) else retry_after
+                        if now < retry_dt:
+                            continue
+
+            valid_candidates.append(m)
+
+        # 3. Benchmark in parallel (limited concurrency)
+        tasks = []
+        for m in valid_candidates:
+            tasks.append(self.measure_latency(m['id'], m['provider']))
+
+        latencies = await asyncio.gather(*tasks)
+
+        ranked_list = []
+        for m, latency in zip(valid_candidates, latencies):
+            if latency is not None:
+                score = self.calculate_score(m['parameters'], latency)
+                m['latency'] = latency
+                m['score'] = score
+                ranked_list.append(m)
+                # Update DB
+                database.update_model_latency(m['id'], m['provider'], latency)
+
+        # 4. Sort by score
+        ranked_list.sort(key=lambda x: x['score'], reverse=True)
+        return ranked_list[:10]
+
+    async def measure_latency(self, model_id: str, provider: str) -> Optional[float]:
+        """Measures Time-To-First-Token (TTFT) for a given model."""
+        # Note: Different providers might need different headers/endpoints.
+        # For OpenRouter:
+        url = "https://openrouter.ai/api/v1/chat/completions"
+        api_key = self.api_keys.get(provider)
+
+        if not api_key and provider == "openrouter":
+            # Some models on OpenRouter are free without an API key?
+            # Actually, usually a key is required even for free models to track limits.
+            # But let's assume one is provided in the actual app.
+            pass
+
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "model": model_id,
+            "messages": [{"role": "user", "content": "hi"}],
+            "max_tokens": 1,
+            "stream": True # Streaming helps measure TTFT precisely
+        }
+
+        try:
+            start_time = time.perf_counter()
+            async with self.client.stream("POST", url, headers=headers, json=payload) as response:
+                if response.status_code == 200:
+                    async for line in response.aiter_lines():
+                        if line:
+                            ttft = time.perf_counter() - start_time
+                            return ttft
+                elif response.status_code in [429, 504]:
+                    print(f"Rate limited or timeout for {model_id} ({response.status_code})")
+                    database.handle_test_failure(model_id, provider)
+                    return None
+                else:
+                    print(f"Error {response.status_code} for {model_id}: {await response.aread()}")
+                    database.handle_test_failure(model_id, provider)
+                    return None
+        except Exception as e:
+            print(f"Exception measuring latency for {model_id}: {e}")
+            database.handle_test_failure(model_id, provider)
+            return None
+
+        return None
+
+    async def close(self):
+        await self.client.aclose()
+
+async def main():
+    # Simple test run
+    engine = ModelEngine(api_keys={})
+    print("Fetching models...")
+    models = await engine.fetch_openrouter_models()
+    print(f"Found {len(models)} free models >= 100B:")
+    for m in models:
+        print(f" - {m['id']} ({m['parameters']}B)")
+    await engine.close()
+
+if __name__ == "__main__":
+    asyncio.run(main())
