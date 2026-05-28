@@ -22,6 +22,7 @@ class LiteLLMControlPanel:
         self.settings = settings_ui.load_settings()
         self.last_benchmark_time = None
         self.is_online = True
+        self.is_working = False
         self.process_mgr = process_manager.LiteLLMProcess(config_path=self.settings.get("CONFIG_PATH", "config.yaml"))
         api_keys = {
             "openrouter": self.settings.get("OPENROUTER_API_KEY", ""),
@@ -80,7 +81,10 @@ class LiteLLMControlPanel:
         color = 'gray'
         tooltip = "LiteLLM Router"
 
-        if not self.is_online:
+        if self.is_working:
+            color = 'blue'
+            tooltip = "LiteLLM Router (Working...)"
+        elif not self.is_online:
             color = 'gray'
             tooltip = "LiteLLM Router (Offline)"
         elif self.ranked_models:
@@ -148,6 +152,25 @@ class LiteLLMControlPanel:
         database.reset_all_stats()
         self.notify("All provider and model stats reset.")
 
+    def maintenance_backup_config(self, icon, item):
+        import shutil
+        config_path = self.settings.get("CONFIG_PATH", "config.yaml")
+        if os.path.exists(config_path):
+            shutil.copy(config_path, config_path + ".bak")
+            self.notify(f"Config backed up to {config_path}.bak")
+        else:
+            self.notify("Config file not found. Nothing to backup.")
+
+    def maintenance_restore_config(self, icon, item):
+        import shutil
+        config_path = self.settings.get("CONFIG_PATH", "config.yaml")
+        if os.path.exists(config_path + ".bak"):
+            shutil.copy(config_path + ".bak", config_path)
+            self.notify("Config restored from backup.")
+            self.process_mgr.restart()
+        else:
+            self.notify("Backup file not found.")
+
     def toggle_provider(self, provider_name):
         def inner(icon, item):
             # Toggle is_free_provider status in DB
@@ -166,6 +189,21 @@ class LiteLLMControlPanel:
         import webbrowser
         url = self.settings.get("INTERFACE_URL", "http://localhost:4000")
         webbrowser.open(url)
+
+    def open_docs(self, icon=None, item=None):
+        import webbrowser
+        webbrowser.open("https://docs.litellm.ai/")
+
+    def copy_active_model(self, icon=None, item=None):
+        if self.ranked_models:
+            import tkinter
+            r = tkinter.Tk()
+            r.withdraw()
+            r.clipboard_clear()
+            r.clipboard_append(self.ranked_models[0]['id'])
+            r.update()
+            r.destroy()
+            self.notify(f"Copied {self.ranked_models[0]['id']} to clipboard.")
 
     def launch_litellm(self, icon, item):
         self.process_mgr.start()
@@ -275,11 +313,15 @@ class LiteLLMControlPanel:
         asyncio.run_coroutine_threadsafe(self.refresh_logic(), self.loop)
 
     async def refresh_logic(self, auto_pilot=False):
+        self.is_working = True
+        self.update_tray_status()
+
         # 1. Check connectivity
         self.is_online = await self.engine.check_connectivity()
         if not self.is_online:
             print("No internet connectivity. Skipping refresh.")
             self.notify("No internet connectivity detected. Retrying soon...", "Connectivity Alert")
+            self.is_working = False
             self.update_tray_status()
             return False
 
@@ -294,6 +336,7 @@ class LiteLLMControlPanel:
             config_manager.apply_model_to_litellm(best['id'], best['provider'])
             self.notify(f"Switched to {best['id']} ({best['provider']})", "Autonomous Model Switch")
 
+        self.is_working = False
         if self.icon:
             self.icon.menu = self.build_menu()
             self.update_tray_status()
@@ -304,6 +347,7 @@ class LiteLLMControlPanel:
         menu_items = []
 
         menu_items.append(item("Master Routing", self.toggle_routing, checked=lambda item: self.routing_enabled))
+        menu_items.append(item("Copy Active Model", self.copy_active_model, enabled=len(self.ranked_models)>0))
         menu_items.append(pystray.Menu.SEPARATOR)
 
         # 1. Primary Actions & Status
@@ -360,6 +404,7 @@ class LiteLLMControlPanel:
             menu_items.append(item("Enable Providers", pystray.Menu(*toggle_items)))
 
         menu_items.append(item("Settings", self.show_settings))
+        menu_items.append(item("Documentation", self.open_docs))
 
         startup_menu = pystray.Menu(
             item("Enable", self.enable_startup),
@@ -370,7 +415,9 @@ class LiteLLMControlPanel:
         maintenance_menu = pystray.Menu(
             item("Clear Skip List", self.maintenance_clear_skips),
             item("Clear Blacklist", self.maintenance_clear_blacklist),
-            item("Reset Provider Stats", self.maintenance_reset_stats)
+            item("Reset Provider Stats", self.maintenance_reset_stats),
+            item("Backup LiteLLM Config", self.maintenance_backup_config),
+            item("Restore LiteLLM Config", self.maintenance_restore_config)
         )
         menu_items.append(item("Maintenance", maintenance_menu))
 
