@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import json
 import os
+import known_models
 
 SETTINGS_FILE = "settings.json"
 
@@ -188,6 +189,39 @@ class SettingsUI:
         self.latency_weight.set(self.settings.get("LATENCY_WEIGHT", 0.2))
         self.latency_weight.grid(row=0, column=5, **padding)
 
+        # Known Good Models Management
+        km_frame = ttk.LabelFrame(container, text="Known Good Models Override")
+        km_frame.pack(fill='x', **padding)
+
+        ttk.Label(km_frame, text="Models with guaranteed specs (override missing metadata):",
+                  font=('Helvetica', 9)).pack(fill='x', padx=5, pady=2)
+
+        km_cols = ('id', 'params', 'ctx', 'provider')
+        self.km_tree = ttk.Treeview(km_frame, columns=km_cols, show='headings', height=8)
+        self.km_tree.heading('id', text='Model ID')
+        self.km_tree.heading('params', text='Params(B)')
+        self.km_tree.heading('ctx', text='Context')
+        self.km_tree.heading('provider', text='Provider')
+        self.km_tree.column('id', width=280)
+        self.km_tree.column('params', width=70)
+        self.km_tree.column('ctx', width=80)
+        self.km_tree.column('provider', width=80)
+        self.km_tree.pack(fill='both', padx=5, pady=2)
+
+        km_scroll = ttk.Scrollbar(km_frame, orient='vertical', command=self.km_tree.yview)
+        self.km_tree.configure(yscrollcommand=km_scroll.set)
+        km_scroll.place(relx=1, rely=0, relheight=1, anchor='ne')
+
+        self._populate_known_models()
+
+        km_btn_frame = ttk.Frame(km_frame)
+        km_btn_frame.pack(fill='x', padx=5, pady=2)
+
+        ttk.Button(km_btn_frame, text="Add Model", command=self.km_add).pack(side='left', padx=2)
+        ttk.Button(km_btn_frame, text="Edit Selected", command=self.km_edit).pack(side='left', padx=2)
+        ttk.Button(km_btn_frame, text="Remove Selected", command=self.km_remove).pack(side='left', padx=2)
+        ttk.Button(km_btn_frame, text="Reset Defaults", command=self.km_reset).pack(side='left', padx=2)
+
         # Save Button
         ttk.Button(container, text="Save Settings", command=self.save).pack(pady=20)
 
@@ -237,6 +271,119 @@ class SettingsUI:
             self.on_save_callback(self.settings)
 
         self.root.destroy()
+
+    def _populate_known_models(self):
+        for i in self.km_tree.get_children():
+            self.km_tree.delete(i)
+        for litellm_id, spec in sorted(known_models.all_models().items()):
+            self.km_tree.insert('', 'end', values=(
+                litellm_id,
+                spec.get('params', 0),
+                spec.get('ctx', 0),
+                spec.get('provider', ''),
+            ))
+
+    def km_add(self):
+        win = tk.Toplevel(self.root)
+        win.title('Add Known Model')
+        win.geometry('400x200')
+        win.resizable(False, False)
+        ttk.Label(win, text='LiteLLM Model ID:').grid(row=0, column=0, padx=10, pady=5, sticky='w')
+        id_entry = ttk.Entry(win, width=40)
+        id_entry.grid(row=0, column=1, padx=10, pady=5)
+        ttk.Label(win, text='Parameters (B):').grid(row=1, column=0, padx=10, pady=5, sticky='w')
+        params_entry = ttk.Entry(win, width=15)
+        params_entry.grid(row=1, column=1, padx=10, pady=5, sticky='w')
+        ttk.Label(win, text='Context Length:').grid(row=2, column=0, padx=10, pady=5, sticky='w')
+        ctx_entry = ttk.Entry(win, width=15)
+        ctx_entry.grid(row=2, column=1, padx=10, pady=5, sticky='w')
+        ttk.Label(win, text='Provider:').grid(row=3, column=0, padx=10, pady=5, sticky='w')
+        prov_entry = ttk.Entry(win, width=20)
+        prov_entry.grid(row=3, column=1, padx=10, pady=5, sticky='w')
+
+        def do_add():
+            mid = id_entry.get().strip()
+            if not mid:
+                messagebox.showwarning('Warning', 'Model ID is required.', parent=win)
+                return
+            try:
+                p = int(params_entry.get())
+                c = int(ctx_entry.get())
+            except ValueError:
+                messagebox.showerror('Error', 'Parameters and Context must be integers.', parent=win)
+                return
+            prov = prov_entry.get().strip()
+            known_models.add_model(mid, p, c, prov)
+            self._populate_known_models()
+            win.destroy()
+
+        ttk.Button(win, text='Add', command=do_add).grid(row=4, column=0, columnspan=2, pady=15)
+
+    def km_edit(self):
+        sel = self.km_tree.selection()
+        if not sel:
+            messagebox.showinfo('Info', 'Select a model to edit.', parent=self.root)
+            return
+        vals = self.km_tree.item(sel[0])['values']
+        if not vals:
+            return
+        old_id = str(vals[0])
+
+        win = tk.Toplevel(self.root)
+        win.title('Edit Known Model')
+        win.geometry('400x200')
+        win.resizable(False, False)
+        ttk.Label(win, text='LiteLLM Model ID:').grid(row=0, column=0, padx=10, pady=5, sticky='w')
+        id_entry = ttk.Entry(win, width=40)
+        id_entry.insert(0, old_id)
+        id_entry.config(state='readonly')
+        id_entry.grid(row=0, column=1, padx=10, pady=5)
+        ttk.Label(win, text='Parameters (B):').grid(row=1, column=0, padx=10, pady=5, sticky='w')
+        params_entry = ttk.Entry(win, width=15)
+        params_entry.insert(0, str(vals[1]))
+        params_entry.grid(row=1, column=1, padx=10, pady=5, sticky='w')
+        ttk.Label(win, text='Context Length:').grid(row=2, column=0, padx=10, pady=5, sticky='w')
+        ctx_entry = ttk.Entry(win, width=15)
+        ctx_entry.insert(0, str(vals[2]))
+        ctx_entry.grid(row=2, column=1, padx=10, pady=5, sticky='w')
+        ttk.Label(win, text='Provider:').grid(row=3, column=0, padx=10, pady=5, sticky='w')
+        prov_entry = ttk.Entry(win, width=20)
+        prov_entry.insert(0, str(vals[3]))
+        prov_entry.grid(row=3, column=1, padx=10, pady=5, sticky='w')
+
+        def do_save():
+            try:
+                p = int(params_entry.get())
+                c = int(ctx_entry.get())
+            except ValueError:
+                messagebox.showerror('Error', 'Parameters and Context must be integers.', parent=win)
+                return
+            prov = prov_entry.get().strip()
+            known_models.add_model(old_id, p, c, prov)
+            self._populate_known_models()
+            win.destroy()
+
+        ttk.Button(win, text='Save', command=do_save).grid(row=4, column=0, columnspan=2, pady=15)
+
+    def km_remove(self):
+        sel = self.km_tree.selection()
+        if not sel:
+            messagebox.showinfo('Info', 'Select a model to remove.', parent=self.root)
+            return
+        vals = self.km_tree.item(sel[0])['values']
+        if not vals:
+            return
+        model_id = str(vals[0])
+        if messagebox.askyesno('Confirm', f"Remove '{model_id}' from known models?", parent=self.root):
+            known_models.remove_model(model_id)
+            self._populate_known_models()
+
+    def km_reset(self):
+        if messagebox.askyesno('Confirm', 'Reset all known models to defaults?', parent=self.root):
+            import importlib
+            importlib.reload(known_models)
+            self._populate_known_models()
+            messagebox.showinfo('Done', 'Known models reset to defaults.', parent=self.root)
 
     def run(self):
         self.root.mainloop()
