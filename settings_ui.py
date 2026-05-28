@@ -18,11 +18,17 @@ def load_settings():
         "TOGETHER_API_KEY": "",
         "DEEPINFRA_API_KEY": "",
         "CEREBRAS_API_KEY": "",
+        "GITHUB_API_KEY": "",
+        "HUGGINGFACE_API_KEY": "",
+        "NVIDIA_API_KEY": "",
         "OPENROUTER_BASE_URL": "https://openrouter.ai/api/v1",
         "GROQ_BASE_URL": "https://api.groq.com/openai/v1",
         "TOGETHER_BASE_URL": "https://api.together.xyz",
         "DEEPINFRA_BASE_URL": "https://api.deepinfra.com/v1/openai",
         "CEREBRAS_BASE_URL": "https://api.cerebras.ai/v1",
+        "GITHUB_BASE_URL": "https://models.inference.ai.azure.com",
+        "HUGGINGFACE_BASE_URL": "https://api-inference.huggingface.co",
+        "NVIDIA_BASE_URL": "https://integrate.api.nvidia.com/v1",
         "OLLAMA_BASE_URL": "http://localhost:11434",
         "LM_STUDIO_BASE_URL": "http://localhost:1234",
         "MIN_PARAMETERS": 100,
@@ -96,17 +102,20 @@ class SettingsUI:
         self.together_key, self.together_url = add_provider_fields(keys_frame, "Together", "TOGETHER_API_KEY", "TOGETHER_BASE_URL", 2)
         self.deepinfra_key, self.deepinfra_url = add_provider_fields(keys_frame, "DeepInfra", "DEEPINFRA_API_KEY", "DEEPINFRA_BASE_URL", 3)
         self.cerebras_key, self.cerebras_url = add_provider_fields(keys_frame, "Cerebras", "CEREBRAS_API_KEY", "CEREBRAS_BASE_URL", 4)
+        self.github_key, self.github_url = add_provider_fields(keys_frame, "GitHub", "GITHUB_API_KEY", "GITHUB_BASE_URL", 5)
+        self.hf_key, self.hf_url = add_provider_fields(keys_frame, "HuggingFace", "HUGGINGFACE_API_KEY", "HUGGINGFACE_BASE_URL", 6)
+        self.nvidia_key, self.nvidia_url = add_provider_fields(keys_frame, "NVIDIA", "NVIDIA_API_KEY", "NVIDIA_BASE_URL", 7)
 
         # Local URLs
-        ttk.Label(keys_frame, text="Ollama URL:").grid(row=5, column=0, sticky='w', **padding)
+        ttk.Label(keys_frame, text="Ollama URL:").grid(row=8, column=0, sticky='w', **padding)
         self.ollama_url = ttk.Entry(keys_frame)
         self.ollama_url.insert(0, self.settings.get("OLLAMA_BASE_URL", "http://localhost:11434"))
         self.ollama_url.grid(row=5, column=1, columnspan=3, sticky='ew', **padding)
 
-        ttk.Label(keys_frame, text="LM Studio URL:").grid(row=6, column=0, sticky='w', **padding)
+        ttk.Label(keys_frame, text="LM Studio URL:").grid(row=9, column=0, sticky='w', **padding)
         self.lms_url = ttk.Entry(keys_frame)
         self.lms_url.insert(0, self.settings.get("LM_STUDIO_BASE_URL", "http://localhost:1234"))
-        self.lms_url.grid(row=6, column=1, columnspan=3, sticky='ew', **padding)
+        self.lms_url.grid(row=9, column=1, columnspan=3, sticky='ew', **padding)
 
         keys_frame.columnconfigure(1, weight=1)
         keys_frame.columnconfigure(3, weight=1)
@@ -178,12 +187,18 @@ class SettingsUI:
         self.settings["TOGETHER_API_KEY"] = self.together_key.get()
         self.settings["DEEPINFRA_API_KEY"] = self.deepinfra_key.get()
         self.settings["CEREBRAS_API_KEY"] = self.cerebras_key.get()
+        self.settings["GITHUB_API_KEY"] = self.github_key.get()
+        self.settings["HUGGINGFACE_API_KEY"] = self.hf_key.get()
+        self.settings["NVIDIA_API_KEY"] = self.nvidia_key.get()
 
         self.settings["OPENROUTER_BASE_URL"] = self.or_url.get()
         self.settings["GROQ_BASE_URL"] = self.groq_url.get()
         self.settings["TOGETHER_BASE_URL"] = self.together_url.get()
         self.settings["DEEPINFRA_BASE_URL"] = self.deepinfra_url.get()
         self.settings["CEREBRAS_BASE_URL"] = self.cerebras_url.get()
+        self.settings["GITHUB_BASE_URL"] = self.github_url.get()
+        self.settings["HUGGINGFACE_BASE_URL"] = self.hf_url.get()
+        self.settings["NVIDIA_BASE_URL"] = self.nvidia_url.get()
         self.settings["OLLAMA_BASE_URL"] = self.ollama_url.get()
         self.settings["LM_STUDIO_BASE_URL"] = self.lms_url.get()
         self.settings["GLOBAL_EXCLUSIONS"] = self.exclusions.get()
