@@ -15,6 +15,7 @@ import process_manager
 import log_viewer
 import dashboard_ui
 import query_ui
+import status_window
 
 class LiteLLMControlPanel:
     def __init__(self):
@@ -169,6 +170,12 @@ class LiteLLMControlPanel:
             ui.run()
         threading.Thread(target=run_query, daemon=True).start()
 
+    def show_status(self, icon=None, item=None):
+        def run_status():
+            ui = status_window.StatusWindow(self)
+            ui.run()
+        threading.Thread(target=run_status, daemon=True).start()
+
     def view_config(self, icon, item):
         import os
         config_path = self.settings.get("CONFIG_PATH", "config.yaml")
@@ -254,7 +261,9 @@ class LiteLLMControlPanel:
     def build_menu(self):
         menu_items = []
 
+        menu_items.append(item("Open LLM Interface", self.launch_interface))
         menu_items.append(item("Quick Query", self.show_query))
+        menu_items.append(item("System Status", self.show_status))
         menu_items.append(pystray.Menu.SEPARATOR)
 
         # Active Model Status
@@ -271,7 +280,6 @@ class LiteLLMControlPanel:
 
         # Default action
         menu_items.append(item("Show Dashboard", self.show_dashboard, default=True))
-        menu_items.append(item("Open LLM Interface", self.launch_interface))
         menu_items.append(pystray.Menu.SEPARATOR)
 
         # Provider Health & Quick Toggle
