@@ -34,12 +34,13 @@ def load_settings():
         "MIN_PARAMETERS": 100,
         "AUTO_PILOT": False,
         "GLOBAL_EXCLUSIONS": "-preview, -base, vision, dummy",
-        "CONFIG_PATH": "config.yaml",
+        "CONFIG_PATH": "C:/Users/hyper/.hermes/litellm-config.yaml",
         "INTERFACE_URL": "http://localhost:4000",
         "AUTO_MANAGE_LITELLM": True,
         "START_WITH_WINDOWS": False,
         "ROUTING_ENABLED": True,
         "ENABLE_NOTIFICATIONS": True,
+        "PRIMARY_COUNT": 5,
         "SIZE_WEIGHT": 0.6,
         "CONTEXT_WEIGHT": 0.2,
         "LATENCY_WEIGHT": 0.2
@@ -110,7 +111,7 @@ class SettingsUI:
         ttk.Label(keys_frame, text="Ollama URL:").grid(row=8, column=0, sticky='w', **padding)
         self.ollama_url = ttk.Entry(keys_frame)
         self.ollama_url.insert(0, self.settings.get("OLLAMA_BASE_URL", "http://localhost:11434"))
-        self.ollama_url.grid(row=5, column=1, columnspan=3, sticky='ew', **padding)
+        self.ollama_url.grid(row=8, column=1, columnspan=3, sticky='ew', **padding)
 
         ttk.Label(keys_frame, text="LM Studio URL:").grid(row=9, column=0, sticky='w', **padding)
         self.lms_url = ttk.Entry(keys_frame)
@@ -120,11 +121,19 @@ class SettingsUI:
         keys_frame.columnconfigure(1, weight=1)
         keys_frame.columnconfigure(3, weight=1)
 
-        # Min Parameters
-        ttk.Label(container, text="Minimum Parameters (Billions):").pack(fill='x', **padding)
-        self.min_params = ttk.Spinbox(container, from_=1, to=1000)
+        # Counts & Limits
+        counts_frame = ttk.LabelFrame(container, text="Routing & Limits")
+        counts_frame.pack(fill='x', **padding)
+
+        ttk.Label(counts_frame, text="Minimum Parameters (Billions):").grid(row=0, column=0, sticky='w', **padding)
+        self.min_params = ttk.Spinbox(counts_frame, from_=1, to=1000, width=10)
         self.min_params.set(self.settings.get("MIN_PARAMETERS", 100))
-        self.min_params.pack(fill='x', **padding)
+        self.min_params.grid(row=0, column=1, sticky='w', **padding)
+
+        ttk.Label(counts_frame, text="Primary Group Count:").grid(row=1, column=0, sticky='w', **padding)
+        self.primary_count = ttk.Spinbox(counts_frame, from_=1, to=50, width=10)
+        self.primary_count.set(self.settings.get("PRIMARY_COUNT", 5))
+        self.primary_count.grid(row=1, column=1, sticky='w', **padding)
 
         # Global Exclusions
         ttk.Label(container, text="Global Exclusions (comma separated):").pack(fill='x', **padding)
@@ -212,6 +221,7 @@ class SettingsUI:
         self.settings["LATENCY_WEIGHT"] = float(self.latency_weight.get())
         try:
             self.settings["MIN_PARAMETERS"] = int(self.min_params.get())
+            self.settings["PRIMARY_COUNT"] = int(self.primary_count.get())
         except ValueError:
             messagebox.showerror("Error", "Invalid parameter value")
             return

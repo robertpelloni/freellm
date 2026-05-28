@@ -2,7 +2,9 @@ import asyncio
 import threading
 import time
 import datetime
+import os
 from typing import List, Dict, Any
+
 from PIL import Image, ImageDraw
 import pystray
 from pystray import MenuItem as item
@@ -17,28 +19,41 @@ import dashboard_ui
 import query_ui
 import status_window
 
+# The actual LiteLLM config used by the system
+HERMES_CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".hermes", "litellm-config.yaml")
+
+
 class LiteLLMControlPanel:
     def __init__(self):
         self.settings = settings_ui.load_settings()
         self.last_benchmark_time = None
         self.is_online = True
         self.is_working = False
-        self.process_mgr = process_manager.LiteLLMProcess(config_path=self.settings.get("CONFIG_PATH", "config.yaml"))
+
+        # Use the hermes config path by default, allow override in settings
+        self.config_path = self.settings.get("CONFIG_PATH", HERMES_CONFIG_PATH)
+        self.process_mgr = process_manager.LiteLLMProcess(config_path=self.config_path)
+
+        # Filter out empty API keys to avoid "Illegal header value" errors
         api_keys = {
-            "openrouter": self.settings.get("OPENROUTER_API_KEY", ""),
-            "groq": self.settings.get("GROQ_API_KEY", ""),
-            "together": self.settings.get("TOGETHER_API_KEY", ""),
-            "deepinfra": self.settings.get("DEEPINFRA_API_KEY", ""),
-            "cerebras": self.settings.get("CEREBRAS_API_KEY", ""),
-            "github": self.settings.get("GITHUB_API_KEY", ""),
-            "huggingface": self.settings.get("HUGGINGFACE_API_KEY", ""),
-            "nvidia": self.settings.get("NVIDIA_API_KEY", "")
+            k: v for k, v in {
+                "openrouter": self.settings.get("OPENROUTER_API_KEY", ""),
+                "groq": self.settings.get("GROQ_API_KEY", ""),
+                "together": self.settings.get("TOGETHER_API_KEY", ""),
+                "deepinfra": self.settings.get("DEEPINFRA_API_KEY", ""),
+                "cerebras": self.settings.get("CEREBRAS_API_KEY", ""),
+                "github": self.settings.get("GITHUB_API_KEY", ""),
+                "huggingface": self.settings.get("HUGGINGFACE_API_KEY", ""),
+                "nvidia": self.settings.get("NVIDIA_API_KEY", ""),
+            }.items() if v
         }
+
         weights = {
             "size": float(self.settings.get("SIZE_WEIGHT", 0.6)),
             "context": float(self.settings.get("CONTEXT_WEIGHT", 0.2)),
             "latency": float(self.settings.get("LATENCY_WEIGHT", 0.2))
         }
+
         base_urls = {
             "openrouter": self.settings.get("OPENROUTER_BASE_URL", ""),
             "groq": self.settings.get("GROQ_BASE_URL", ""),
@@ -46,9 +61,11 @@ class LiteLLMControlPanel:
             "deepinfra": self.settings.get("DEEPINFRA_BASE_URL", ""),
             "cerebras": self.settings.get("CEREBRAS_BASE_URL", ""),
             "ollama": self.settings.get("OLLAMA_BASE_URL", ""),
-            "lm_studio": self.settings.get("LM_STUDIO_BASE_URL", "")
+            "lm_studio": self.settings.get("LM_STUDIO_BASE_URL", ""),
         }
+
         self.engine = engine.ModelEngine(api_keys=api_keys, weights=weights, base_urls=base_urls)
+
         # Apply exclusions from settings
         engine.GLOBAL_EXCLUSIONS = [x.strip() for x in self.settings.get("GLOBAL_EXCLUSIONS", "").split(",") if x.strip()]
 
@@ -59,17 +76,58 @@ class LiteLLMControlPanel:
         self.icon = None
         self.loop = asyncio.new_event_loop()
 
-        # Initialize DB and load last rankings
+        # Primary group size (how many top models go in free-llm vs free-llm-fallback)
+        self.primary_count = int(self.settings.get("PRIMARY_COUNT", 5))
+
+        # Initialize DB
         database.init_db()
-        self.ranked_models = database.get_last_rankings()
+
+        # Load models from existing config first (instant startup)
+        self._load_models_from_config()
+
+        # Then load last rankings from DB as supplementary data
+        db_rankings = database.get_last_rankings()
+        if db_rankings and not self.ranked_models:
+            self.ranked_models = db_rankings
+
+    def _load_models_from_config(self):
+        """Read the existing LiteLLM config and populate ranked_models from it.
+        This gives instant startup without needing to benchmark first."""
+        try:
+            entries = config_manager.get_model_entries(self.config_path)
+            if not entries:
+                return
+
+            models = []
+            for e in entries:
+                # Skip if we can't identify the model
+                if e["provider"] == "unknown":
+                    continue
+                m = {
+                    "id": e["id"],
+                    "provider": e["provider"],
+                    "parameters": 0,  # Will be filled by benchmark
+                    "latency": 0.0,
+                    "score": 0.0,
+                    "context_length": 0,
+                    "group": e["group"],
+                }
+                models.append(m)
+
+            if models:
+                # Put primary group models first, then fallback
+                primary = [m for m in models if m["group"] == "free-llm"]
+                fallback = [m for m in models if m["group"] != "free-llm"]
+                self.ranked_models = primary + fallback
+                print(f"Loaded {len(primary)} primary + {len(fallback)} fallback models from existing config.")
+        except Exception as e:
+            print(f"Could not load models from config: {e}")
 
     def create_image(self, width, height, color):
-        # Generate a simple icon with a specific color
         image = Image.new('RGB', (width, height), 'black')
         dc = ImageDraw.Draw(image)
-        # Draw a colored circle in the middle
         margin = 10
-        dc.ellipse([margin, margin, width-margin, height-margin], fill=color)
+        dc.ellipse([margin, margin, width - margin, height - margin], fill=color)
         return image
 
     def notify(self, message, title="LiteLLM Router"):
@@ -80,10 +138,8 @@ class LiteLLMControlPanel:
     def update_tray_status(self):
         if not self.icon:
             return
-
         color = 'gray'
         tooltip = "LiteLLM Router"
-
         if self.is_working:
             color = 'blue'
             tooltip = "LiteLLM Router (Working...)"
@@ -92,22 +148,23 @@ class LiteLLMControlPanel:
             tooltip = "LiteLLM Router (Offline)"
         elif self.ranked_models:
             best = self.ranked_models[0]
-            best_latency = best.get('latency', 1.0)
-            if best_latency < 0.5:
+            best_latency = best.get('latency', 0)
+            if best_latency == 0:
+                color = 'gray'
+            elif best_latency < 0.5:
                 color = 'green'
             elif best_latency < 1.5:
                 color = 'yellow'
             else:
                 color = 'red'
-
-            tooltip = f"Active: {best['id']} ({best['latency']:.2fs})"
+            lat_str = f"{best['latency']:.2f}s" if best_latency > 0 else "?"
+            tooltip = f"Primary: {best['id']} ({lat_str})"
         else:
             color = 'red'
             tooltip = "No models available"
 
         status = " (Running)" if self.process_mgr.is_running() else " (Stopped)"
         tooltip += status
-
         self.icon.icon = self.create_image(64, 64, color)
         self.icon.title = tooltip
 
@@ -128,12 +185,6 @@ class LiteLLMControlPanel:
         self.settings["AUTO_PILOT"] = self.auto_pilot
         settings_ui.save_settings(self.settings)
         print(f"Auto-Pilot: {self.auto_pilot}")
-
-    def toggle_startup(self, icon, item):
-        import startup
-        # We don't have a reliable way to check if it's already in startup from here without reading registry
-        # For simplicity, we just toggle based on what we think, but it's better to just provide a "Enable" / "Disable"
-        pass
 
     def enable_startup(self, icon, item):
         import startup
@@ -156,27 +207,23 @@ class LiteLLMControlPanel:
         self.notify("All provider and model stats reset.")
 
     def maintenance_backup_config(self, icon, item):
-        import shutil
-        config_path = self.settings.get("CONFIG_PATH", "config.yaml")
-        if os.path.exists(config_path):
-            shutil.copy(config_path, config_path + ".bak")
-            self.notify(f"Config backed up to {config_path}.bak")
-        else:
-            self.notify("Config file not found. Nothing to backup.")
+        config_manager.apply_ranked_models(self.ranked_models, self.config_path)
+        self.notify(f"Config backed up to {self.config_path}.bak")
 
     def maintenance_restore_config(self, icon, item):
         import shutil
-        config_path = self.settings.get("CONFIG_PATH", "config.yaml")
-        if os.path.exists(config_path + ".bak"):
-            shutil.copy(config_path + ".bak", config_path)
+        if os.path.exists(self.config_path + ".bak"):
+            shutil.copy(self.config_path + ".bak", self.config_path)
             self.notify("Config restored from backup.")
+            self._load_models_from_config()
+            if self.icon:
+                self.icon.menu = self.build_menu()
             self.process_mgr.restart()
         else:
             self.notify("Backup file not found.")
 
     def toggle_provider(self, provider_name):
         def inner(icon, item):
-            # Toggle is_free_provider status in DB
             conn = database.sqlite3.connect(database.DB_NAME)
             cursor = conn.cursor()
             cursor.execute("SELECT is_free_provider FROM providers WHERE provider_name = ?", (provider_name,))
@@ -242,27 +289,24 @@ class LiteLLMControlPanel:
         threading.Thread(target=run_status, daemon=True).start()
 
     def view_config(self, icon, item):
-        import os
-        config_path = self.settings.get("CONFIG_PATH", "config.yaml")
-        if os.path.exists(config_path):
+        if os.path.exists(self.config_path):
             if os.name == 'nt':
-                os.startfile(config_path)
+                os.startfile(self.config_path)
             else:
                 import subprocess
-                subprocess.call(['open', config_path])
+                subprocess.call(['open', self.config_path])
 
     def show_settings(self, icon, item):
         def run_ui():
             ui = settings_ui.SettingsUI(on_save_callback=self.on_settings_saved)
             ui.run()
-        # Run in a separate thread to not block the icon
         threading.Thread(target=run_ui, daemon=True).start()
 
     def on_settings_saved(self, new_settings):
         self.settings = new_settings
-        self.process_mgr.config_path = self.settings.get("CONFIG_PATH", "config.yaml")
+        self.config_path = self.settings.get("CONFIG_PATH", HERMES_CONFIG_PATH)
+        self.process_mgr.config_path = self.config_path
 
-        # Apply startup setting
         import startup
         if self.settings.get("START_WITH_WINDOWS", False):
             startup.add_to_startup()
@@ -270,14 +314,16 @@ class LiteLLMControlPanel:
             startup.remove_from_startup()
 
         self.engine.api_keys = {
-            "openrouter": self.settings.get("OPENROUTER_API_KEY", ""),
-            "groq": self.settings.get("GROQ_API_KEY", ""),
-            "together": self.settings.get("TOGETHER_API_KEY", ""),
-            "deepinfra": self.settings.get("DEEPINFRA_API_KEY", ""),
-            "cerebras": self.settings.get("CEREBRAS_API_KEY", ""),
-            "github": self.settings.get("GITHUB_API_KEY", ""),
-            "huggingface": self.settings.get("HUGGINGFACE_API_KEY", ""),
-            "nvidia": self.settings.get("NVIDIA_API_KEY", "")
+            k: v for k, v in {
+                "openrouter": self.settings.get("OPENROUTER_API_KEY", ""),
+                "groq": self.settings.get("GROQ_API_KEY", ""),
+                "together": self.settings.get("TOGETHER_API_KEY", ""),
+                "deepinfra": self.settings.get("DEEPINFRA_API_KEY", ""),
+                "cerebras": self.settings.get("CEREBRAS_API_KEY", ""),
+                "github": self.settings.get("GITHUB_API_KEY", ""),
+                "huggingface": self.settings.get("HUGGINGFACE_API_KEY", ""),
+                "nvidia": self.settings.get("NVIDIA_API_KEY", ""),
+            }.items() if v
         }
         self.engine.base_urls = {
             "openrouter": self.settings.get("OPENROUTER_BASE_URL", ""),
@@ -289,7 +335,7 @@ class LiteLLMControlPanel:
             "huggingface": self.settings.get("HUGGINGFACE_BASE_URL", ""),
             "nvidia": self.settings.get("NVIDIA_BASE_URL", ""),
             "ollama": self.settings.get("OLLAMA_BASE_URL", ""),
-            "lm_studio": self.settings.get("LM_STUDIO_BASE_URL", "")
+            "lm_studio": self.settings.get("LM_STUDIO_BASE_URL", ""),
         }
         self.engine.weights = {
             "size": float(self.settings.get("SIZE_WEIGHT", 0.6)),
@@ -298,12 +344,122 @@ class LiteLLMControlPanel:
         }
         self.engine.min_params = int(self.settings.get("MIN_PARAMETERS", 100))
         engine.GLOBAL_EXCLUSIONS = [x.strip() for x in self.settings.get("GLOBAL_EXCLUSIONS", "").split(",") if x.strip()]
-        # Force a refresh
+        self.primary_count = int(self.settings.get("PRIMARY_COUNT", 5))
+
         asyncio.run_coroutine_threadsafe(self.refresh_logic(), self.loop)
 
+    # ── Model Selection & Reordering ──────────────────────────────────────
+
     def select_model(self, model_id, provider):
+        """Switch a model to be the primary choice (move to top of free-llm)."""
         def inner(icon, item):
-            config_manager.apply_model_to_litellm(model_id, provider)
+            # Move this model to the top of ranked_models (position 0 in primary)
+            model = None
+            for m in self.ranked_models:
+                if m['id'] == model_id and m.get('provider') == provider:
+                    model = m
+                    break
+            if model and model in self.ranked_models:
+                self.ranked_models.remove(model)
+                self.ranked_models.insert(0, model)
+                config_manager.apply_ranked_models(
+                    self.ranked_models, self.config_path,
+                    primary_count=self.primary_count
+                )
+                self.notify(f"Switched primary to {model_id}", "Model Selected")
+                if self.icon:
+                    self.icon.menu = self.build_menu()
+        return inner
+
+    def promote_to_primary(self, model_id, provider):
+        """Move a fallback model up to the primary group."""
+        def inner(icon, item):
+            model = None
+            for m in self.ranked_models:
+                if m['id'] == model_id and m.get('provider') == provider:
+                    model = m
+                    break
+            if not model:
+                return
+
+            # Find the current boundary between primary and fallback
+            current_primary = [m for m in self.ranked_models if m.get('group') == 'free-llm' or self.ranked_models.index(m) < self.primary_count]
+            if model in current_primary:
+                self.notify(f"{model_id} is already in primary group.")
+                return
+
+            # Move model to the end of the primary group
+            self.ranked_models.remove(model)
+            insert_pos = min(self.primary_count - 1, len(self.ranked_models))
+            self.ranked_models.insert(insert_pos, model)
+
+            # Update the config
+            primary_ids = [m['id'] for m in self.ranked_models[:self.primary_count]]
+            config_manager.reorder_primary(primary_ids, self.config_path)
+            self.notify(f"Promoted {model_id} to primary group.", "Model Promoted")
+            if self.icon:
+                self.icon.menu = self.build_menu()
+        return inner
+
+    def demote_to_fallback(self, model_id, provider):
+        """Move a primary model down to the fallback group."""
+        def inner(icon, item):
+            model = None
+            for m in self.ranked_models:
+                if m['id'] == model_id and m.get('provider') == provider:
+                    model = m
+                    break
+            if not model:
+                return
+
+            idx = self.ranked_models.index(model)
+            if idx >= self.primary_count:
+                self.notify(f"{model_id} is already in fallback group.")
+                return
+
+            # Move model to the top of the fallback group
+            self.ranked_models.remove(model)
+            insert_pos = self.primary_count  # First position in fallback
+            self.ranked_models.insert(insert_pos, model)
+
+            # Update the config
+            primary_ids = [m['id'] for m in self.ranked_models[:self.primary_count]]
+            config_manager.reorder_primary(primary_ids, self.config_path)
+            self.notify(f"Demoted {model_id} to fallback group.", "Model Demoted")
+            if self.icon:
+                self.icon.menu = self.build_menu()
+        return inner
+
+    def move_up(self, model_id, provider):
+        """Move a model up one position in its group."""
+        def inner(icon, item):
+            idx = None
+            for i, m in enumerate(self.ranked_models):
+                if m['id'] == model_id and m.get('provider') == provider:
+                    idx = i
+                    break
+            if idx is not None and idx > 0:
+                self.ranked_models[idx], self.ranked_models[idx - 1] = self.ranked_models[idx - 1], self.ranked_models[idx]
+                primary_ids = [m['id'] for m in self.ranked_models[:self.primary_count]]
+                config_manager.reorder_primary(primary_ids, self.config_path)
+                if self.icon:
+                    self.icon.menu = self.build_menu()
+        return inner
+
+    def move_down(self, model_id, provider):
+        """Move a model down one position in its group."""
+        def inner(icon, item):
+            idx = None
+            for i, m in enumerate(self.ranked_models):
+                if m['id'] == model_id and m.get('provider') == provider:
+                    idx = i
+                    break
+            if idx is not None and idx < len(self.ranked_models) - 1:
+                self.ranked_models[idx], self.ranked_models[idx + 1] = self.ranked_models[idx + 1], self.ranked_models[idx]
+                primary_ids = [m['id'] for m in self.ranked_models[:self.primary_count]]
+                config_manager.reorder_primary(primary_ids, self.config_path)
+                if self.icon:
+                    self.icon.menu = self.build_menu()
         return inner
 
     def skip_model(self, model_id):
@@ -338,17 +494,20 @@ class LiteLLMControlPanel:
         self.ranked_models = await self.engine.get_ranked_models()
         self.last_benchmark_time = datetime.datetime.now()
 
-        if self.routing_enabled and auto_pilot and self.ranked_models:
-            best = self.ranked_models[0]
-            # Check if current is different from best
-            # For simplicity, we just notify every time for now or we could check a state
-            config_manager.apply_model_to_litellm(best['id'], best['provider'])
-            self.notify(f"Switched to {best['id']} ({best['provider']})", "Autonomous Model Switch")
+        if self.routing_enabled and self.ranked_models:
+            # Write the full two-group config (primary + fallback)
+            config_manager.apply_ranked_models(
+                self.ranked_models, self.config_path,
+                primary_count=self.primary_count
+            )
+            if auto_pilot:
+                best = self.ranked_models[0]
+                self.notify(f"Auto-pilot: {best['id']} ({best['provider']})", "Model Switch")
 
         self.is_working = False
         if self.icon:
             self.icon.menu = self.build_menu()
-            self.update_tray_status()
+        self.update_tray_status()
         print("Refresh complete.")
         return True
 
@@ -356,22 +515,20 @@ class LiteLLMControlPanel:
         menu_items = []
 
         menu_items.append(item("Master Routing", self.toggle_routing, checked=lambda item: self.routing_enabled))
-        menu_items.append(item("Copy Active Model", self.copy_active_model, enabled=len(self.ranked_models)>0))
+        menu_items.append(item("Copy Active Model", self.copy_active_model, enabled=len(self.ranked_models) > 0))
         menu_items.append(pystray.Menu.SEPARATOR)
 
         # 1. Primary Actions & Status
         is_running = self.process_mgr.is_running()
         status_text = "Running" if is_running else "Stopped"
         active_model_name = self.ranked_models[0]['id'] if self.ranked_models else "None"
-
-        menu_items.append(item(f"LiteLLM: {status_text} | Active: {active_model_name}", lambda: None, enabled=False))
+        menu_items.append(item(f"LiteLLM: {status_text} | Primary: {active_model_name}", lambda: None, enabled=False))
         menu_items.append(pystray.Menu.SEPARATOR)
 
         menu_items.append(item("Open LLM Interface", self.launch_interface))
         menu_items.append(item("Quick Query", self.show_query))
         menu_items.append(item("Show Dashboard", self.show_dashboard, default=True))
         menu_items.append(item("System Status", self.show_status))
-
         menu_items.append(pystray.Menu.SEPARATOR)
 
         # 2. LiteLLM Session Control
@@ -380,28 +537,59 @@ class LiteLLMControlPanel:
             item("Stop Proxy", self.stop_litellm, enabled=is_running),
             item("Restart Proxy", self.restart_litellm, enabled=is_running),
             item("View Logs", self.show_logs),
-            item("View Config", self.view_config)
+            item("View Config", self.view_config),
         ]
         menu_items.append(item("LiteLLM Control", pystray.Menu(*control_items)))
 
-        # 3. Routing & Ranking
-        ranking_items = []
-        if self.ranked_models:
-            for m in self.ranked_models:
-                model_label = f"{m['id']} ({m['parameters']}B) - {m['latency']:.2f}s"
-                submenu = pystray.Menu(
-                    item("Switch to Model", self.select_model(m['id'], m['provider'])),
-                    item("Skip (24h)", self.skip_model(m['id'])),
-                    item("Blacklist", self.blacklist_model(m['id']))
-                )
-                ranking_items.append(item(model_label, submenu))
-        else:
-            ranking_items.append(item("Benchmarking models...", lambda: None, enabled=False))
+        # 3. Model Rankings — Primary group
+        primary_items = []
+        fallback_items = []
 
-        menu_items.append(item("Model Rankings", pystray.Menu(*ranking_items)))
+        for i, m in enumerate(self.ranked_models):
+            lat_str = f"{m['latency']:.2f}s" if m.get('latency', 0) > 0 else "?"
+            score_str = f"score={m['score']:.0f}" if m.get('score', 0) != 0 else ""
+            params_str = f"{m['parameters']}B" if m.get('parameters', 0) > 0 else ""
+            group_tag = "★" if i < self.primary_count else "  "
+            model_label = f"{group_tag} {m['id']} ({m['provider']}) {params_str} {lat_str} {score_str}".strip()
+
+            submenu_items = [
+                item("Set as Primary ★", self.select_model(m['id'], m['provider'])),
+            ]
+
+            # Promote/Demote between groups
+            if i < self.primary_count:
+                submenu_items.append(item("↓ Demote to Fallback", self.demote_to_fallback(m['id'], m['provider'])))
+                if i > 0:
+                    submenu_items.append(item("↑ Move Up", self.move_up(m['id'], m['provider'])))
+                if i < self.primary_count - 1:
+                    submenu_items.append(item("↓ Move Down", self.move_down(m['id'], m['provider'])))
+            else:
+                submenu_items.append(item("↑ Promote to Primary", self.promote_to_primary(m['id'], m['provider'])))
+                if i > self.primary_count:
+                    submenu_items.append(item("↑ Move Up", self.move_up(m['id'], m['provider'])))
+                if i < len(self.ranked_models) - 1:
+                    submenu_items.append(item("↓ Move Down", self.move_down(m['id'], m['provider'])))
+
+            submenu_items.append(pystray.Menu.SEPARATOR)
+            submenu_items.append(item("Skip (24h)", self.skip_model(m['id'])))
+            submenu_items.append(item("Blacklist", self.blacklist_model(m['id'])))
+
+            submenu = pystray.Menu(*submenu_items)
+
+            if i < self.primary_count:
+                primary_items.append(item(model_label, submenu))
+            else:
+                fallback_items.append(item(model_label, submenu))
+
+        if primary_items:
+            menu_items.append(item(f"★ Primary ({self.primary_count})", pystray.Menu(*primary_items)))
+        if fallback_items:
+            menu_items.append(item(f"  Fallback ({len(fallback_items)})", pystray.Menu(*fallback_items)))
+        if not primary_items and not fallback_items:
+            menu_items.append(item("No models loaded yet...", lambda: None, enabled=False))
+
         menu_items.append(item("Auto-Pilot Mode", self.toggle_auto_pilot, checked=lambda item: self.auto_pilot))
         menu_items.append(item("Refresh Now", self.refresh_now))
-
         menu_items.append(pystray.Menu.SEPARATOR)
 
         # 4. Providers & Maintenance
@@ -417,7 +605,7 @@ class LiteLLMControlPanel:
 
         startup_menu = pystray.Menu(
             item("Enable", self.enable_startup),
-            item("Disable", self.disable_startup)
+            item("Disable", self.disable_startup),
         )
         menu_items.append(item("Start with Windows", startup_menu))
 
@@ -426,7 +614,7 @@ class LiteLLMControlPanel:
             item("Clear Blacklist", self.maintenance_clear_blacklist),
             item("Reset Provider Stats", self.maintenance_reset_stats),
             item("Backup LiteLLM Config", self.maintenance_backup_config),
-            item("Restore LiteLLM Config", self.maintenance_restore_config)
+            item("Restore LiteLLM Config", self.maintenance_restore_config),
         )
         menu_items.append(item("Maintenance", maintenance_menu))
 
@@ -441,48 +629,40 @@ class LiteLLMControlPanel:
         while self.running:
             is_running = self.process_mgr.is_running()
             auto_manage = self.settings.get("AUTO_MANAGE_LITELLM", True)
-
             if is_running:
                 if not self.process_mgr.check_health():
                     consecutive_failures += 1
                     print(f"LiteLLM health check failed ({consecutive_failures}/3)")
                 else:
                     consecutive_failures = 0
-
                 if consecutive_failures >= 3:
                     print("Active model seems unhealthy, triggering refresh/fallback...")
                     self.notify("LiteLLM health check failed multiple times. Triggering fallback...", "Health Alert")
                     await self.refresh_logic(auto_pilot=self.auto_pilot)
                     consecutive_failures = 0
             elif auto_manage:
-                # If it should be running but isn't, attempt restart
                 print("LiteLLM process stopped unexpectedly. Attempting restart...")
                 self.notify("LiteLLM process stopped. Attempting restart...", "Process Alert")
                 self.process_mgr.start()
-
             await asyncio.sleep(60)
 
     async def background_worker(self):
         """Background loop for periodic model benchmarking."""
-        # Start health monitor
         asyncio.create_task(self.monitor_active_model())
 
         while self.running:
             try:
                 success = await self.refresh_logic(auto_pilot=self.auto_pilot)
-
                 if success:
                     print("Rankings updated successfully.")
-                    interval = 3600 # 1 hour
+                    interval = 3600  # 1 hour
                 else:
                     print("Refresh failed (likely connectivity). Retrying in 5 minutes.")
-                    interval = 300 # 5 minutes
-
+                    interval = 300  # 5 minutes
             except Exception as e:
                 print(f"Error in background worker: {e}")
-                interval = 600 # 10 minutes
+                interval = 600  # 10 minutes
 
-            # Wait for configured interval
             for _ in range(interval):
                 if not self.running:
                     break
@@ -494,8 +674,6 @@ class LiteLLMControlPanel:
             self.loop.run_until_complete(self.background_worker())
         except Exception as e:
             print(f"Critical error in async loop: {e}")
-            # Notify user of crash
-            self.notify(f"The background worker has crashed: {e}. Please restart the application.", "Critical Error")
 
     def run(self):
         # Start LiteLLM if configured
@@ -510,9 +688,10 @@ class LiteLLMControlPanel:
             "LiteLLM",
             self.create_image(64, 64, 'gray'),
             "LiteLLM Router",
-            menu=self.build_menu()
+            menu=self.build_menu(),
         )
         self.icon.run()
+
 
 if __name__ == "__main__":
     app = LiteLLMControlPanel()

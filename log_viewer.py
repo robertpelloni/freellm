@@ -51,12 +51,6 @@ class LogViewer:
                 self.log_area.insert(tk.END, line)
         self.log_area.see(tk.END)
 
-        self.running = True
-        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
-
-        # Start log polling
-        threading.Thread(target=self.poll_logs, daemon=True).start()
-
     def on_close(self):
         self.running = False
         self.root.destroy()

@@ -3,6 +3,7 @@ from tkinter import scrolledtext, ttk
 import threading
 import httpx
 import json
+import database
 
 class QueryUI:
     def __init__(self, settings):
@@ -63,7 +64,7 @@ class QueryUI:
     def _perform_query(self, prompt):
         url = "http://localhost:4000/v1/chat/completions" # Default LiteLLM port
         payload = {
-            "model": "active-free-model", # The model name we set in config.yaml
+            "model": "free-llm", # The model name we set in config.yaml
             "messages": [{"role": "user", "content": prompt}],
             "stream": True
         }
@@ -86,7 +87,7 @@ class QueryUI:
                             # Log usage if token counts available (usually only at end)
                             usage = data.get('usage')
                             if usage:
-                                database.log_usage("active-free-model",
+                                database.log_usage("free-llm",
                                                  usage.get('prompt_tokens', 0),
                                                  usage.get('completion_tokens', 0))
                         except:
