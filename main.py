@@ -12,6 +12,7 @@ import config_manager
 import settings_ui
 import process_manager
 import log_viewer
+import dashboard_ui
 
 class LiteLLMControlPanel:
     def __init__(self):
@@ -56,23 +57,30 @@ class LiteLLMControlPanel:
             return
         self.icon.notify(message, title)
 
-    def update_icon_color(self):
+    def update_tray_status(self):
         if not self.icon:
             return
 
         color = 'gray'
+        tooltip = "LiteLLM Router"
+
         if self.ranked_models:
-            best_latency = self.ranked_models[0].get('latency', 1.0)
+            best = self.ranked_models[0]
+            best_latency = best.get('latency', 1.0)
             if best_latency < 0.5:
                 color = 'green'
             elif best_latency < 1.5:
                 color = 'yellow'
             else:
                 color = 'red'
+
+            tooltip = f"Active: {best['id']} ({best['latency']:.2fs})"
         else:
             color = 'red'
+            tooltip = "No models available"
 
         self.icon.icon = self.create_image(64, 64, color)
+        self.icon.title = tooltip
 
     def on_quit(self, icon, item):
         self.running = False
@@ -98,6 +106,18 @@ class LiteLLMControlPanel:
         import startup
         startup.remove_from_startup()
 
+    def maintenance_clear_skips(self, icon, item):
+        database.clear_skip_list()
+        self.notify("Skip list cleared.")
+
+    def maintenance_clear_blacklist(self, icon, item):
+        database.clear_blacklist()
+        self.notify("Blacklist cleared.")
+
+    def maintenance_reset_stats(self, icon, item):
+        database.reset_all_stats()
+        self.notify("All provider and model stats reset.")
+
     def launch_interface(self, icon=None, item=None):
         import webbrowser
         url = self.settings.get("INTERFACE_URL", "http://localhost:4000")
@@ -114,6 +134,12 @@ class LiteLLMControlPanel:
             viewer = log_viewer.LogViewer(self.process_mgr)
             viewer.run()
         threading.Thread(target=run_logs, daemon=True).start()
+
+    def show_dashboard(self, icon=None, item=None):
+        def run_dashboard():
+            ui = dashboard_ui.DashboardUI(self)
+            ui.run()
+        threading.Thread(target=run_dashboard, daemon=True).start()
 
     def view_config(self, icon, item):
         import os
@@ -193,14 +219,15 @@ class LiteLLMControlPanel:
 
         if self.icon:
             self.icon.menu = self.build_menu()
-            self.update_icon_color()
+            self.update_tray_status()
         print("Refresh complete.")
 
     def build_menu(self):
         menu_items = []
 
         # Default action
-        menu_items.append(item("Open LLM Interface", self.launch_interface, default=True))
+        menu_items.append(item("Show Dashboard", self.show_dashboard, default=True))
+        menu_items.append(item("Open LLM Interface", self.launch_interface))
         menu_items.append(pystray.Menu.SEPARATOR)
 
         # Top 10 models
@@ -241,6 +268,13 @@ class LiteLLMControlPanel:
             item("Disable", self.disable_startup)
         )
         menu_items.append(item("Start with Windows", startup_menu))
+
+        maintenance_menu = pystray.Menu(
+            item("Clear Skip List", self.maintenance_clear_skips),
+            item("Clear Blacklist", self.maintenance_clear_blacklist),
+            item("Reset Provider Stats", self.maintenance_reset_stats)
+        )
+        menu_items.append(item("Maintenance", maintenance_menu))
 
         menu_items.append(pystray.Menu.SEPARATOR)
         menu_items.append(item("Quit", self.on_quit))
