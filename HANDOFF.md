@@ -1,7 +1,7 @@
 # Session Handoff: LiteLLM Control Panel
 
 ## Overview
-Successfully implemented the LiteLLM Control Panel v1.3.0. The application is now a high-performance Windows tray utility that provides centralized, autonomous routing and management for various LLM backends.
+Successfully implemented the LiteLLM Control Panel v2.0.0. The application is now a high-performance Windows tray utility that provides centralized, autonomous routing and management for various LLM backends.
 
 ## Completed Tasks
 - **Direct Control:** Added Start, Stop, and Restart proxy actions directly to the top-level tray menu.

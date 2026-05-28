@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 import threading
+import database
 
 class DashboardUI:
     def __init__(self, app_instance):
