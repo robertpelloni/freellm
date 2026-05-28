@@ -26,6 +26,12 @@
 - Lifecycle Automation: Option to automatically start and stop the LiteLLM proxy with the Control Panel.
 - UX Refinements: Added Quick Query to the top of the tray menu for instant access.
 
+## [1.5.0] - 2024-06-10
+### Added
+- Custom Endpoints: Configure base URLs for all providers (cloud and local) in Settings.
+- Master Routing Toggle: New "Master Routing" option in tray menu to globally enable/disable configuration updates.
+- Refined Settings GUI: Scrollable interface with grid layout for better organization of many settings.
+
 ## [1.0.0] - 2024-06-05
 ### Added
 - Official 1.0.0 Release!

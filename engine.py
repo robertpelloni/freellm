@@ -26,16 +26,18 @@ SIZE_PATTERN = re.compile(r'(\d+)[bB]')
 GLOBAL_EXCLUSIONS = ["-preview", "-base", "vision", "dummy"]
 
 class ModelEngine:
-    def __init__(self, api_keys: Dict[str, str], min_params: int = MIN_PARAMETERS_BILLIONS, weights: Dict[str, float] = None):
+    def __init__(self, api_keys: Dict[str, str], min_params: int = MIN_PARAMETERS_BILLIONS, weights: Dict[str, float] = None, base_urls: Dict[str, str] = None):
         self.api_keys = api_keys
         self.min_params = min_params
         self.weights = weights or {"size": 0.6, "context": 0.2, "latency": 0.2}
+        self.base_urls = base_urls or {}
         self.client = httpx.AsyncClient(timeout=10.0)
 
     async def fetch_openrouter_models(self) -> List[Dict[str, Any]]:
         """Fetches free models from OpenRouter."""
+        url = self.base_urls.get("openrouter", OPENROUTER_MODELS_URL.replace("/models", "")) + "/models"
         try:
-            response = await self.client.get(OPENROUTER_MODELS_URL)
+            response = await self.client.get(url)
             if response.status_code != 200:
                 print(f"Error fetching OpenRouter models: {response.status_code}")
                 return []
@@ -99,8 +101,9 @@ class ModelEngine:
         """Fetches models from Groq."""
         api_key = self.api_keys.get("groq")
         if not api_key: return []
+        url = self.base_urls.get("groq", GROQ_MODELS_URL.replace("/models", "")) + "/models"
         try:
-            response = await self.client.get(GROQ_MODELS_URL, headers={"Authorization": f"Bearer {api_key}"})
+            response = await self.client.get(url, headers={"Authorization": f"Bearer {api_key}"})
             if response.status_code == 200:
                 data = response.json().get("data", [])
                 models = []
@@ -122,8 +125,9 @@ class ModelEngine:
         """Fetches models from Together AI."""
         api_key = self.api_keys.get("together")
         if not api_key: return []
+        url = self.base_urls.get("together", TOGETHER_MODELS_URL.replace("/v1/models", "")) + "/v1/models"
         try:
-            response = await self.client.get(TOGETHER_MODELS_URL, headers={"Authorization": f"Bearer {api_key}"})
+            response = await self.client.get(url, headers={"Authorization": f"Bearer {api_key}"})
             if response.status_code == 200:
                 data = response.json()
                 models = []
@@ -143,8 +147,9 @@ class ModelEngine:
         """Fetches models from DeepInfra."""
         api_key = self.api_keys.get("deepinfra")
         if not api_key: return []
+        url = self.base_urls.get("deepinfra", DEEPINFRA_MODELS_URL.replace("/openai/models", "")) + "/openai/models"
         try:
-            response = await self.client.get(DEEPINFRA_MODELS_URL, headers={"Authorization": f"Bearer {api_key}"})
+            response = await self.client.get(url, headers={"Authorization": f"Bearer {api_key}"})
             if response.status_code == 200:
                 data = response.json().get("data", [])
                 models = []
@@ -164,8 +169,9 @@ class ModelEngine:
         """Fetches models from Cerebras."""
         api_key = self.api_keys.get("cerebras")
         if not api_key: return []
+        url = self.base_urls.get("cerebras", CEREBRAS_MODELS_URL.replace("/models", "")) + "/models"
         try:
-            response = await self.client.get(CEREBRAS_MODELS_URL, headers={"Authorization": f"Bearer {api_key}"})
+            response = await self.client.get(url, headers={"Authorization": f"Bearer {api_key}"})
             if response.status_code == 200:
                 data = response.json().get("data", [])
                 models = []
@@ -183,8 +189,9 @@ class ModelEngine:
 
     async def fetch_ollama_models(self) -> List[Dict[str, Any]]:
         """Fetches models from Ollama."""
+        url = self.base_urls.get("ollama", OLLAMA_MODELS_URL.replace("/api/tags", "")) + "/api/tags"
         try:
-            response = await self.client.get(OLLAMA_MODELS_URL)
+            response = await self.client.get(url)
             if response.status_code == 200:
                 data = response.json().get("models", [])
                 models = []
@@ -204,8 +211,9 @@ class ModelEngine:
 
     async def fetch_lm_studio_models(self) -> List[Dict[str, Any]]:
         """Fetches models from LM Studio."""
+        url = self.base_urls.get("lm_studio", LM_STUDIO_MODELS_URL.replace("/v1/models", "")) + "/v1/models"
         try:
-            response = await self.client.get(LM_STUDIO_MODELS_URL)
+            response = await self.client.get(url)
             if response.status_code == 200:
                 data = response.json().get("data", [])
                 models = []
@@ -352,20 +360,23 @@ class ModelEngine:
 
     async def measure_latency(self, model_id: str, provider: str) -> Optional[float]:
         """Measures Time-To-First-Token (TTFT) for a given model."""
+        base = self.base_urls.get(provider)
+
         if provider == "openrouter":
-            url = "https://openrouter.ai/api/v1/chat/completions"
+            url = (base or "https://openrouter.ai/api/v1") + "/chat/completions"
         elif provider == "groq":
-            url = "https://api.groq.com/openai/v1/chat/completions"
+            url = (base or "https://api.groq.com/openai/v1") + "/chat/completions"
         elif provider == "together":
-            url = "https://api.together.xyz/v1/chat/completions"
+            url = (base or "https://api.together.xyz/v1") + "/chat/completions"
         elif provider == "deepinfra":
-            url = "https://api.deepinfra.com/v1/openai/chat/completions"
+            url = (base or "https://api.deepinfra.com/v1/openai") + "/chat/completions"
         elif provider == "cerebras":
-            url = "https://api.cerebras.ai/v1/chat/completions"
+            url = (base or "https://api.cerebras.ai/v1") + "/chat/completions"
         elif provider == "ollama":
-            url = "http://localhost:11434/v1/chat/completions"
+            # Ollama /v1/chat/completions is usually at /v1/chat/completions or /api/chat
+            url = (base or "http://localhost:11434") + "/v1/chat/completions"
         elif provider == "lm_studio":
-            url = "http://localhost:1234/v1/chat/completions"
+            url = (base or "http://localhost:1234") + "/v1/chat/completions"
         else:
             return None
 
