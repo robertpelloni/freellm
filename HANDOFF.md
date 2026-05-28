@@ -1,25 +1,25 @@
 # Session Handoff: LiteLLM Control Panel
 
 ## Overview
-Successfully implemented the LiteLLM Control Panel v0.7.0. The application is now highly resilient and interactive, featuring a background notification system and robust error handling.
+Successfully implemented the LiteLLM Control Panel v0.8.0. The application is now a production-ready Windows utility with seamless interaction and high accessibility.
 
 ## Completed Tasks
+- **Click-to-Open:** Implemented double-click/selection action on the tray icon to launch the LLM Interface in the default browser.
+- **Configurable Interface:** Added "LLM Interface URL" setting to the GUI for easy redirection.
 - **Notification System:** Integrated system tray notifications for model switches, health alerts, and process status.
-- **User Alerts:** Added a configurable "Enable Notifications" toggle in the Settings GUI.
-- **Enhanced Persistence:** Implemented global exception handling in the async loop to prevent silent crashes and notify users of critical errors.
-- **Full multi-provider support:** 7+ providers (OpenRouter, Groq, Together, DeepInfra, Cerebras, Ollama, LM Studio).
-- **Advanced Scoring:** Weighted factors for Size, Context Length, and Latency.
-- **Full OS Integration:** Auto-start with Windows, process management, and real-time status.
+- **Scoring Weights:** Exposed Size, Context Length, and Latency weights in the GUI for custom model ranking.
+- **OS Persistence:** Finalized auto-start integration and robust error handling to ensure continuous background operation.
+- **Multi-Provider:** 7+ providers (OpenRouter, Groq, Together, DeepInfra, Cerebras, Ollama, LM Studio).
 
 ## Current Project State
-- Highly stable architecture with error-recovery and user-feedback loops.
-- Persistent state tracking via SQLite and JSON.
-- Verified build for production deployment.
+- Robust multi-threaded architecture with persistent health tracking and adaptive routing.
+- High visual transparency via icon color coding and real-time log viewing.
+- Verified buildability with PyInstaller.
 
 ## Future Steps (for next session)
-- Implement a "Live Model Stats" dashboard in the Settings UI.
-- Add more granular per-model benchmarking controls.
-- Implement "Smart Cache" to reduce redundant benchmarking of static local models.
+- Implement a "Live Model Stats" or "Ranking History" dashboard in the Settings UI.
+- Add support for per-provider usage limits or rate-limiting indicators.
+- Implement "Smart Cache" to optimize benchmarking of static local models.
 
 ## Notable Discoveries
 - `ruamel.yaml` is essential for preserving user-added comments in `config.yaml`.

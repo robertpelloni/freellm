@@ -1,5 +1,11 @@
 # Changelog: LiteLLM Control Panel
 
+## [0.8.0] - 2024-06-03
+### Added
+- Click-to-open functionality: Double-clicking or selecting the tray icon now opens the LLM Interface.
+- Configurable "LLM Interface URL" in the Settings GUI.
+- Streamlined access to the model interface.
+
 ## [0.7.0] - 2024-06-02
 ### Added
 - Background Notification System: Alerts for model switches, health failures, and crashes.

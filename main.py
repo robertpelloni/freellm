@@ -98,6 +98,11 @@ class LiteLLMControlPanel:
         import startup
         startup.remove_from_startup()
 
+    def launch_interface(self, icon=None, item=None):
+        import webbrowser
+        url = self.settings.get("INTERFACE_URL", "http://localhost:4000")
+        webbrowser.open(url)
+
     def launch_litellm(self, icon, item):
         self.process_mgr.start()
 
@@ -193,6 +198,10 @@ class LiteLLMControlPanel:
 
     def build_menu(self):
         menu_items = []
+
+        # Default action
+        menu_items.append(item("Open LLM Interface", self.launch_interface, default=True))
+        menu_items.append(pystray.Menu.SEPARATOR)
 
         # Top 10 models
         if self.ranked_models:
