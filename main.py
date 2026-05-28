@@ -18,6 +18,8 @@ import log_viewer
 import dashboard_ui
 import query_ui
 import status_window
+import comparison_ui
+import api_server
 
 # The actual LiteLLM config used by the system
 HERMES_CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".hermes", "litellm-config.yaml")
@@ -85,6 +87,11 @@ class LiteLLMControlPanel:
 
         # Primary group size (how many top models go in free-llm vs free-llm-fallback)
         self.primary_count = int(self.settings.get("PRIMARY_COUNT", 5))
+
+        # Start API server if enabled
+        if self.settings.get("ENABLE_API", False):
+            api_port = int(self.settings.get("API_PORT", 8000))
+            api_server.start_api_server(self, port=api_port)
 
         # Initialize DB
         database.init_db()
@@ -292,23 +299,29 @@ class LiteLLMControlPanel:
         return env
 
     def launch_litellm(self, icon, item):
-        if self.process_mgr.start(env=self.get_litellm_env()):
+        success = self.process_mgr.start(env=self.get_litellm_env())
+        if success:
             self.notify("LiteLLM Proxy started successfully.", "Process Update")
         else:
             self.notify("Failed to start LiteLLM Proxy.", "Process Error")
         self.update_tray_status()
+        return success
 
     def stop_litellm(self, icon, item):
-        if self.process_mgr.stop():
+        success = self.process_mgr.stop()
+        if success:
             self.notify("LiteLLM Proxy stopped.", "Process Update")
         self.update_tray_status()
+        return success
 
     def restart_litellm(self, icon, item):
-        if self.process_mgr.restart(env=self.get_litellm_env()):
+        success = self.process_mgr.restart(env=self.get_litellm_env())
+        if success:
             self.notify("LiteLLM Proxy restarted.", "Process Update")
         else:
             self.notify("Failed to restart LiteLLM Proxy.", "Process Error")
         self.update_tray_status()
+        return success
 
     def show_logs(self, icon, item):
         def run_logs():
@@ -334,6 +347,12 @@ class LiteLLMControlPanel:
             ui.run()
         threading.Thread(target=run_query, daemon=True).start()
 
+    def show_comparison(self, icon=None, item=None):
+        def run_comparison():
+            ui = comparison_ui.ComparisonUI(self.settings, self.ranked_models)
+            ui.run()
+        threading.Thread(target=run_comparison, daemon=True).start()
+
     def show_status(self, icon=None, item=None):
         def run_status():
             ui = status_window.StatusWindow(self)
@@ -356,7 +375,11 @@ class LiteLLMControlPanel:
 
     def show_settings(self, icon, item):
         def run_ui():
-            ui = settings_ui.SettingsUI(on_save_callback=self.on_settings_saved)
+            ui = settings_ui.SettingsUI(
+                on_save_callback=self.on_settings_saved,
+                on_proxy_logs_callback=lambda: self.show_logs(None, None),
+                on_engine_logs_callback=lambda: self.show_engine_logs(None, None)
+            )
             ui.run()
         threading.Thread(target=run_ui, daemon=True).start()
 
@@ -602,6 +625,7 @@ class LiteLLMControlPanel:
         menu_items.append(item("Settings", self.show_settings))
         menu_items.append(pystray.Menu.SEPARATOR)
         menu_items.append(item("Quick Query", self.show_query))
+        menu_items.append(item("Model Comparison", self.show_comparison, enabled=len(self.ranked_models) > 0))
         menu_items.append(item("Show Dashboard", self.show_dashboard))
         menu_items.append(item("Model Leaderboard", self.show_leaderboard))
         menu_items.append(item("System Status", self.show_status))

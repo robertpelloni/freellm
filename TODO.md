@@ -3,7 +3,8 @@
 ## Immediate Tasks
 - [x] Implement a "Live Logs" or "Event Stream" viewer to monitor benchmarking in real-time.
 - [x] Refine the Log Viewer with search and filtering capabilities.
-- [ ] Implement side-by-side model comparison UI.
+- [x] Implement side-by-side model comparison UI.
+- [x] Implement External API Layer for remote monitoring and control.
 
 ## Features
 - [x] Parameter size regex parser for various model ID formats.

@@ -1,5 +1,12 @@
 # Changelog: LiteLLM Control Panel
 
+## [2.2.0] - 2024-06-16
+### Added
+- External API Layer: New FastAPI-based service for remote monitoring and control.
+- Model Comparison UI: New side-by-side view to compare top-tier models with a single prompt.
+- Integrated Monitoring: Added direct log viewer shortcuts within the Settings GUI.
+- Concurrent Streaming: Model comparison supports simultaneous response streaming from up to 3 models.
+
 ## [2.1.1] - 2024-06-15
 ### Added
 - Dynamic Hugging Face Discovery: The engine now fetches text-generation models directly from HF API.
