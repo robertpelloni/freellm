@@ -1,5 +1,13 @@
 # Changelog: LiteLLM Control Panel
 
+## [0.6.0] - 2024-06-01
+### Added
+- Local provider support: Automatically detect and benchmark Ollama and LM Studio models.
+- Context-length weighting: Included context length in the scoring algorithm for better model selection.
+- Automatic Fallback: Health monitor that triggers a model switch if LiteLLM becomes unresponsive.
+- User-configurable scoring weights in the Settings GUI.
+- Improved "LiteLLM Instance" menu with real-time status.
+
 ## [0.5.0] - 2024-05-31
 ### Added
 - Real-time Log Viewer for LiteLLM proxy process.

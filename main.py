@@ -24,7 +24,12 @@ class LiteLLMControlPanel:
             "deepinfra": self.settings.get("DEEPINFRA_API_KEY", ""),
             "cerebras": self.settings.get("CEREBRAS_API_KEY", "")
         }
-        self.engine = engine.ModelEngine(api_keys=api_keys)
+        weights = {
+            "size": float(self.settings.get("SIZE_WEIGHT", 0.6)),
+            "context": float(self.settings.get("CONTEXT_WEIGHT", 0.2)),
+            "latency": float(self.settings.get("LATENCY_WEIGHT", 0.2))
+        }
+        self.engine = engine.ModelEngine(api_keys=api_keys, weights=weights)
         # Apply exclusions from settings
         engine.GLOBAL_EXCLUSIONS = [x.strip() for x in self.settings.get("GLOBAL_EXCLUSIONS", "").split(",") if x.strip()]
 
@@ -135,6 +140,11 @@ class LiteLLMControlPanel:
             "deepinfra": self.settings.get("DEEPINFRA_API_KEY", ""),
             "cerebras": self.settings.get("CEREBRAS_API_KEY", "")
         }
+        self.engine.weights = {
+            "size": float(self.settings.get("SIZE_WEIGHT", 0.6)),
+            "context": float(self.settings.get("CONTEXT_WEIGHT", 0.2)),
+            "latency": float(self.settings.get("LATENCY_WEIGHT", 0.2))
+        }
         self.engine.min_params = int(self.settings.get("MIN_PARAMETERS", 100))
         engine.GLOBAL_EXCLUSIONS = [x.strip() for x in self.settings.get("GLOBAL_EXCLUSIONS", "").split(",") if x.strip()]
         # Force a refresh
@@ -160,13 +170,18 @@ class LiteLLMControlPanel:
     def refresh_now(self, icon, item):
         asyncio.run_coroutine_threadsafe(self.refresh_logic(), self.loop)
 
-    async def refresh_logic(self):
-        print("Manual refresh triggered...")
+    async def refresh_logic(self, auto_pilot=False):
+        print("Refreshing model rankings...")
         self.ranked_models = await self.engine.get_ranked_models()
+
+        if auto_pilot and self.ranked_models:
+            best = self.ranked_models[0]
+            config_manager.apply_model_to_litellm(best['id'], best['provider'])
+
         if self.icon:
             self.icon.menu = self.build_menu()
             self.update_icon_color()
-        print("Manual refresh complete.")
+        print("Refresh complete.")
 
     def build_menu(self):
         menu_items = []
@@ -215,16 +230,31 @@ class LiteLLMControlPanel:
 
         return pystray.Menu(*menu_items)
 
+    async def monitor_active_model(self):
+        """Monitors the active LiteLLM model health and triggers fallback if needed."""
+        consecutive_failures = 0
+        while self.running:
+            if self.process_mgr.is_running():
+                if not self.process_mgr.check_health():
+                    consecutive_failures += 1
+                    print(f"LiteLLM health check failed ({consecutive_failures}/3)")
+                else:
+                    consecutive_failures = 0
+
+                if consecutive_failures >= 3:
+                    print("Active model seems unhealthy, triggering refresh/fallback...")
+                    await self.refresh_logic(auto_pilot=self.auto_pilot)
+                    consecutive_failures = 0
+            await asyncio.sleep(60)
+
     async def background_worker(self):
         """Background loop for periodic model benchmarking."""
+        # Start health monitor
+        asyncio.create_task(self.monitor_active_model())
+
         while self.running:
             try:
-                print("Refreshing model rankings...")
-                self.ranked_models = await self.engine.get_ranked_models()
-
-                if self.auto_pilot and self.ranked_models:
-                    best = self.ranked_models[0]
-                    config_manager.apply_model_to_litellm(best['id'], best['provider'])
+                await self.refresh_logic(auto_pilot=self.auto_pilot)
 
                 # Update menu and icon
                 if self.icon:
