@@ -1,27 +1,24 @@
 # Session Handoff: LiteLLM Control Panel
 
 ## Overview
-Successfully implemented the LiteLLM Control Panel v0.2.0. The application is now a fully functional, production-ready Windows utility with a GUI settings panel and multi-provider support.
+Successfully implemented the LiteLLM Control Panel v1.3.0. The application is now a high-performance Windows tray utility that provides centralized, autonomous routing and management for various LLM backends.
 
 ## Completed Tasks
-- **Accessibility:** Created `setup.bat` and `start.bat` for a seamless 1-2 step installation and execution process.
-- **GUI Settings:** Implemented `settings_ui.py` (Tkinter) for managing API keys and preferences without editing code.
-- **Multi-Provider:** Added direct support for Groq and Together AI in `engine.py`.
-- **Temporal Logic:** Refined `database.py` to support 2h isolation for failures and 24h manual skips.
-- **Hygiene:** Added `.gitignore` and sanitized the repository of build artifacts.
-- **Orchestration:** Integrated `settings.json` for persistence and maintained `ruamel.yaml` for LiteLLM config integrity.
-- **Testing:** Expanded `tests.py` to 9 tests covering temporal logic and exclusions.
+- **Direct Control:** Added Start, Stop, and Restart proxy actions directly to the top-level tray menu.
+- **Rich Interaction:** Integrated a Quick Query window for instant model testing and a comprehensive Dashboard for ranking oversight.
+- **Multi-Provider support:** Native integration for 7+ cloud and local providers (OpenRouter, Groq, Together, etc.).
+- **OS-Level Integration:** System tray notifications, "Start with Windows" support, and automated proxy lifecycle management.
+- **Adaptive Intelligence:** Persistent performance tracking and autonomous "Auto-Pilot" routing using configurable weighted scoring.
 
 ## Current Project State
-- Robust architecture with decoupled UI and background benchmarking.
-- Persistent health tracking and adaptive learning for providers.
-- Verified buildability with PyInstaller.
+- High-stability multi-threaded architecture (Win32 UI + Async Worker).
+- Unified settings management and data persistence.
+- Verified build for production distribution via PyInstaller.
 
-## Future Steps (for next session)
-- Implement a detailed "Live Logs" viewer in the settings UI.
-- Add context-length weighting to the scoring algorithm.
-- Implement tray icon color coding based on current model health.
-- Add more providers like DeepInfra or Cerebras.
+## Future Steps
+- Implement "Smart Cache" to reduce redundant benchmarks for static local models.
+- Add per-provider rate-limiting and cost-tracking indicators.
+- Refine the Log Viewer with search, filtering, and session export.
 
 ## Notable Discoveries
 - `ruamel.yaml` is essential for preserving user-added comments in `config.yaml`.
