@@ -21,6 +21,7 @@ class LiteLLMControlPanel:
     def __init__(self):
         self.settings = settings_ui.load_settings()
         self.last_benchmark_time = None
+        self.is_online = True
         self.process_mgr = process_manager.LiteLLMProcess(config_path=self.settings.get("CONFIG_PATH", "config.yaml"))
         api_keys = {
             "openrouter": self.settings.get("OPENROUTER_API_KEY", ""),
@@ -48,14 +49,15 @@ class LiteLLMControlPanel:
         engine.GLOBAL_EXCLUSIONS = [x.strip() for x in self.settings.get("GLOBAL_EXCLUSIONS", "").split(",") if x.strip()]
 
         self.ranked_models: List[Dict[str, Any]] = []
-        self.routing_enabled = True
+        self.routing_enabled = self.settings.get("ROUTING_ENABLED", True)
         self.auto_pilot = self.settings.get("AUTO_PILOT", False)
         self.running = True
         self.icon = None
         self.loop = asyncio.new_event_loop()
 
-        # Initialize DB
+        # Initialize DB and load last rankings
         database.init_db()
+        self.ranked_models = database.get_last_rankings()
 
     def create_image(self, width, height, color):
         # Generate a simple icon with a specific color
@@ -78,7 +80,10 @@ class LiteLLMControlPanel:
         color = 'gray'
         tooltip = "LiteLLM Router"
 
-        if self.ranked_models:
+        if not self.is_online:
+            color = 'gray'
+            tooltip = "LiteLLM Router (Offline)"
+        elif self.ranked_models:
             best = self.ranked_models[0]
             best_latency = best.get('latency', 1.0)
             if best_latency < 0.5:
@@ -107,6 +112,8 @@ class LiteLLMControlPanel:
 
     def toggle_routing(self, icon, item):
         self.routing_enabled = not self.routing_enabled
+        self.settings["ROUTING_ENABLED"] = self.routing_enabled
+        settings_ui.save_settings(self.settings)
         print(f"Master Routing: {self.routing_enabled}")
 
     def toggle_auto_pilot(self, icon, item):
@@ -268,6 +275,14 @@ class LiteLLMControlPanel:
         asyncio.run_coroutine_threadsafe(self.refresh_logic(), self.loop)
 
     async def refresh_logic(self, auto_pilot=False):
+        # 1. Check connectivity
+        self.is_online = await self.engine.check_connectivity()
+        if not self.is_online:
+            print("No internet connectivity. Skipping refresh.")
+            self.notify("No internet connectivity detected. Retrying soon...", "Connectivity Alert")
+            self.update_tray_status()
+            return False
+
         print("Refreshing model rankings...")
         self.ranked_models = await self.engine.get_ranked_models()
         self.last_benchmark_time = datetime.datetime.now()
@@ -283,6 +298,7 @@ class LiteLLMControlPanel:
             self.icon.menu = self.build_menu()
             self.update_tray_status()
         print("Refresh complete.")
+        return True
 
     def build_menu(self):
         menu_items = []
@@ -367,7 +383,10 @@ class LiteLLMControlPanel:
         """Monitors the active LiteLLM model health and triggers fallback if needed."""
         consecutive_failures = 0
         while self.running:
-            if self.process_mgr.is_running():
+            is_running = self.process_mgr.is_running()
+            auto_manage = self.settings.get("AUTO_MANAGE_LITELLM", True)
+
+            if is_running:
                 if not self.process_mgr.check_health():
                     consecutive_failures += 1
                     print(f"LiteLLM health check failed ({consecutive_failures}/3)")
@@ -379,6 +398,12 @@ class LiteLLMControlPanel:
                     self.notify("LiteLLM health check failed multiple times. Triggering fallback...", "Health Alert")
                     await self.refresh_logic(auto_pilot=self.auto_pilot)
                     consecutive_failures = 0
+            elif auto_manage:
+                # If it should be running but isn't, attempt restart
+                print("LiteLLM process stopped unexpectedly. Attempting restart...")
+                self.notify("LiteLLM process stopped. Attempting restart...", "Process Alert")
+                self.process_mgr.start()
+
             await asyncio.sleep(60)
 
     async def background_worker(self):
@@ -388,19 +413,21 @@ class LiteLLMControlPanel:
 
         while self.running:
             try:
-                await self.refresh_logic(auto_pilot=self.auto_pilot)
+                success = await self.refresh_logic(auto_pilot=self.auto_pilot)
 
-                # Update menu and icon
-                if self.icon:
-                    self.icon.menu = self.build_menu()
-                    self.update_tray_status()
+                if success:
+                    print("Rankings updated successfully.")
+                    interval = 3600 # 1 hour
+                else:
+                    print("Refresh failed (likely connectivity). Retrying in 5 minutes.")
+                    interval = 300 # 5 minutes
 
-                print("Rankings updated.")
             except Exception as e:
                 print(f"Error in background worker: {e}")
+                interval = 600 # 10 minutes
 
-            # Wait for 1 hour (or as configured)
-            for _ in range(3600):
+            # Wait for configured interval
+            for _ in range(interval):
                 if not self.running:
                     break
                 await asyncio.sleep(1)

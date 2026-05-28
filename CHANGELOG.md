@@ -26,6 +26,19 @@
 - Lifecycle Automation: Option to automatically start and stop the LiteLLM proxy with the Control Panel.
 - UX Refinements: Added Quick Query to the top of the tray menu for instant access.
 
+## [1.7.0] - 2024-06-12
+### Added
+- Network Resilience: Implemented active connectivity checks and intelligent retries for benchmarking.
+- Auto-Reconnect: Background worker now retries every 5 minutes if internet is lost.
+- Process Auto-Restart: Health monitor now automatically restarts the LiteLLM proxy if it stops unexpectedly.
+- Visual Connectivity Status: Tray icon and tooltip now reflect "Offline" state during network interruptions.
+
+## [1.6.0] - 2024-06-11
+### Added
+- State Persistence: "Master Routing" enabled/disabled state is now saved across sessions.
+- Startup Acceleration: Last known model rankings are loaded immediately from the database on app launch.
+- Improved UX: Populated tray menu and dashboard even before the first benchmarking cycle completes.
+
 ## [1.5.0] - 2024-06-10
 ### Added
 - Custom Endpoints: Configure base URLs for all providers (cloud and local) in Settings.
