@@ -26,6 +26,13 @@
 - Lifecycle Automation: Option to automatically start and stop the LiteLLM proxy with the Control Panel.
 - UX Refinements: Added Quick Query to the top of the tray menu for instant access.
 
+## [1.8.0] - 2024-06-13
+### Added
+- Working State Indicator: Tray icon now turns blue when a benchmarking cycle is in progress.
+- Quick Actions: "Copy Active Model" and "Documentation" links added to the tray menu.
+- Config Management: Backup and Restore LiteLLM `config.yaml` directly from the Maintenance menu.
+- Improved Feedback: More descriptive tooltips for working and offline states.
+
 ## [1.7.0] - 2024-06-12
 ### Added
 - Network Resilience: Implemented active connectivity checks and intelligent retries for benchmarking.
