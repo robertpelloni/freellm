@@ -2,6 +2,7 @@ import asyncio
 import httpx
 import re
 import time
+from collections import deque
 from typing import List, Dict, Any, Optional
 import database
 import known_models
@@ -110,6 +111,7 @@ class ModelEngine:
 
     async def fetch_openrouter_models(self) -> List[Dict[str, Any]]:
         """Fetches free models from OpenRouter."""
+        self.log("Fetching models from OpenRouter...")
         url = self.base_urls.get("openrouter", OPENROUTER_MODELS_URL.replace("/models", "")) + "/models"
         try:
             response = await self.client.get(url)
@@ -161,10 +163,10 @@ class ModelEngine:
             return params, ctx
 
         # 2. Regex extraction from ID, name, description
-        params = self._extract_parameters_from_text(model_data)
+        params = self.extract_parameters(model_data)
         return params, context_length
 
-    def _extract_parameters_from_text(self, model_data: Dict[str, Any]) -> int:
+    def extract_parameters(self, model_data: Dict[str, Any]) -> int:
         """Extract parameter count from model ID, name, or description via regex."""
         model_id = model_data.get("id", "")
         name = model_data.get("name", "")
@@ -393,7 +395,7 @@ class ModelEngine:
         return models
 
     async def fetch_huggingface_models(self) -> List[Dict[str, Any]]:
-        """Fetches models from Hugging Face Inference API."""
+        """Fetches models from Hugging Face Inference API dynamically."""
         api_key = self.api_keys.get("huggingface")
         if not api_key:
             return []
@@ -621,7 +623,7 @@ class ModelEngine:
 
     async def get_ranked_models(self) -> List[Dict[str, Any]]:
         """Main loop to fetch, test, and rank models."""
-
+        self.log("Starting model ranking cycle...")
         # 0. Check which providers are still considered "free"
         conn = database.sqlite3.connect(database.DB_NAME)
         cursor = conn.cursor()
@@ -870,6 +872,7 @@ class ModelEngine:
         # Add benchmarking results
         for m, latency in zip(benchmarking_models, latencies):
             if latency is not None:
+                self.log(f"Model {m['id']} ({m['provider']}): {latency:.3f}s")
                 score = self.calculate_score(m['parameters'], latency, m.get('context_length', 4096))
                 m['latency'] = latency
                 m['score'] = score
@@ -1036,6 +1039,13 @@ class ModelEngine:
             database.record_probe(model_id, provider, None, success=False, error_message=str(e)[:200])
             return None
         return None
+
+    async def update_all_pricing(self):
+        """Updates pricing information from all available providers."""
+        self.log("Updating global pricing metadata...")
+        # Currently OpenRouter is the primary source for broad pricing data
+        await self.fetch_openrouter_models()
+        self.log("Pricing metadata update complete.")
 
     async def close(self):
         await self.client.aclose()

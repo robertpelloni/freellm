@@ -107,5 +107,46 @@ class TestLiteLLMControlPanel(unittest.TestCase):
         conn.close()
         self.assertEqual(blacklisted, 1)
 
+    def test_savings_calculation(self):
+        # 1. Update pricing
+        database.update_model_pricing("expensive-model", "p1", 0.1, 0.2)
+
+        # 2. Log usage
+        database.log_usage("expensive-model", prompt_tokens=10, completion_tokens=5)
+
+        # 3. Check summary: (10 * 0.1) + (5 * 0.2) = 1.0 + 1.0 = 2.0
+        total, breakdown = database.get_savings_summary()
+        self.assertEqual(total, 2.0)
+        self.assertEqual(len(breakdown), 1)
+        self.assertEqual(breakdown[0][0], "expensive-model")
+        self.assertEqual(breakdown[0][1], 2.0)
+
+    def test_activity_logging(self):
+        # 1. Log some events
+        database.log_activity("Test Event", "test-model", "test detail")
+        database.log_activity("Another Event", None, "more detail")
+
+        # 2. Retrieve
+        logs = database.get_recent_activity(limit=10)
+        self.assertEqual(len(logs), 2)
+        self.assertEqual(logs[0][1], "Another Event")
+        self.assertEqual(logs[1][1], "Test Event")
+        self.assertEqual(logs[1][2], "test-model")
+
+    def test_performance_summary(self):
+        # 1. Add some probes
+        database.record_probe("p1-model", "p1", 0.5, success=True)
+        database.record_probe("p1-model", "p1", 1.5, success=False)
+        database.record_probe("p2-model", "p2", 0.2, success=True)
+
+        # 2. Get summary
+        summary = database.get_performance_summary()
+        self.assertEqual(summary['total_probes'], 3)
+        # Avg of 0.5 and 0.2 = 0.35 (assuming failures don't count towards latency avg)
+        self.assertAlmostEqual(summary['avg_ttft'], 0.35)
+        # 2/3 success = 66.6%
+        self.assertAlmostEqual(summary['success_rate'], 66.66, places=1)
+        self.assertEqual(len(summary['providers']), 2)
+
 if __name__ == "__main__":
     unittest.main()

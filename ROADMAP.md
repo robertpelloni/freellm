@@ -1,13 +1,13 @@
 # Roadmap: LiteLLM Control Panel
 
 ## Milestone 1: Core Engine & Data Layer
-- [ ] Robust SQLite data layer for tracking provider and model health.
-- [ ] Asynchronous benchmarking engine for real-time performance testing.
-- [ ] Intelligent parameter parsing and filtering logic.
+- [x] Robust SQLite data layer for tracking provider and model health.
+- [x] Asynchronous benchmarking engine for real-time performance testing.
+- [x] Intelligent parameter parsing and filtering logic.
 
 ## Milestone 2: Orchestration & Configuration
-- [ ] Comment-preserving YAML manipulation for LiteLLM hot-reloading.
-- [ ] Circuit breaker implementation to isolate failing endpoints.
+- [x] Comment-preserving YAML manipulation for LiteLLM hot-reloading.
+- [x] Circuit breaker implementation to isolate failing endpoints.
 
 ## Milestone 3: System Tray UI & User Control
 - [x] Non-blocking Windows System Tray implementation.
@@ -20,3 +20,6 @@
 - [x] Standalone executable packaging with PyInstaller.
 - [x] Adaptive learning for provider efficiency.
 - [x] Background notification system for alerts and updates.
+- [x] Real-time internal event monitoring (Engine Logs).
+- [x] Milestone 5: External Connectivity (External API Layer).
+- [x] Milestone 6: End-to-End Integration Testing.
