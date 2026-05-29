@@ -38,7 +38,7 @@ class TestIntegration(unittest.TestCase):
 
         # Mock settings
         cls.test_settings = {
-            "OPENROUTER_API_KEY": "DUMMY_KEY",
+            "OPENROUTER_API_KEY": "not_a_real_key",
             "CONFIG_PATH": "test_config.yaml",
             "ROUTING_ENABLED": True,
             "AUTO_PILOT": False,
