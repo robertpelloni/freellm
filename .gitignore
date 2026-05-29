@@ -8,6 +8,9 @@ test_metrics.db
 test_config.yaml
 settings.json
 data/
+*.db
+*.bak
+*.log
 borg.db
 config.yaml
 settings.json
