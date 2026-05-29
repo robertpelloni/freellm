@@ -1,7 +1,8 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, scrolledtext
 import json
 import os
+import datetime
 import known_models
 
 SETTINGS_FILE = "settings.json"
@@ -14,6 +15,7 @@ ENV_KEY_MAP = {
     "DEEPINFRA_API_KEY": "DEEPINFRA_API_KEY",
     "CEREBRAS_API_KEY": "CEREBRAS_API_KEY",
     "GITHUB_API_KEY": "GITHUB_TOKEN",
+    "GEMINI_API_KEY": "GEMINI_API_KEY",
     "HUGGINGFACE_API_KEY": "HUGGINGFACE_API_KEY",
     "NVIDIA_API_KEY": "NVIDIA_NIM_API_KEY",
 }
@@ -44,7 +46,7 @@ def load_settings():
         "NVIDIA_BASE_URL": "https://integrate.api.nvidia.com/v1",
         "OLLAMA_BASE_URL": "http://localhost:11434",
         "LM_STUDIO_BASE_URL": "http://localhost:1234",
-        "MIN_PARAMETERS": 100,
+        "MIN_PARAMETERS": 0,
         "AUTO_PILOT": False,
         "GLOBAL_EXCLUSIONS": "-base, vision, dummy",
         "CONFIG_PATH": "C:/Users/hyper/.hermes/litellm-config.yaml",
@@ -53,7 +55,7 @@ def load_settings():
         "START_WITH_WINDOWS": False,
         "ROUTING_ENABLED": True,
         "ENABLE_NOTIFICATIONS": True,
-    "PRIMARY_COUNT": 5,
+        "PRIMARY_COUNT": 5,
         "SIZE_WEIGHT": 0.6,
         "CONTEXT_WEIGHT": 0.2,
         "LATENCY_WEIGHT": 0.2
@@ -64,22 +66,60 @@ def save_settings(settings):
         json.dump(settings, f, indent=4)
 
 class SettingsUI:
-    def __init__(self, on_save_callback=None):
+    def __init__(self, on_save_callback=None, engine=None):
         self.on_save_callback = on_save_callback
+        self.engine = engine
         self.root = tk.Tk()
         self.root.title("LiteLLM Control Panel Settings")
-        self.root.geometry("450x800")
-        self.root.resizable(False, False)
+        self.root.geometry("550x850")
+        self.root.resizable(True, True)
 
         self.settings = load_settings()
         self.create_widgets()
+        
+        if self.engine:
+            self.engine.add_log_listener(self.on_engine_log)
+
+    def on_engine_log(self, msg):
+        if hasattr(self, 'log_area'):
+            self.root.after(0, lambda: self._append_log(msg))
+
+    def _append_log(self, msg):
+        try:
+            self.log_area.configure(state='normal')
+            self.log_area.insert(tk.END, f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {msg}\n")
+            self.log_area.see(tk.END)
+            self.log_area.configure(state='disabled')
+        except:
+            pass
 
     def create_widgets(self):
-        padding = {'padx': 10, 'pady': 2}
+        padding = {'padx': 10, 'pady': 5}
+        
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.pack(fill='both', expand=True, padx=5, pady=5)
 
-        # Use a canvas and scrollbar for the long settings form
-        canvas = tk.Canvas(self.root)
-        scrollbar = ttk.Scrollbar(self.root, orient="vertical", command=canvas.yview)
+        # Tab 1: General Settings
+        self.settings_tab = ttk.Frame(self.notebook)
+        self.notebook.add(self.settings_tab, text='General Settings')
+        
+        # Tab 2: Known Models
+        self.km_tab = ttk.Frame(self.notebook)
+        self.notebook.add(self.km_tab, text='Known Good Models')
+        
+        # Tab 3: Live Logs
+        self.logs_tab = ttk.Frame(self.notebook)
+        self.notebook.add(self.logs_tab, text='Live Benchmarking Logs')
+
+        self._setup_settings_tab(self.settings_tab)
+        self._setup_km_tab(self.km_tab)
+        self._setup_logs_tab(self.logs_tab)
+
+    def _setup_settings_tab(self, tab):
+        padding = {'padx': 10, 'pady': 2}
+        
+        canvas = tk.Canvas(tab)
+        scrollbar = ttk.Scrollbar(tab, orient="vertical", command=canvas.yview)
         scrollable_frame = ttk.Frame(canvas)
 
         scrollable_frame.bind(
@@ -91,24 +131,23 @@ class SettingsUI:
 
         canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
-
+        
         container = scrollable_frame
 
         # API Keys and Base URLs
         keys_frame = ttk.LabelFrame(container, text="Provider Configuration")
         keys_frame.pack(fill='x', **padding)
 
-        # Helper to add key + url
         def add_provider_fields(frame, name, key_pref, url_pref, row):
-            ttk.Label(frame, text=f"{name} Key:").grid(row=row, column=0, sticky='w', **padding)
+            ttk.Label(frame, text=f"{name} Key:").grid(row=row, column=0, sticky='w', padx=5, pady=2)
             ent_key = ttk.Entry(frame, show="*")
             ent_key.insert(0, self.settings.get(key_pref, ""))
-            ent_key.grid(row=row, column=1, sticky='ew', **padding)
+            ent_key.grid(row=row, column=1, sticky='ew', padx=5, pady=2)
 
-            ttk.Label(frame, text="URL:").grid(row=row, column=2, sticky='w', **padding)
+            ttk.Label(frame, text="URL:").grid(row=row, column=2, sticky='w', padx=5, pady=2)
             ent_url = ttk.Entry(frame)
             ent_url.insert(0, self.settings.get(url_pref, ""))
-            ent_url.grid(row=row, column=3, sticky='ew', **padding)
+            ent_url.grid(row=row, column=3, sticky='ew', padx=5, pady=2)
             return ent_key, ent_url
 
         self.or_key, self.or_url = add_provider_fields(keys_frame, "OpenRouter", "OPENROUTER_API_KEY", "OPENROUTER_BASE_URL", 0)
@@ -117,110 +156,92 @@ class SettingsUI:
         self.deepinfra_key, self.deepinfra_url = add_provider_fields(keys_frame, "DeepInfra", "DEEPINFRA_API_KEY", "DEEPINFRA_BASE_URL", 3)
         self.cerebras_key, self.cerebras_url = add_provider_fields(keys_frame, "Cerebras", "CEREBRAS_API_KEY", "CEREBRAS_BASE_URL", 4)
         self.github_key, self.github_url = add_provider_fields(keys_frame, "GitHub", "GITHUB_API_KEY", "GITHUB_BASE_URL", 5)
-        self.hf_key, self.hf_url = add_provider_fields(keys_frame, "HuggingFace", "HUGGINGFACE_API_KEY", "HUGGINGFACE_BASE_URL", 6)
-        self.nvidia_key, self.nvidia_url = add_provider_fields(keys_frame, "NVIDIA", "NVIDIA_API_KEY", "NVIDIA_BASE_URL", 7)
+        self.gemini_key, self.gemini_url = add_provider_fields(keys_frame, "Gemini", "GEMINI_API_KEY", "GEMINI_BASE_URL", 6)
+        self.hf_key, self.hf_url = add_provider_fields(keys_frame, "HuggingFace", "HUGGINGFACE_API_KEY", "HUGGINGFACE_BASE_URL", 7)
+        self.nvidia_key, self.nvidia_url = add_provider_fields(keys_frame, "NVIDIA", "NVIDIA_API_KEY", "NVIDIA_BASE_URL", 8)
 
         # Local URLs
-        ttk.Label(keys_frame, text="Ollama URL:").grid(row=8, column=0, sticky='w', **padding)
+        ttk.Label(keys_frame, text="Ollama URL:").grid(row=9, column=0, sticky='w', padx=5, pady=2)
         self.ollama_url = ttk.Entry(keys_frame)
         self.ollama_url.insert(0, self.settings.get("OLLAMA_BASE_URL", "http://localhost:11434"))
-        self.ollama_url.grid(row=8, column=1, columnspan=3, sticky='ew', **padding)
+        self.ollama_url.grid(row=9, column=1, columnspan=3, sticky='ew', padx=5, pady=2)
 
-        ttk.Label(keys_frame, text="LM Studio URL:").grid(row=9, column=0, sticky='w', **padding)
+        ttk.Label(keys_frame, text="LM Studio URL:").grid(row=10, column=0, sticky='w', padx=5, pady=2)
         self.lms_url = ttk.Entry(keys_frame)
         self.lms_url.insert(0, self.settings.get("LM_STUDIO_BASE_URL", "http://localhost:1234"))
-        self.lms_url.grid(row=9, column=1, columnspan=3, sticky='ew', **padding)
+        self.lms_url.grid(row=10, column=1, columnspan=3, sticky='ew', padx=5, pady=2)
 
         keys_frame.columnconfigure(1, weight=1)
         keys_frame.columnconfigure(3, weight=1)
 
-        # Min Parameters
-        ttk.Label(container, text="Minimum Parameters (Billions):").pack(fill='x', **padding)
-        self.min_params = ttk.Spinbox(container, from_=1, to=1000)
+        # General Params
+        gen_frame = ttk.LabelFrame(container, text="Benchmark & Router Settings")
+        gen_frame.pack(fill='x', **padding)
+
+        ttk.Label(gen_frame, text="Minimum Parameters (Billions):").grid(row=0, column=0, sticky='w', **padding)
+        self.min_params = ttk.Spinbox(gen_frame, from_=1, to=1000)
         self.min_params.set(self.settings.get("MIN_PARAMETERS", 100))
-        self.min_params.pack(fill='x', **padding)
+        self.min_params.grid(row=0, column=1, sticky='ew', **padding)
 
-        # Global Exclusions
-        ttk.Label(container, text="Global Exclusions (comma separated):").pack(fill='x', **padding)
-        self.exclusions = ttk.Entry(container)
+        ttk.Label(gen_frame, text="Primary Group Size:").grid(row=1, column=0, sticky='w', **padding)
+        self.primary_count = ttk.Spinbox(gen_frame, from_=1, to=50)
+        self.primary_count.set(self.settings.get("PRIMARY_COUNT", 5))
+        self.primary_count.grid(row=1, column=1, sticky='ew', **padding)
+
+        ttk.Label(gen_frame, text="Global Exclusions:").grid(row=2, column=0, sticky='w', **padding)
+        self.exclusions = ttk.Entry(gen_frame)
         self.exclusions.insert(0, self.settings.get("GLOBAL_EXCLUSIONS", "-base, vision, dummy"))
-        self.exclusions.pack(fill='x', **padding)
+        self.exclusions.grid(row=2, column=1, sticky='ew', **padding)
 
-        # Config Path
-        ttk.Label(container, text="LiteLLM Config Path:").pack(fill='x', **padding)
-        self.config_path = ttk.Entry(container)
+        gen_frame.columnconfigure(1, weight=1)
+
+        # Paths
+        path_frame = ttk.LabelFrame(container, text="System Paths")
+        path_frame.pack(fill='x', **padding)
+
+        ttk.Label(path_frame, text="LiteLLM Config Path:").grid(row=0, column=0, sticky='w', **padding)
+        self.config_path = ttk.Entry(path_frame)
         self.config_path.insert(0, self.settings.get("CONFIG_PATH", "config.yaml"))
-        self.config_path.pack(fill='x', **padding)
+        self.config_path.grid(row=0, column=1, sticky='ew', **padding)
 
-        # Interface URL
-        ttk.Label(container, text="LLM Interface URL:").pack(fill='x', **padding)
-        self.interface_url = ttk.Entry(container)
+        ttk.Label(path_frame, text="LLM Interface URL:").grid(row=1, column=0, sticky='w', **padding)
+        self.interface_url = ttk.Entry(path_frame)
         self.interface_url.insert(0, self.settings.get("INTERFACE_URL", "http://localhost:4000"))
-        self.interface_url.pack(fill='x', **padding)
+        self.interface_url.grid(row=1, column=1, sticky='ew', **padding)
+        
+        path_frame.columnconfigure(1, weight=1)
 
-        # Lifecycle
+        # Options
+        opt_frame = ttk.LabelFrame(container, text="Options")
+        opt_frame.pack(fill='x', **padding)
+
         self.auto_manage_var = tk.BooleanVar(value=self.settings.get("AUTO_MANAGE_LITELLM", True))
-        ttk.Checkbutton(container, text="Auto-Manage LiteLLM Proxy (Start/Stop with App)", variable=self.auto_manage_var).pack(fill='x', **padding)
+        ttk.Checkbutton(opt_frame, text="Auto-Manage LiteLLM Proxy", variable=self.auto_manage_var).pack(anchor='w', **padding)
 
-        # Start with Windows
         self.start_with_windows_var = tk.BooleanVar(value=self.settings.get("START_WITH_WINDOWS", False))
-        ttk.Checkbutton(container, text="Start with Windows", variable=self.start_with_windows_var).pack(fill='x', **padding)
+        ttk.Checkbutton(opt_frame, text="Start with Windows", variable=self.start_with_windows_var).pack(anchor='w', **padding)
 
-        # Enable Notifications
         self.enable_notifications_var = tk.BooleanVar(value=self.settings.get("ENABLE_NOTIFICATIONS", True))
-        ttk.Checkbutton(container, text="Enable Notifications", variable=self.enable_notifications_var).pack(fill='x', **padding)
+        ttk.Checkbutton(opt_frame, text="Enable Notifications", variable=self.enable_notifications_var).pack(anchor='w', **padding)
 
         # Weights
         weights_frame = ttk.LabelFrame(container, text="Scoring Weights")
         weights_frame.pack(fill='x', **padding)
 
-        ttk.Label(weights_frame, text="Size:").grid(row=0, column=0, **padding)
+        ttk.Label(weights_frame, text="Size:").grid(row=0, column=0, padx=5)
         self.size_weight = ttk.Spinbox(weights_frame, from_=0, to=1, increment=0.1, width=5)
         self.size_weight.set(self.settings.get("SIZE_WEIGHT", 0.6))
-        self.size_weight.grid(row=0, column=1, **padding)
+        self.size_weight.grid(row=0, column=1, padx=5)
 
-        ttk.Label(weights_frame, text="Context:").grid(row=0, column=2, **padding)
+        ttk.Label(weights_frame, text="Context:").grid(row=0, column=2, padx=5)
         self.context_weight = ttk.Spinbox(weights_frame, from_=0, to=1, increment=0.1, width=5)
         self.context_weight.set(self.settings.get("CONTEXT_WEIGHT", 0.2))
-        self.context_weight.grid(row=0, column=3, **padding)
+        self.context_weight.grid(row=0, column=3, padx=5)
 
-        ttk.Label(weights_frame, text="Latency:").grid(row=0, column=4, **padding)
+        ttk.Label(weights_frame, text="Latency:").grid(row=0, column=4, padx=5)
         self.latency_weight = ttk.Spinbox(weights_frame, from_=0, to=1, increment=0.1, width=5)
         self.latency_weight.set(self.settings.get("LATENCY_WEIGHT", 0.2))
-        self.latency_weight.grid(row=0, column=5, **padding)
-
-        # Known Good Models Management
-        km_frame = ttk.LabelFrame(container, text="Known Good Models Override")
-        km_frame.pack(fill='x', **padding)
-
-        ttk.Label(km_frame, text="Models with guaranteed specs (override missing metadata):",
-                  font=('Helvetica', 9)).pack(fill='x', padx=5, pady=2)
-
-        km_cols = ('id', 'params', 'ctx', 'provider')
-        self.km_tree = ttk.Treeview(km_frame, columns=km_cols, show='headings', height=8)
-        self.km_tree.heading('id', text='Model ID')
-        self.km_tree.heading('params', text='Params(B)')
-        self.km_tree.heading('ctx', text='Context')
-        self.km_tree.heading('provider', text='Provider')
-        self.km_tree.column('id', width=280)
-        self.km_tree.column('params', width=70)
-        self.km_tree.column('ctx', width=80)
-        self.km_tree.column('provider', width=80)
-        self.km_tree.pack(fill='both', padx=5, pady=2)
-
-        km_scroll = ttk.Scrollbar(km_frame, orient='vertical', command=self.km_tree.yview)
-        self.km_tree.configure(yscrollcommand=km_scroll.set)
-        km_scroll.place(relx=1, rely=0, relheight=1, anchor='ne')
-
-        self._populate_known_models()
-
-        km_btn_frame = ttk.Frame(km_frame)
-        km_btn_frame.pack(fill='x', padx=5, pady=2)
-
-        ttk.Button(km_btn_frame, text="Add Model", command=self.km_add).pack(side='left', padx=2)
-        ttk.Button(km_btn_frame, text="Edit Selected", command=self.km_edit).pack(side='left', padx=2)
-        ttk.Button(km_btn_frame, text="Remove Selected", command=self.km_remove).pack(side='left', padx=2)
-        ttk.Button(km_btn_frame, text="Reset Defaults", command=self.km_reset).pack(side='left', padx=2)
+        self.latency_weight.grid(row=0, column=5, padx=5)
 
         # Save Button
         ttk.Button(container, text="Save Settings", command=self.save).pack(pady=20)
@@ -228,40 +249,90 @@ class SettingsUI:
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
-    def save(self):
-        self.settings["OPENROUTER_API_KEY"] = self.or_key.get()
-        self.settings["GROQ_API_KEY"] = self.groq_key.get()
-        self.settings["TOGETHER_API_KEY"] = self.together_key.get()
-        self.settings["DEEPINFRA_API_KEY"] = self.deepinfra_key.get()
-        self.settings["CEREBRAS_API_KEY"] = self.cerebras_key.get()
-        self.settings["GITHUB_API_KEY"] = self.github_key.get()
-        self.settings["HUGGINGFACE_API_KEY"] = self.hf_key.get()
-        self.settings["NVIDIA_API_KEY"] = self.nvidia_key.get()
+    def _setup_km_tab(self, tab):
+        padding = {'padx': 10, 'pady': 10}
+        
+        ttk.Label(tab, text="Models with guaranteed specs (override missing metadata):",
+                  font=('Helvetica', 10, 'bold')).pack(fill='x', padx=10, pady=(10, 2))
 
-        self.settings["OPENROUTER_BASE_URL"] = self.or_url.get()
-        self.settings["GROQ_BASE_URL"] = self.groq_url.get()
-        self.settings["TOGETHER_BASE_URL"] = self.together_url.get()
-        self.settings["DEEPINFRA_BASE_URL"] = self.deepinfra_url.get()
-        self.settings["CEREBRAS_BASE_URL"] = self.cerebras_url.get()
-        self.settings["GITHUB_BASE_URL"] = self.github_url.get()
-        self.settings["HUGGINGFACE_BASE_URL"] = self.hf_url.get()
-        self.settings["NVIDIA_BASE_URL"] = self.nvidia_url.get()
-        self.settings["OLLAMA_BASE_URL"] = self.ollama_url.get()
-        self.settings["LM_STUDIO_BASE_URL"] = self.lms_url.get()
-        self.settings["GLOBAL_EXCLUSIONS"] = self.exclusions.get()
-        self.settings["CONFIG_PATH"] = self.config_path.get()
-        self.settings["INTERFACE_URL"] = self.interface_url.get()
-        self.settings["AUTO_MANAGE_LITELLM"] = self.auto_manage_var.get()
-        self.settings["START_WITH_WINDOWS"] = self.start_with_windows_var.get()
-        self.settings["ENABLE_NOTIFICATIONS"] = self.enable_notifications_var.get()
-        self.settings["SIZE_WEIGHT"] = float(self.size_weight.get())
-        self.settings["CONTEXT_WEIGHT"] = float(self.context_weight.get())
-        self.settings["LATENCY_WEIGHT"] = float(self.latency_weight.get())
+        km_cols = ('id', 'params', 'ctx', 'provider')
+        self.km_tree = ttk.Treeview(tab, columns=km_cols, show='headings', height=25)
+        self.km_tree.heading('id', text='LiteLLM Model ID')
+        self.km_tree.heading('params', text='Params(B)')
+        self.km_tree.heading('ctx', text='Context')
+        self.km_tree.heading('provider', text='Provider')
+        self.km_tree.column('id', width=250)
+        self.km_tree.column('params', width=70)
+        self.km_tree.column('ctx', width=80)
+        self.km_tree.column('provider', width=80)
+        self.km_tree.pack(fill='both', expand=True, padx=10, pady=5)
+
+        km_scroll = ttk.Scrollbar(self.km_tree, orient='vertical', command=self.km_tree.yview)
+        self.km_tree.configure(yscrollcommand=km_scroll.set)
+        km_scroll.pack(side='right', fill='y')
+
+        self._populate_known_models()
+
+        btn_frame = ttk.Frame(tab)
+        btn_frame.pack(fill='x', padx=10, pady=10)
+
+        ttk.Button(btn_frame, text="Add Model", command=self.km_add).pack(side='left', padx=5)
+        ttk.Button(btn_frame, text="Edit Selected", command=self.km_edit).pack(side='left', padx=5)
+        ttk.Button(btn_frame, text="Remove Selected", command=self.km_remove).pack(side='left', padx=5)
+        ttk.Button(btn_frame, text="Reset Defaults", command=self.km_reset).pack(side='right', padx=5)
+
+    def _setup_logs_tab(self, tab):
+        ttk.Label(tab, text="Real-time Benchmarking Events:", font=('Helvetica', 10, 'bold')).pack(fill='x', padx=10, pady=(10, 2))
+        
+        self.log_area = scrolledtext.ScrolledText(tab, state='disabled', wrap='word', bg='black', fg='lightgreen', font=('Consolas', 10))
+        self.log_area.pack(fill='both', expand=True, padx=10, pady=5)
+        
+        btn_frame = ttk.Frame(tab)
+        btn_frame.pack(fill='x', padx=10, pady=5)
+        
+        def clear_logs():
+            self.log_area.configure(state='normal')
+            self.log_area.delete('1.0', tk.END)
+            self.log_area.configure(state='disabled')
+            
+        ttk.Button(btn_frame, text="Clear Logs", command=clear_logs).pack(side='right')
+
+    def save(self):
         try:
+            self.settings["OPENROUTER_API_KEY"] = self.or_key.get()
+            self.settings["GROQ_API_KEY"] = self.groq_key.get()
+            self.settings["TOGETHER_API_KEY"] = self.together_key.get()
+            self.settings["DEEPINFRA_API_KEY"] = self.deepinfra_key.get()
+            self.settings["CEREBRAS_API_KEY"] = self.cerebras_key.get()
+            self.settings["GITHUB_API_KEY"] = self.github_key.get()
+            self.settings["HUGGINGFACE_API_KEY"] = self.hf_key.get()
+            self.settings["NVIDIA_API_KEY"] = self.nvidia_key.get()
+
+            self.settings["OPENROUTER_BASE_URL"] = self.or_url.get()
+            self.settings["GROQ_BASE_URL"] = self.groq_url.get()
+            self.settings["TOGETHER_BASE_URL"] = self.together_url.get()
+            self.settings["DEEPINFRA_BASE_URL"] = self.deepinfra_url.get()
+            self.settings["CEREBRAS_BASE_URL"] = self.cerebras_url.get()
+            self.settings["GITHUB_BASE_URL"] = self.github_url.get()
+            self.settings["HUGGINGFACE_BASE_URL"] = self.hf_url.get()
+            self.settings["NVIDIA_BASE_URL"] = self.nvidia_url.get()
+            self.settings["OLLAMA_BASE_URL"] = self.ollama_url.get()
+            self.settings["LM_STUDIO_BASE_URL"] = self.lms_url.get()
+            
+            self.settings["GLOBAL_EXCLUSIONS"] = self.exclusions.get()
+            self.settings["CONFIG_PATH"] = self.config_path.get()
+            self.settings["INTERFACE_URL"] = self.interface_url.get()
+            self.settings["AUTO_MANAGE_LITELLM"] = self.auto_manage_var.get()
+            self.settings["START_WITH_WINDOWS"] = self.start_with_windows_var.get()
+            self.settings["ENABLE_NOTIFICATIONS"] = self.enable_notifications_var.get()
+            
+            self.settings["SIZE_WEIGHT"] = float(self.size_weight.get())
+            self.settings["CONTEXT_WEIGHT"] = float(self.context_weight.get())
+            self.settings["LATENCY_WEIGHT"] = float(self.latency_weight.get())
             self.settings["MIN_PARAMETERS"] = int(self.min_params.get())
             self.settings["PRIMARY_COUNT"] = int(self.primary_count.get())
-        except ValueError:
-            messagebox.showerror("Error", "Invalid parameter value")
+        except Exception as e:
+            messagebox.showerror("Error", f"Invalid input: {e}")
             return
 
         save_settings(self.settings)
@@ -286,17 +357,21 @@ class SettingsUI:
     def km_add(self):
         win = tk.Toplevel(self.root)
         win.title('Add Known Model')
-        win.geometry('400x200')
+        win.geometry('400x220')
         win.resizable(False, False)
+        
         ttk.Label(win, text='LiteLLM Model ID:').grid(row=0, column=0, padx=10, pady=5, sticky='w')
         id_entry = ttk.Entry(win, width=40)
         id_entry.grid(row=0, column=1, padx=10, pady=5)
+        
         ttk.Label(win, text='Parameters (B):').grid(row=1, column=0, padx=10, pady=5, sticky='w')
         params_entry = ttk.Entry(win, width=15)
         params_entry.grid(row=1, column=1, padx=10, pady=5, sticky='w')
+        
         ttk.Label(win, text='Context Length:').grid(row=2, column=0, padx=10, pady=5, sticky='w')
         ctx_entry = ttk.Entry(win, width=15)
         ctx_entry.grid(row=2, column=1, padx=10, pady=5, sticky='w')
+        
         ttk.Label(win, text='Provider:').grid(row=3, column=0, padx=10, pady=5, sticky='w')
         prov_entry = ttk.Entry(win, width=20)
         prov_entry.grid(row=3, column=1, padx=10, pady=5, sticky='w')
@@ -317,7 +392,7 @@ class SettingsUI:
             self._populate_known_models()
             win.destroy()
 
-        ttk.Button(win, text='Add', command=do_add).grid(row=4, column=0, columnspan=2, pady=15)
+        ttk.Button(win, text='Add Model', command=do_add).grid(row=4, column=0, columnspan=2, pady=15)
 
     def km_edit(self):
         sel = self.km_tree.selection()
@@ -331,21 +406,25 @@ class SettingsUI:
 
         win = tk.Toplevel(self.root)
         win.title('Edit Known Model')
-        win.geometry('400x200')
+        win.geometry('400x220')
         win.resizable(False, False)
+        
         ttk.Label(win, text='LiteLLM Model ID:').grid(row=0, column=0, padx=10, pady=5, sticky='w')
         id_entry = ttk.Entry(win, width=40)
         id_entry.insert(0, old_id)
         id_entry.config(state='readonly')
         id_entry.grid(row=0, column=1, padx=10, pady=5)
+        
         ttk.Label(win, text='Parameters (B):').grid(row=1, column=0, padx=10, pady=5, sticky='w')
         params_entry = ttk.Entry(win, width=15)
         params_entry.insert(0, str(vals[1]))
         params_entry.grid(row=1, column=1, padx=10, pady=5, sticky='w')
+        
         ttk.Label(win, text='Context Length:').grid(row=2, column=0, padx=10, pady=5, sticky='w')
         ctx_entry = ttk.Entry(win, width=15)
         ctx_entry.insert(0, str(vals[2]))
         ctx_entry.grid(row=2, column=1, padx=10, pady=5, sticky='w')
+        
         ttk.Label(win, text='Provider:').grid(row=3, column=0, padx=10, pady=5, sticky='w')
         prov_entry = ttk.Entry(win, width=20)
         prov_entry.insert(0, str(vals[3]))
@@ -363,7 +442,7 @@ class SettingsUI:
             self._populate_known_models()
             win.destroy()
 
-        ttk.Button(win, text='Save', command=do_save).grid(row=4, column=0, columnspan=2, pady=15)
+        ttk.Button(win, text='Save Changes', command=do_save).grid(row=4, column=0, columnspan=2, pady=15)
 
     def km_remove(self):
         sel = self.km_tree.selection()

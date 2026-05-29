@@ -62,14 +62,21 @@ class LogViewer:
         self.root.destroy()
 
     def poll_logs(self):
+        last_count = 0
         while self.running:
-            if self.process_mgr.process and self.process_mgr.process.stdout:
-                line = self.process_mgr.process.stdout.readline()
-                if line:
-                    self.root.after(0, self.append_log, line)
-            else:
-                import time
-                time.sleep(1)
+            if self.process_mgr.process:
+                current_len = len(self.process_mgr.log_buffer)
+                if current_len > last_count:
+                    new_lines = self.process_mgr.log_buffer[last_count:current_len]
+                    for line in new_lines:
+                        self.root.after(0, self.append_log, line)
+                    last_count = current_len
+                elif current_len < last_count:
+                    # Buffer rolled over
+                    last_count = 0
+            
+            import time
+            time.sleep(0.5)
 
     def append_log(self, message):
         self.full_logs.append(message)

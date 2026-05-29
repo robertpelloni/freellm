@@ -11,51 +11,45 @@ Update this dictionary as new frontier/free models are discovered.
 # key: litellm_model string (as it appears in config/API calls)
 # values: params (billions), ctx (tokens), provider
 KNOWN_MODELS = {
-    # ── GitHub Models ──────────────────────────────────────────────────────
-    "openai/gpt-4.1-mini":                           {"params": 1200, "ctx": 1048576, "provider": "github"},
-    "openai/gpt-4.1":                                {"params": 1200, "ctx": 1048576, "provider": "github"},
-    "openai/gpt-4o":                                 {"params": 1200, "ctx": 128000,  "provider": "github"},
-    "openai/gpt-4o-mini":                            {"params": 1200, "ctx": 128000,  "provider": "github"},
-    "openai/o3-mini":                                {"params": 1200, "ctx": 200000,  "provider": "github"},
-    "openai/o4-mini":                                {"params": 1200, "ctx": 200000,  "provider": "github"},
-    "openai/o3":                                     {"params": 1200, "ctx": 200000,  "provider": "github"},
-    "openai/o1-mini":                                {"params": 1200, "ctx": 128000,  "provider": "github"},
-    "openai/o1":                                     {"params": 1200, "ctx": 200000,  "provider": "github"},
-    "openai/DeepSeek-V3-0324":                       {"params": 685,  "ctx": 65536,   "provider": "github"},
-    "openai/deepseek-r1-0528":                       {"params": 685,  "ctx": 65536,   "provider": "github"},
-    "openai/Meta-Llama-3.1-405B-Instruct":           {"params": 405,  "ctx": 131072,  "provider": "github"},
-    "openai/Meta-Llama-3.1-70B-Instruct":            {"params": 70,   "ctx": 131072,  "provider": "github"},
-    "openai/Mistral-large-3-675B-Instruct-2512":     {"params": 675,  "ctx": 128000,  "provider": "github"},
+    # ── GitHub Models (Azure Inference) ──────────────────────────────────
+    "github/gpt-4o-mini":                            {"params": 8,    "ctx": 128000,  "provider": "github"},
+    "github/gpt-4o":                                 {"params": 175,  "ctx": 128000,  "provider": "github"},
+    "github/o1-mini":                                {"params": 30,   "ctx": 128000,  "provider": "github"},
+    "github/o1":                                     {"params": 200,  "ctx": 128000,  "provider": "github"},
+    "github/Llama-3.3-70B-Instruct":                 {"params": 70,   "ctx": 128000,  "provider": "github"},
+    "github/Llama-3.1-405B-Instruct":                {"params": 405,  "ctx": 128000,  "provider": "github"},
+    "github/Llama-3.1-70B-Instruct":                 {"params": 70,   "ctx": 128000,  "provider": "github"},
+    "github/Mistral-Large-2411":                     {"params": 123,  "ctx": 128000,  "provider": "github"},
+    "github/Phi-4":                                  {"params": 14,   "ctx": 16384,   "provider": "github"},
+    "github/DeepSeek-R1":                            {"params": 671,  "ctx": 65536,   "provider": "github"},
+    "github/DeepSeek-V3":                            {"params": 671,  "ctx": 65536,   "provider": "github"},
 
     # ── OpenRouter Free Models ─────────────────────────────────────────────
-    "openrouter/nvidia/nemotron-3-super-120b-a12b:free":  {"params": 120, "ctx": 1000000, "provider": "openrouter"},
-    "openrouter/owl-alpha":                               {"params": 100, "ctx": 1048576, "provider": "openrouter"},
-    "openrouter/openai/gpt-oss-120b:free":                {"params": 120, "ctx": 131072,  "provider": "openrouter"},
-    "openrouter/openai/gpt-oss-20b:free":                 {"params": 20,  "ctx": 131072,  "provider": "openrouter"},
-    "openrouter/nvidia/nemotron-nano-12b-v2-vl:free":     {"params": 12,  "ctx": 128000,  "provider": "openrouter"},
-    "openrouter/liquid/lfm-2.5-1.2b-instruct:free":       {"params": 1,   "ctx": 32768,   "provider": "openrouter"},
-    "openrouter/deepseek/deepseek-v4-flash:free":         {"params": 284, "ctx": 131072,  "provider": "openrouter"},
-    "openrouter/qwen/qwen3-coder:free":                   {"params": 480, "ctx": 128000,  "provider": "openrouter"},
-    "openrouter/nousresearch/hermes-3-llama-3.1-405b:free":{"params": 405, "ctx": 131072,  "provider": "openrouter"},
+    "openrouter/google/gemini-2.0-flash-exp:free":       {"params": 10,  "ctx": 1048576, "provider": "openrouter"},
+    "openrouter/google/gemini-2.0-flash-thinking-exp:free":{"params": 10, "ctx": 1048576, "provider": "openrouter"},
+    "openrouter/google/learnlm-1.5-pro-experimental:free": {"params": 10, "ctx": 1048576, "provider": "openrouter"},
+    "openrouter/mistralai/mistral-7b-instruct:free":     {"params": 7,   "ctx": 32768,   "provider": "openrouter"},
+    "openrouter/huggingfaceh4/zephyr-7b-beta:free":      {"params": 7,   "ctx": 4096,    "provider": "openrouter"},
+    "openrouter/openchat/openchat-7b:free":              {"params": 7,   "ctx": 8192,    "provider": "openrouter"},
+    "openrouter/qwen/qwen-2-7b-instruct:free":           {"params": 7,   "ctx": 32768,   "provider": "openrouter"},
+    "openrouter/microsoft/phi-3-medium-128k-instruct:free":{"params": 14, "ctx": 128000,  "provider": "openrouter"},
+    "openrouter/meta-llama/llama-3-8b-instruct:free":    {"params": 8,   "ctx": 8192,    "provider": "openrouter"},
 
     # ── NVIDIA NIM Models ──────────────────────────────────────────────────
-    "nvidia_nim/nvidia/nemotron-3-super-120b-a12b":       {"params": 120, "ctx": 1000000, "provider": "nvidia_nim"},
-    "nvidia_nim/mistralai/mistral-large-3-675b-instruct-2512": {"params": 675, "ctx": 128000, "provider": "nvidia_nim"},
-    "nvidia_nim/moonshotai/kimi-k2.6":                    {"params": 200, "ctx": 131072,  "provider": "nvidia_nim"},
-    "nvidia_nim/qwen/qwen3-coder-480b-a35b-instruct":     {"params": 480, "ctx": 128000,  "provider": "nvidia_nim"},
-    "nvidia_nim/meta/llama-3.3-70b-instruct":             {"params": 70,  "ctx": 128000,  "provider": "nvidia_nim"},
-    "nvidia_nim/qwen/qwen3.5-397b-a17b":                  {"params": 397, "ctx": 128000,  "provider": "nvidia_nim"},
-    "nvidia_nim/meta/llama-4-maverick-17b-128e-instruct":  {"params": 400, "ctx": 1048576, "provider": "nvidia_nim"},
-    "nvidia_nim/deepseek-ai/deepseek-r1":                 {"params": 685, "ctx": 65536,   "provider": "nvidia_nim"},
+    "nvidia_nim/meta/llama-3.1-405b-instruct":           {"params": 405, "ctx": 128000,  "provider": "nvidia_nim"},
+    "nvidia_nim/meta/llama-3.1-70b-instruct":            {"params": 70,  "ctx": 128000,  "provider": "nvidia_nim"},
+    "nvidia_nim/meta/llama-3.3-70b-instruct":            {"params": 70,  "ctx": 128000,  "provider": "nvidia_nim"},
+    "nvidia_nim/nvidia/llama-3.1-nemotron-70b-instruct": {"params": 70,  "ctx": 128000,  "provider": "nvidia_nim"},
+    "nvidia_nim/deepseek-ai/deepseek-r1":                 {"params": 671, "ctx": 65536,   "provider": "nvidia_nim"},
 
     # ── Groq Models ────────────────────────────────────────────────────────
     "groq/llama-3.3-70b-versatile":                       {"params": 70,  "ctx": 128000,  "provider": "groq"},
+    "groq/llama-3.1-70b-versatile":                       {"params": 70,  "ctx": 128000,  "provider": "groq"},
     "groq/llama-3.1-8b-instant":                          {"params": 8,   "ctx": 131072,  "provider": "groq"},
-    "groq/mistral-saba-24b":                              {"params": 24,  "ctx": 128000,  "provider": "groq"},
-    "groq/qwen-qwq-32b":                                 {"params": 32,  "ctx": 131072,  "provider": "groq"},
+    "groq/mixtral-8x7b-32768":                            {"params": 47,  "ctx": 32768,   "provider": "groq"},
 
     # ── Cerebras Models ────────────────────────────────────────────────────
-    "cerebras/llama-3.3-70b":                             {"params": 70,  "ctx": 128000,  "provider": "cerebras"},
+    "cerebras/llama3.1-70b":                              {"params": 70,  "ctx": 131072,  "provider": "cerebras"},
     "cerebras/llama3.1-8b":                               {"params": 8,   "ctx": 131072,  "provider": "cerebras"},
 
     # ── DeepInfra Models ───────────────────────────────────────────────────
@@ -66,12 +60,10 @@ KNOWN_MODELS = {
     # ── HuggingFace Models ─────────────────────────────────────────────────
     "huggingface/meta-llama/Llama-3.1-405B-Instruct":     {"params": 405, "ctx": 131072,  "provider": "huggingface"},
     "huggingface/meta-llama/Llama-3.1-70B-Instruct":      {"params": 70,  "ctx": 131072,  "provider": "huggingface"},
-    "huggingface/mistralai/Mistral-Large-Instruct-2412":  {"params": 123, "ctx": 128000,  "provider": "huggingface"},
 
     # ── Together Models ────────────────────────────────────────────────────
     "together/meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo": {"params": 405, "ctx": 131072, "provider": "together"},
     "together/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo":  {"params": 70,  "ctx": 131072, "provider": "together"},
-    "together/mistralai/Mistral-Large-Instruct-2412":          {"params": 123, "ctx": 128000, "provider": "together"},
 
     # ── Ollama / LM Studio (local) ────────────────────────────────────────
     "ollama/llama3.3:70b":                                {"params": 70,  "ctx": 128000,  "provider": "ollama"},
@@ -99,7 +91,7 @@ def lookup(litellm_model: str) -> dict | None:
             if stripped in KNOWN_MODELS:
                 return KNOWN_MODELS[stripped]
             # Try the reverse: the stripped name might match a key that uses
-            # a different prefix (e.g. "gpt-4.1-mini" -> "openai/gpt-4.1-mini")
+            # a different prefix
             for known_id, info in KNOWN_MODELS.items():
                 if known_id.endswith("/" + stripped) or known_id.endswith(stripped):
                     return info

@@ -18,7 +18,8 @@ PROVIDER_MAP = {
     "deepinfra":  {"prefix": "deepinfra",  "env_key": "DEEPINFRA_API_KEY"},
     "cerebras":   {"prefix": "cerebras",   "env_key": "CEREBRAS_API_KEY"},
     "github":     {"prefix": "openai",     "env_key": "GITHUB_TOKEN",
-                   "api_base": "https://models.github.ai/inference/v1"},
+                   "api_base": "https://models.inference.ai.azure.com"},
+    "gemini":     {"prefix": "gemini",     "env_key": "GEMINI_API_KEY"},
     "huggingface":{"prefix": "huggingface","env_key": "HUGGINGFACE_API_KEY"},
     "nvidia":     {"prefix": "nvidia_nim", "env_key": "NVIDIA_NIM_API_KEY"},
     "nvidia_nim": {"prefix": "nvidia_nim", "env_key": "NVIDIA_NIM_API_KEY"},
@@ -28,11 +29,13 @@ PROVIDER_MAP = {
 }
 
 
-def _build_model_entry(model_id: str, provider: str, group_name: str, timeout: int = 30) -> CommentedMap:
+def _build_model_entry(model_id: str, provider: str, group_name: str, 
+                       timeout: int = 30, api_base: str = None) -> CommentedMap:
     """Build a single model_list entry for the LiteLLM config as a CommentedMap."""
     info = PROVIDER_MAP.get(provider, {"prefix": provider, "env_key": f"{provider.upper()}_API_KEY"})
 
     prefix = info["prefix"]
+    # For github, we want the prefix to be 'openai' as per LiteLLM standards for Azure Inference
     if model_id.startswith(prefix + "/"):
         litellm_model = model_id
     else:
@@ -49,9 +52,9 @@ def _build_model_entry(model_id: str, provider: str, group_name: str, timeout: i
     if env_key:
         lp["api_key"] = f"os.environ/{env_key}"
 
-    api_base = info.get("api_base")
-    if api_base:
-        lp["api_base"] = api_base
+    base = api_base or info.get("api_base")
+    if base:
+        lp["api_base"] = base
 
     entry["litellm_params"] = lp
     return entry
@@ -244,18 +247,27 @@ def apply_ranked_models(ranked_models: list, path=DEFAULT_CONFIG_PATH,
             current_models_in_config.add(lp.get("model", ""))
     injected_count = 0
     for litellm_id, spec in known_models.all_models().items():
-        if litellm_id in current_models_in_config:
+        prov = spec.get("provider", "")
+        info = PROVIDER_MAP.get(prov, {"prefix": prov})
+        prefix = info.get("prefix", prov)
+        
+        # Calculate the actual litellm_model string that will be generated
+        base_id = litellm_id.split("/", 1)[-1] if "/" in litellm_id else litellm_id
+        target_model_name = f"{prefix}/{base_id}" if not base_id.startswith(prefix + "/") else base_id
+
+        if target_model_name in current_models_in_config:
             continue
+            
         # Only inject if we have the provider's API key in the config already
         # (i.e. the provider is configured)
-        info = PROVIDER_MAP.get(spec.get("provider", ""), {})
         env_key = info.get("env_key", "")
         if not env_key:
             continue  # Local providers like ollama - skip auto-injection
+            
         # Build entry from known model spec
         new_entry = _build_model_entry(
-            litellm_id.split("/", 1)[-1] if "/" in litellm_id else litellm_id,
-            spec.get("provider", ""),
+            base_id,
+            prov,
             fallback_group,
             timeout=30,
         )
@@ -276,9 +288,13 @@ def apply_ranked_models(ranked_models: list, path=DEFAULT_CONFIG_PATH,
             "allowed_fails": 2,
             "num_retries": 2,
             "timeout": 30,
-            "enable_pre_call_checks": True,
+            "enable_pre_call_checks": False,
             "ignore_cooldown_on_fallbacks": True,
         })
+    else:
+        # Always force this to False to prevent startup health check failures
+        router_settings["enable_pre_call_checks"] = False
+
     config["router_settings"] = router_settings
 
     # LiteLLM settings (preserve or default)
@@ -382,7 +398,7 @@ def ensure_config_exists(path=DEFAULT_CONFIG_PATH):
             "allowed_fails": 2,
             "num_retries": 2,
             "timeout": 30,
-            "enable_pre_call_checks": True,
+            "enable_pre_call_checks": False,
             "ignore_cooldown_on_fallbacks": True,
         })
         config["litellm_settings"] = CommentedMap({

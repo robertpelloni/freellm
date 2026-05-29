@@ -43,6 +43,7 @@ class LiteLLMControlPanel:
             "deepinfra": "DEEPINFRA_API_KEY",
             "cerebras": "CEREBRAS_API_KEY",
             "github": "GITHUB_TOKEN",
+            "gemini": "GEMINI_API_KEY",
             "huggingface": "HUGGINGFACE_API_KEY",
             "nvidia": "NVIDIA_NIM_API_KEY",
         }
@@ -66,6 +67,7 @@ class LiteLLMControlPanel:
             "together": self.settings.get("TOGETHER_BASE_URL", ""),
             "deepinfra": self.settings.get("DEEPINFRA_BASE_URL", ""),
             "cerebras": self.settings.get("CEREBRAS_BASE_URL", ""),
+            "gemini": self.settings.get("GEMINI_BASE_URL", ""),
             "ollama": self.settings.get("OLLAMA_BASE_URL", ""),
             "lm_studio": self.settings.get("LM_STUDIO_BASE_URL", ""),
         }
@@ -129,11 +131,21 @@ class LiteLLMControlPanel:
         except Exception as e:
             print(f"Could not load models from config: {e}")
 
-    def create_image(self, width, height, color):
-        image = Image.new('RGB', (width, height), 'black')
+    def create_image(self, width, height, color, traffic=False):
+        image = Image.new('RGBA', (width, height), (0, 0, 0, 0))
         dc = ImageDraw.Draw(image)
-        margin = 10
+        margin = 12
+        
+        # Draw main circle
         dc.ellipse([margin, margin, width - margin, height - margin], fill=color)
+        
+        if traffic:
+            # Draw up/down arrow indicators for traffic
+            # Up arrow (cyan)
+            dc.polygon([(width//2, 2), (width//2 - 8, 10), (width//2 + 8, 10)], fill='cyan')
+            # Down arrow (magenta)
+            dc.polygon([(width//2, height - 2), (width//2 - 8, height - 10), (width//2 + 8, height - 10)], fill='magenta')
+            
         return image
 
     def notify(self, message, title="LiteLLM Router"):
@@ -146,6 +158,8 @@ class LiteLLMControlPanel:
             return
         color = 'gray'
         tooltip = "LiteLLM Router"
+        traffic = self.process_mgr.is_traffic_active()
+        
         if self.is_working:
             color = 'blue'
             tooltip = "LiteLLM Router (Working...)"
@@ -171,7 +185,7 @@ class LiteLLMControlPanel:
 
         status = " (Running)" if self.process_mgr.is_running() else " (Stopped)"
         tooltip += status
-        self.icon.icon = self.create_image(64, 64, color)
+        self.icon.icon = self.create_image(64, 64, color, traffic=traffic)
         self.icon.title = tooltip
 
     def on_quit(self, icon, item):
@@ -349,7 +363,7 @@ class LiteLLMControlPanel:
 
     def show_settings(self, icon, item):
         def run_ui():
-            ui = settings_ui.SettingsUI(on_save_callback=self.on_settings_saved)
+            ui = settings_ui.SettingsUI(on_save_callback=self.on_settings_saved, engine=self.engine)
             ui.run()
         threading.Thread(target=run_ui, daemon=True).start()
 
@@ -373,6 +387,7 @@ class LiteLLMControlPanel:
             "deepinfra": "DEEPINFRA_API_KEY",
             "cerebras": "CEREBRAS_API_KEY",
             "github": "GITHUB_TOKEN",
+            "gemini": "GEMINI_API_KEY",
             "huggingface": "HUGGINGFACE_API_KEY",
             "nvidia": "NVIDIA_NIM_API_KEY",
         }
@@ -391,6 +406,7 @@ class LiteLLMControlPanel:
             "deepinfra": self.settings.get("DEEPINFRA_BASE_URL", ""),
             "cerebras": self.settings.get("CEREBRAS_BASE_URL", ""),
             "github": self.settings.get("GITHUB_BASE_URL", ""),
+            "gemini": self.settings.get("GEMINI_BASE_URL", ""),
             "huggingface": self.settings.get("HUGGINGFACE_BASE_URL", ""),
             "nvidia": self.settings.get("NVIDIA_BASE_URL", ""),
             "ollama": self.settings.get("OLLAMA_BASE_URL", ""),
@@ -751,22 +767,26 @@ class LiteLLMControlPanel:
         # Start background thread
         threading.Thread(target=self.run_async_loop, daemon=True).start()
 
-        # Start tray icon
+        # Set tray icon
         self.icon = pystray.Icon(
             "LiteLLM",
             self.create_image(64, 64, 'gray'),
             "LiteLLM Router",
             menu=self.build_menu(),
         )
-        # Set primary click action to open the LLM interface
-        self.icon.action = self.launch_interface
 
         # Update tray tooltip after icon starts (use a short delayed call)
         def _delayed_update():
             import time
-            time.sleep(1)
-            self.update_tray_status()
+            print("Tray update thread started.")
+            while self.running:
+                try:
+                    self.update_tray_status()
+                except Exception as e:
+                    print(f"Error updating tray: {e}")
+                time.sleep(1.0) # Slower updates for stability
         threading.Thread(target=_delayed_update, daemon=True).start()
+        print("Starting tray icon...")
         self.icon.run()
 
 
