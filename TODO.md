@@ -1,7 +1,7 @@
 # TODO: LiteLLM Control Panel
 
 ## Immediate Tasks
-- [ ] Implement a "Live Logs" or "Event Stream" viewer in the settings UI to monitor benchmarking in real-time.
+- [x] Implement a "Live Logs" or "Event Stream" viewer in the settings UI to monitor benchmarking in real-time.
 - [ ] Refine the Log Viewer with search and filtering capabilities.
 
 ## Features

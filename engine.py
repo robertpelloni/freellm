@@ -18,7 +18,7 @@ GITHUB_MODELS_URL = "https://models.inference.ai.azure.com/models"
 HF_MODELS_URL = "https://api-inference.huggingface.co/models"
 NVIDIA_MODELS_URL = "https://integrate.api.nvidia.com/v1/models"
 
-MIN_PARAMETERS_BILLIONS = 100
+MIN_PARAMETERS_BILLIONS = 0
 
 # These are defaults, will be overridden by settings
 SIZE_WEIGHT = 0.6
@@ -41,6 +41,20 @@ class ModelEngine:
         self.weights = weights or {"size": 0.6, "context": 0.2, "latency": 0.2}
         self.base_urls = base_urls or {}
         self.client = httpx.AsyncClient(timeout=10.0)
+        self.log_listeners = []
+
+    def add_log_listener(self, listener):
+        """Add a callback for log messages. listener(msg: str)"""
+        self.log_listeners.append(listener)
+
+    def _log(self, message: str):
+        """Log a message and notify listeners."""
+        print(message)
+        for listener in self.log_listeners:
+            try:
+                listener(message)
+            except:
+                pass
 
     async def fetch_openrouter_models(self) -> List[Dict[str, Any]]:
         """Fetches free models from OpenRouter."""
@@ -48,17 +62,22 @@ class ModelEngine:
         try:
             response = await self.client.get(url)
             if response.status_code != 200:
-                print(f"Error fetching OpenRouter models: {response.status_code}")
+                self._log(f"Error fetching OpenRouter models: {response.status_code}")
                 return []
             data = response.json()
             all_models = data.get("data", [])
             free_models = []
             for m in all_models:
                 pricing = m.get("pricing", {})
-                if float(pricing.get("prompt", 0)) == 0 and float(pricing.get("completion", 0)) == 0:
-                    model_id = m.get("id")
+                model_id = m.get("id", "")
+                
+                is_free = (float(pricing.get("prompt", 0)) == 0 and float(pricing.get("completion", 0)) == 0)
+                if not is_free and ":free" in model_id:
+                    is_free = True
+                
+                if is_free:
                     params, context = self._resolve_model_metadata(m, "openrouter")
-                    if params >= self.min_params:
+                    if params >= self.min_params or params == 0:
                         free_models.append({
                             "id": model_id,
                             "provider": "openrouter",
@@ -67,7 +86,7 @@ class ModelEngine:
                         })
             return free_models
         except Exception as e:
-            print(f"Exception fetching OpenRouter models: {e}")
+            self._log(f"Exception fetching OpenRouter models: {e}")
             return []
 
     def _resolve_model_metadata(self, model_data: Dict[str, Any],
@@ -106,9 +125,16 @@ class ModelEngine:
 
     def calculate_score(self, params: int, latency: float, context_length: int = 4096) -> float:
         """Calculates the model score based on parameters, context length, and latency."""
-        size_score = (params / 100.0) * self.weights.get("size", 0.6)
+        # Normalize size (cap at 405B for scaling)
+        size_score = (min(params, 405) / 100.0) * self.weights.get("size", 0.6)
+        
+        # Normalize context (cap at 128k for scaling)
         context_score = (min(context_length, 128000) / 128000.0) * self.weights.get("context", 0.2)
-        latency_penalty = latency * self.weights.get("latency", 0.2)
+        
+        # Latency penalty (capped to prevent it from overwhelming size)
+        # 5 seconds is considered a "very slow" but usable model
+        latency_penalty = min(latency, 5.0) * self.weights.get("latency", 0.2)
+        
         return size_score + context_score - latency_penalty
 
     async def fetch_groq_models(self) -> List[Dict[str, Any]]:
@@ -124,7 +150,7 @@ class ModelEngine:
                 models = []
                 for m in data:
                     params, context = self._resolve_model_metadata(m, "groq")
-                    if params >= self.min_params:
+                    if params >= self.min_params or params == 0:
                         models.append({
                             "id": m.get("id"),
                             "provider": "groq",
@@ -149,7 +175,7 @@ class ModelEngine:
                 models = []
                 for m in data:
                     params, context = self._resolve_model_metadata(m, "together")
-                    if params >= self.min_params:
+                    if params >= self.min_params or params == 0:
                         models.append({
                             "id": m.get("id"),
                             "provider": "together",
@@ -174,7 +200,7 @@ class ModelEngine:
                 models = []
                 for m in data:
                     params, context = self._resolve_model_metadata(m, "deepinfra")
-                    if params >= self.min_params:
+                    if params >= self.min_params or params == 0:
                         models.append({
                             "id": m.get("id"),
                             "provider": "deepinfra",
@@ -199,7 +225,7 @@ class ModelEngine:
                 models = []
                 for m in data:
                     params, context = self._resolve_model_metadata(m, "cerebras")
-                    if params >= self.min_params:
+                    if params >= self.min_params or params == 0:
                         models.append({
                             "id": m.get("id"),
                             "provider": "cerebras",
@@ -271,7 +297,7 @@ class ModelEngine:
                 for m in data:
                     name = m.get("name")
                     params, context = self._resolve_model_metadata(m, "github")
-                    if params >= self.min_params:
+                    if params >= self.min_params or params == 0:
                         models.append({
                             "id": name,
                             "provider": "github",
@@ -283,11 +309,61 @@ class ModelEngine:
             pass
         return []
 
+    async def fetch_gemini_models(self) -> List[Dict[str, Any]]:
+        """Fetches models from Google AI Studio (Gemini)."""
+        api_key = self.api_keys.get("gemini")
+        if not api_key:
+            return []
+        
+        # Google AI Studio offers these main free tier models:
+        gemini_defaults = [
+            {"id": "gemini-2.5-pro", "provider": "gemini", "parameters": 0, "context_length": 2000000},
+            {"id": "gemini-2.5-flash", "provider": "gemini", "parameters": 0, "context_length": 1000000},
+            {"id": "gemini-2.0-flash", "provider": "gemini", "parameters": 0, "context_length": 1000000},
+            {"id": "gemini-2.0-flash-lite-preview-02-05", "provider": "gemini", "parameters": 0, "context_length": 1000000},
+            {"id": "gemini-2.0-pro-exp-02-05", "provider": "gemini", "parameters": 0, "context_length": 2000000},
+            {"id": "gemini-1.5-pro", "provider": "gemini", "parameters": 0, "context_length": 2000000},
+            {"id": "gemini-1.5-flash", "provider": "gemini", "parameters": 0, "context_length": 1000000},
+            {"id": "gemini-1.5-flash-8b", "provider": "gemini", "parameters": 8, "context_length": 1000000},
+        ]
+        
+        models = []
+        for m in gemini_defaults:
+            # Re-resolve in case known_models has more precise info
+            params, context = self._resolve_model_metadata(m, "gemini")
+            if params >= self.min_params or params == 0:
+                m["parameters"] = params
+                m["context_length"] = context
+                models.append(m)
+        return models
+
     async def fetch_huggingface_models(self) -> List[Dict[str, Any]]:
         """Fetches models from Hugging Face Inference API."""
         api_key = self.api_keys.get("huggingface")
         if not api_key:
             return []
+        
+        url = "https://huggingface.co/api/models?filter=text-generation&sort=trendingScore&limit=100"
+        try:
+            response = await self.client.get(url, timeout=10.0)
+            if response.status_code == 200:
+                data = response.json()
+                models = []
+                for m in data:
+                    model_id = m.get("id")
+                    params, context = self._resolve_model_metadata(m, "huggingface")
+                    if params >= self.min_params or params == 0:
+                        models.append({
+                            "id": model_id,
+                            "provider": "huggingface",
+                            "parameters": params,
+                            "context_length": context,
+                        })
+                if models:
+                    return models
+        except Exception as e:
+            self._log(f"Exception fetching Hugging Face models: {e}")
+            
         return [
             {"id": "meta-llama/Llama-3.1-405B-Instruct", "provider": "huggingface",
              "parameters": 405, "context_length": 131072},
@@ -309,7 +385,7 @@ class ModelEngine:
                 for m in data:
                     name = m.get("id")
                     params, context = self._resolve_model_metadata(m, "nvidia")
-                    if params >= self.min_params:
+                    if params >= self.min_params or params == 0:
                         models.append({
                             "id": name,
                             "provider": "nvidia",
@@ -369,6 +445,11 @@ class ModelEngine:
             github_models = await self.fetch_github_models()
             candidates.extend(github_models)
             database.update_provider_cycle("github", len(github_models) > 0)
+
+        if "gemini" not in blacklisted_providers:
+            gemini_models = await self.fetch_gemini_models()
+            candidates.extend(gemini_models)
+            database.update_provider_cycle("gemini", len(gemini_models) > 0)
 
         if "huggingface" not in blacklisted_providers:
             hf_models = await self.fetch_huggingface_models()
@@ -431,7 +512,7 @@ class ModelEngine:
             if prov and prov not in self.api_keys:
                 continue
             known_to_force.append({
-                "id": litellm_id,
+                "id": litellm_id.split("/", 1)[-1] if "/" in litellm_id else litellm_id,
                 "provider": prov,
                 "parameters": spec["params"],
                 "context_length": spec["ctx"],
@@ -440,13 +521,20 @@ class ModelEngine:
             })
 
         if known_to_force:
-            print(f"Force-including {len(known_to_force)} known good models not found in provider fetches.")
+            self._log(f"Force-including {len(known_to_force)} known good models not found in provider fetches.")
             valid_candidates.extend(known_to_force)
 
-        # 3. Benchmark in parallel (limited concurrency)
+        # 3. Benchmark in parallel with concurrency limit
+        semaphore = asyncio.Semaphore(5)  # Max 5 parallel benchmarks
         tasks = []
         benchmarking_models = []
         cached_results = []
+
+        async def sem_measure(m_id, prov):
+            async with semaphore:
+                # Add a small staggered delay to prevent bursting
+                await asyncio.sleep(0.5) 
+                return await self.measure_latency(m_id, prov)
 
         for m in valid_candidates:
             is_local = m['provider'] in ['ollama', 'lm_studio']
@@ -461,7 +549,7 @@ class ModelEngine:
                         cached_results.append((m, avg_latency))
                         continue
 
-            tasks.append(self.measure_latency(m['id'], m['provider']))
+            tasks.append(sem_measure(m['id'], m['provider']))
             benchmarking_models.append(m)
 
         latencies = await asyncio.gather(*tasks)
@@ -481,6 +569,11 @@ class ModelEngine:
                     context_length=m.get('context_length', 0),
                     parameters=m.get('parameters', 0),
                 )
+            else:
+                # Include failed models with a penalty so they appear at the bottom but stay in config
+                m['latency'] = 99.0
+                m['score'] = -10.0
+                ranked_list.append(m)
 
         # Add cached results
         for m, latency in cached_results:
@@ -491,7 +584,7 @@ class ModelEngine:
 
         # 4. Sort by score
         ranked_list.sort(key=lambda x: x['score'], reverse=True)
-        return ranked_list[:10]
+        return ranked_list
 
     async def check_connectivity(self) -> bool:
         """Check if the internet is accessible by hitting reliable endpoints."""
@@ -512,6 +605,29 @@ class ModelEngine:
     async def measure_latency(self, model_id: str, provider: str) -> Optional[float]:
         """Measures Time-To-First-Token (TTFT) for a given model."""
         base = self.base_urls.get(provider)
+        
+        # Clean model ID for native provider benchmarking
+        bench_id = model_id
+        if provider == "openrouter":
+            if model_id.startswith("openrouter/"):
+                bench_id = model_id[len("openrouter/"):]
+        elif provider == "github":
+            bench_id = model_id.split("/")[-1]
+        elif provider in ["nvidia", "nvidia_nim"]:
+            if model_id.startswith("nvidia_nim/"):
+                bench_id = model_id[len("nvidia_nim/"):]
+            elif model_id.startswith("nvidia/"):
+                bench_id = model_id[len("nvidia/"):]
+            else:
+                bench_id = model_id.split("/")[-1]
+        elif provider == "huggingface":
+            if model_id.startswith("huggingface/"):
+                bench_id = model_id[len("huggingface/"):]
+        elif provider in ["groq", "together", "deepinfra", "cerebras", "ollama", "lm_studio"]:
+            if "/" in model_id:
+                bench_id = model_id.split("/")[-1]
+
+        api_key = self.api_keys.get(provider)
 
         if provider == "openrouter":
             url = (base or "https://openrouter.ai/api/v1") + "/chat/completions"
@@ -530,25 +646,30 @@ class ModelEngine:
         elif provider == "github":
             url = (base or "https://models.inference.ai.azure.com") + "/chat/completions"
         elif provider == "huggingface":
-            url = f"https://api-inference.huggingface.co/models/{model_id}/v1/chat/completions"
-        elif provider == "nvidia":
+            url = f"https://api-inference.huggingface.co/models/{bench_id}/v1/chat/completions"
+        elif provider == "gemini":
+            url = (base or "https://generativelanguage.googleapis.com/v1beta") + f"/models/{bench_id}:streamGenerateContent?key={api_key}"
+        elif provider in ["nvidia", "nvidia_nim"]:
             url = (base or "https://integrate.api.nvidia.com/v1") + "/chat/completions"
         else:
             return None
 
-        api_key = self.api_keys.get(provider)
-
         headers = {}
-        if api_key:
+        if provider != "gemini" and api_key:
             headers["Authorization"] = f"Bearer {api_key}"
         headers["Content-Type"] = "application/json"
 
-        payload = {
-            "model": model_id,
-            "messages": [{"role": "user", "content": "hi"}],
-            "max_tokens": 1,
-            "stream": True
-        }
+        if provider == "gemini":
+            payload = {
+                "contents": [{"parts": [{"text": "hi"}]}]
+            }
+        else:
+            payload = {
+                "model": bench_id,
+                "messages": [{"role": "user", "content": "hi"}],
+                "max_tokens": 1,
+                "stream": True
+            }
 
         try:
             start_time = time.perf_counter()
@@ -559,18 +680,18 @@ class ModelEngine:
                             ttft = time.perf_counter() - start_time
                             return ttft
                 elif response.status_code in [429, 504]:
-                    print(f"Rate limited or timeout for {model_id} ({response.status_code})")
+                    self._log(f"Rate limited or timeout for {model_id} ({response.status_code})")
                     database.record_probe(model_id, provider, None, success=False,
                                          error_code=response.status_code)
                     return None
                 else:
                     err_body = await response.aread()
-                    print(f"Error {response.status_code} for {model_id}: {err_body}")
+                    self._log(f"Error {response.status_code} for {model_id}: {err_body}")
                     database.record_probe(model_id, provider, None, success=False,
                                          error_code=response.status_code)
                     return None
         except Exception as e:
-            print(f"Exception measuring latency for {model_id}: {e}")
+            self._log(f"Exception measuring latency for {model_id}: {e}")
             database.record_probe(model_id, provider, None, success=False,
                                  error_message=str(e)[:200])
             return None
