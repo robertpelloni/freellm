@@ -746,9 +746,27 @@ class LiteLLMControlPanel:
         return pystray.Menu(*menu_items)
 
     async def monitor_active_model(self):
-        """Monitors the active LiteLLM model health and triggers fallback if needed."""
+        """Monitors the active LiteLLM model health and tracks load stability."""
         consecutive_failures = 0
+        last_metrics_time = time.time()
         while self.running:
+            now = time.time()
+            # 1. Stability Tracking: Calculate QPM and TPS every minute
+            if now - last_metrics_time >= 60:
+                conn = database.sqlite3.connect(database.DB_NAME)
+                cursor = conn.cursor()
+                one_min_ago = datetime.datetime.now() - datetime.timedelta(minutes=1)
+                cursor.execute("""
+                    SELECT COUNT(*), SUM(prompt_tokens + completion_tokens)
+                    FROM usage WHERE timestamp > ?
+                """, (one_min_ago,))
+                counts = cursor.fetchone()
+                qpm = counts[0] or 0
+                tps = (counts[1] or 0) / 60.0
+                database.log_stability_metric(qpm, tps)
+                last_metrics_time = now
+                conn.close()
+
             is_running = self.process_mgr.is_running()
             auto_manage = self.settings.get("AUTO_MANAGE_LITELLM", True)
             if is_running:

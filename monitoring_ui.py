@@ -14,6 +14,7 @@ class MonitoringUI:
 
         self.create_activity_tab()
         self.create_performance_tab()
+        self.create_load_tab()
 
         self.refresh_data()
         self.root.protocol("WM_DELETE_WINDOW", self.root.destroy)
@@ -68,6 +69,56 @@ class MonitoringUI:
 
         self.perf_tree.pack(fill='both', expand=True)
 
+    def create_load_tab(self):
+        tab = ttk.Frame(self.notebook)
+        self.notebook.add(tab, text="Load Analysis")
+
+        load_summary = ttk.Frame(tab, padding=10)
+        load_summary.pack(fill='x')
+
+        self.qpm_var = tk.StringVar(value="Queries/Min: 0")
+        self.tps_var = tk.StringVar(value="Tokens/Sec: 0")
+        ttk.Label(load_summary, textvariable=self.qpm_var, font=('Helvetica', 12, 'bold')).pack(side='left', padx=20)
+        ttk.Label(load_summary, textvariable=self.tps_var, font=('Helvetica', 12, 'bold')).pack(side='left', padx=20)
+
+        chart_frame = ttk.LabelFrame(tab, text="Activity Chart (Last 60 mins)", padding=10)
+        chart_frame.pack(fill='both', expand=True, padx=10, pady=10)
+
+        self.canvas = tk.Canvas(chart_frame, bg='black', height=300)
+        self.canvas.pack(fill='both', expand=True)
+
+    def draw_load_chart(self, history):
+        self.canvas.delete("all")
+        w = self.canvas.winfo_width()
+        h = self.canvas.winfo_height()
+        if w < 10 or h < 10: return
+
+        if not history:
+            self.canvas.create_text(w/2, h/2, text="Collecting load data...", fill='white')
+            return
+
+        max_qpm = max([x[1] for x in history] + [1])
+        max_tps = max([x[2] for x in history] + [1])
+
+        points_qpm = []
+        points_tps = []
+
+        step = w / 60
+        for i, (ts, qpm, tps) in enumerate(reversed(history)):
+            x = w - (i * step)
+            y_qpm = h - (qpm / max_qpm * (h - 20)) - 10
+            y_tps = h - (tps / max_tps * (h - 20)) - 10
+            points_qpm.extend([x, y_qpm])
+            points_tps.extend([x, y_tps])
+
+        if len(points_qpm) > 3:
+            self.canvas.create_line(points_qpm, fill='cyan', width=2, smooth=True)
+        if len(points_tps) > 3:
+            self.canvas.create_line(points_tps, fill='orange', width=2, smooth=True)
+
+        self.canvas.create_text(50, 20, text="QPM (Cyan)", fill='cyan', anchor='w')
+        self.canvas.create_text(50, 40, text="TPS (Orange)", fill='orange', anchor='w')
+
     def refresh_data(self):
         # 1. Activity Log
         for i in self.activity_tree.get_children():
@@ -88,6 +139,15 @@ class MonitoringUI:
 
         for prov, lat, succ in perf['providers']:
             self.perf_tree.insert('', 'end', values=(prov, f"{lat:.3f}", f"{succ:.1f}%"))
+
+        # 3. Load Analysis
+        load_history = database.get_load_history(limit=60)
+        if load_history:
+            latest = load_history[0]
+            self.qpm_var.set(f"Queries/Min: {latest[1]:.1f}")
+            self.tps_var.set(f"Tokens/Sec: {latest[2]:.1f}")
+
+        self.draw_load_chart(load_history)
 
         # Schedule next refresh
         self.root.after(10000, self.refresh_data)

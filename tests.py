@@ -148,5 +148,16 @@ class TestLiteLLMControlPanel(unittest.TestCase):
         self.assertAlmostEqual(summary['success_rate'], 66.66, places=1)
         self.assertEqual(len(summary['providers']), 2)
 
+    def test_stability_logging(self):
+        # 1. Log metrics
+        database.log_stability_metric(10, 500) # 10 QPM, 500 TPS
+        database.log_stability_metric(5, 250)
+
+        # 2. Retrieve
+        history = database.get_load_history(limit=5)
+        self.assertEqual(len(history), 2)
+        self.assertEqual(history[0][1], 5) # LIFO order
+        self.assertEqual(history[1][1], 10)
+
 if __name__ == "__main__":
     unittest.main()
