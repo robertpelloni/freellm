@@ -17,6 +17,13 @@ LM_STUDIO_MODELS_URL = "http://localhost:1234/v1/models"
 GITHUB_MODELS_URL = "https://models.inference.ai.azure.com/models"
 HF_MODELS_URL = "https://api-inference.huggingface.co/models"
 NVIDIA_MODELS_URL = "https://integrate.api.nvidia.com/v1/models"
+MISTRAL_MODELS_URL = "https://api.mistral.ai/v1/models"
+CODESTRAL_MODELS_URL = "https://codestral.mistral.ai/v1/models"
+COHERE_MODELS_URL = "https://api.cohere.ai/v1/models"
+SAMBANOVA_MODELS_URL = "https://api.sambanova.ai/v1/models"
+FIREWORKS_MODELS_URL = "https://api.fireworks.ai/inference/v1/models"
+HYPERBOLIC_MODELS_URL = "https://api.hyperbolic.xyz/v1/models"
+NEBIUS_MODELS_URL = "https://api.studio.nebius.ai/v1/models"
 
 MIN_PARAMETERS_BILLIONS = 0  # Changed from 100 -- known_models fills in real values
 
@@ -451,6 +458,167 @@ class ModelEngine:
             pass
         return []
 
+    async def fetch_mistral_models(self) -> List[Dict[str, Any]]:
+        """Fetches models from Mistral La Plateforme."""
+        api_key = self.api_keys.get("mistral")
+        if not api_key:
+            return []
+        url = self.base_urls.get("mistral", "https://api.mistral.ai/v1") + "/models"
+        try:
+            response = await self.client.get(url, headers={"Authorization": f"Bearer {api_key}"})
+            if response.status_code == 200:
+                data = response.json().get("data", [])
+                models = []
+                for m in data:
+                    mid = m.get("id", "")
+                    params, context = self._resolve_model_metadata(m, "mistral")
+                    if params >= self.min_params or params == 0:
+                        models.append({"id": mid, "provider": "mistral", "parameters": params, "context_length": context})
+                return models
+        except:
+            pass
+        return []
+
+    async def fetch_codestral_models(self) -> List[Dict[str, Any]]:
+        """Fetches Codestral from Mistral Codestral endpoint."""
+        api_key = self.api_keys.get("codestral")
+        if not api_key:
+            return []
+        return [{"id": "codestral-latest", "provider": "codestral", "parameters": 22, "context_length": 256000}]
+
+    async def fetch_cohere_models(self) -> List[Dict[str, Any]]:
+        """Fetches free models from Cohere."""
+        api_key = self.api_keys.get("cohere")
+        if not api_key:
+            return []
+        cohere_models = [
+            {"id": "command-a-03-2025", "parameters": 111, "context_length": 256000},
+            {"id": "command-a-plus-05-2026", "parameters": 111, "context_length": 256000},
+            {"id": "command-a-reasoning-08-2025", "parameters": 111, "context_length": 256000},
+            {"id": "command-r-plus-08-2024", "parameters": 104, "context_length": 128000},
+            {"id": "c4ai-aya-expanse-32b", "parameters": 32, "context_length": 128000},
+        ]
+        models = []
+        for m in cohere_models:
+            params, context = self._resolve_model_metadata(m, "cohere")
+            if params >= self.min_params or params == 0:
+                models.append({"id": m["id"], "provider": "cohere", "parameters": params, "context_length": context})
+        return models
+
+    async def fetch_sambanova_models(self) -> List[Dict[str, Any]]:
+        """Fetches models from SambaNova Cloud."""
+        api_key = self.api_keys.get("sambanova")
+        if not api_key:
+            return []
+        url = self.base_urls.get("sambanova", "https://api.sambanova.ai/v1") + "/models"
+        try:
+            response = await self.client.get(url, headers={"Authorization": f"Bearer {api_key}"})
+            if response.status_code == 200:
+                data = response.json().get("data", [])
+                models = []
+                for m in data:
+                    mid = m.get("id", "")
+                    params, context = self._resolve_model_metadata(m, "sambanova")
+                    if params >= self.min_params or params == 0:
+                        models.append({"id": mid, "provider": "sambanova", "parameters": params, "context_length": context})
+                return models
+        except:
+            pass
+        return []
+
+    async def fetch_fireworks_models(self) -> List[Dict[str, Any]]:
+        """Fetches models from Fireworks AI."""
+        api_key = self.api_keys.get("fireworks")
+        if not api_key:
+            return []
+        url = self.base_urls.get("fireworks", "https://api.fireworks.ai/inference/v1") + "/models"
+        try:
+            response = await self.client.get(url, headers={"Authorization": f"Bearer {api_key}"})
+            if response.status_code == 200:
+                data = response.json().get("data", [])
+                models = []
+                for m in data:
+                    mid = m.get("id", "")
+                    if any(kw in mid.lower() for kw in ["embed", "vision", "image", "whisper", "tts"]):
+                        continue
+                    params, context = self._resolve_model_metadata(m, "fireworks")
+                    if params >= self.min_params or params == 0:
+                        models.append({"id": mid, "provider": "fireworks", "parameters": params, "context_length": context})
+                return models
+        except:
+            pass
+        return []
+
+    async def fetch_hyperbolic_models(self) -> List[Dict[str, Any]]:
+        """Fetches models from Hyperbolic."""
+        api_key = self.api_keys.get("hyperbolic")
+        if not api_key:
+            return []
+        url = self.base_urls.get("hyperbolic", "https://api.hyperbolic.xyz/v1") + "/models"
+        try:
+            response = await self.client.get(url, headers={"Authorization": f"Bearer {api_key}"})
+            if response.status_code == 200:
+                data = response.json().get("data", [])
+                models = []
+                for m in data:
+                    mid = m.get("id", "")
+                    params, context = self._resolve_model_metadata(m, "hyperbolic")
+                    if params >= self.min_params or params == 0:
+                        models.append({"id": mid, "provider": "hyperbolic", "parameters": params, "context_length": context})
+                return models
+        except:
+            pass
+        return []
+
+    async def fetch_nebius_models(self) -> List[Dict[str, Any]]:
+        """Fetches models from Nebius."""
+        api_key = self.api_keys.get("nebius")
+        if not api_key:
+            return []
+        url = self.base_urls.get("nebius", "https://api.studio.nebius.ai/v1") + "/models"
+        try:
+            response = await self.client.get(url, headers={"Authorization": f"Bearer {api_key}"})
+            if response.status_code == 200:
+                data = response.json().get("data", [])
+                models = []
+                for m in data:
+                    mid = m.get("id", "")
+                    params, context = self._resolve_model_metadata(m, "nebius")
+                    if params >= self.min_params or params == 0:
+                        models.append({"id": mid, "provider": "nebius", "parameters": params, "context_length": context})
+                return models
+        except:
+            pass
+        return []
+
+    async def fetch_cloudflare_models(self) -> List[Dict[str, Any]]:
+        """Fetches models from Cloudflare Workers AI."""
+        api_key = self.api_keys.get("cloudflare")
+        account_id = self.api_keys.get("cloudflare_account_id", "")
+        if not api_key or not account_id:
+            return []
+        url = f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/models/search"
+        try:
+            response = await self.client.get(url, headers={"Authorization": f"Bearer {api_key}"})
+            if response.status_code == 200:
+                data = response.json()
+                cf_models = data.get("result", []) if isinstance(data, dict) else []
+                models = []
+                for m in cf_models:
+                    mid = m.get("id", m.get("name", ""))
+                    if not mid:
+                        continue
+                    task = m.get("task", "")
+                    if task and "text-generation" not in task and "chat" not in task:
+                        continue
+                    params, context = self._resolve_model_metadata(m, "cloudflare")
+                    if params >= self.min_params or params == 0:
+                        models.append({"id": mid, "provider": "cloudflare", "parameters": params, "context_length": context})
+                return models
+        except:
+            pass
+        return []
+
     async def get_ranked_models(self) -> List[Dict[str, Any]]:
         """Main loop to fetch, test, and rank models."""
 
@@ -514,6 +682,46 @@ class ModelEngine:
             nvidia_models = await self.fetch_nvidia_models()
             candidates.extend(nvidia_models)
             database.update_provider_cycle("nvidia", len(nvidia_models) > 0)
+
+        if "mistral" not in blacklisted_providers:
+            mistral_models = await self.fetch_mistral_models()
+            candidates.extend(mistral_models)
+            database.update_provider_cycle("mistral", len(mistral_models) > 0)
+
+        if "codestral" not in blacklisted_providers:
+            codestral_models = await self.fetch_codestral_models()
+            candidates.extend(codestral_models)
+            database.update_provider_cycle("codestral", len(codestral_models) > 0)
+
+        if "cohere" not in blacklisted_providers:
+            cohere_models = await self.fetch_cohere_models()
+            candidates.extend(cohere_models)
+            database.update_provider_cycle("cohere", len(cohere_models) > 0)
+
+        if "sambanova" not in blacklisted_providers:
+            sambanova_models = await self.fetch_sambanova_models()
+            candidates.extend(sambanova_models)
+            database.update_provider_cycle("sambanova", len(sambanova_models) > 0)
+
+        if "fireworks" not in blacklisted_providers:
+            fireworks_models = await self.fetch_fireworks_models()
+            candidates.extend(fireworks_models)
+            database.update_provider_cycle("fireworks", len(fireworks_models) > 0)
+
+        if "hyperbolic" not in blacklisted_providers:
+            hyperbolic_models = await self.fetch_hyperbolic_models()
+            candidates.extend(hyperbolic_models)
+            database.update_provider_cycle("hyperbolic", len(hyperbolic_models) > 0)
+
+        if "nebius" not in blacklisted_providers:
+            nebius_models = await self.fetch_nebius_models()
+            candidates.extend(nebius_models)
+            database.update_provider_cycle("nebius", len(nebius_models) > 0)
+
+        if "cloudflare" not in blacklisted_providers:
+            cloudflare_models = await self.fetch_cloudflare_models()
+            candidates.extend(cloudflare_models)
+            database.update_provider_cycle("cloudflare", len(cloudflare_models) > 0)
 
         # De-duplicate candidates by (id, provider)
         seen = set()
@@ -724,9 +932,16 @@ class ModelEngine:
         elif provider == "huggingface":
             if model_id.startswith("huggingface/"):
                 bench_id = model_id[len("huggingface/"):]
-        elif provider in ["groq", "together", "deepinfra", "cerebras", "ollama", "lm_studio"]:
+        elif provider in ["groq", "together", "deepinfra", "cerebras", "ollama", "lm_studio",
+                         "sambanova", "fireworks", "hyperbolic", "nebius"]:
             if "/" in model_id:
                 bench_id = model_id.split("/")[-1]
+        elif provider == "cloudflare":
+            # Cloudflare uses @cf/ prefix or bare names
+            if model_id.startswith("@cf/"):
+                bench_id = model_id  # Keep @cf/ prefix for CF API
+        elif provider in ["mistral", "codestral"]:
+            pass  # Use model_id as-is
 
         api_key = self.api_keys.get(provider) or self.api_keys.get("nvidia") if provider in ["nvidia", "nvidia_nim"] else self.api_keys.get(provider)
 
@@ -752,6 +967,25 @@ class ModelEngine:
             url = (base or "https://generativelanguage.googleapis.com/v1beta") + f"/models/{bench_id}:streamGenerateContent?key={api_key}"
         elif provider in ["nvidia", "nvidia_nim"]:
             url = (base or "https://integrate.api.nvidia.com/v1") + "/chat/completions"
+        elif provider == "mistral":
+            url = (base or "https://api.mistral.ai/v1") + "/chat/completions"
+        elif provider == "codestral":
+            url = (base or "https://codestral.mistral.ai/v1") + "/chat/completions"
+        elif provider == "cohere":
+            url = (base or "https://api.cohere.ai/v1") + "/chat/completions"
+        elif provider == "sambanova":
+            url = (base or "https://api.sambanova.ai/v1") + "/chat/completions"
+        elif provider == "fireworks":
+            url = (base or "https://api.fireworks.ai/inference/v1") + "/chat/completions"
+        elif provider == "hyperbolic":
+            url = (base or "https://api.hyperbolic.xyz/v1") + "/chat/completions"
+        elif provider == "nebius":
+            url = (base or "https://api.studio.nebius.ai/v1") + "/chat/completions"
+        elif provider == "cloudflare":
+            account_id = self.api_keys.get("cloudflare_account_id", "")
+            if not account_id:
+                return None
+            url = f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1/chat/completions"
         else:
             return None
 
