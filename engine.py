@@ -66,8 +66,14 @@ class ModelEngine:
             free_models = []
             for m in all_models:
                 pricing = m.get("pricing", {})
-                if float(pricing.get("prompt", 0)) == 0 and float(pricing.get("completion", 0)) == 0:
-                    model_id = m.get("id")
+                model_id = m.get("id")
+
+                # Extract pricing for all models to track potential savings
+                p_price = float(pricing.get("prompt", 0))
+                c_price = float(pricing.get("completion", 0))
+                database.update_model_pricing(model_id, "openrouter", p_price, c_price)
+
+                if p_price == 0 and c_price == 0:
                     params, context = self._resolve_model_metadata(m, "openrouter")
                     if params >= self.min_params:
                         free_models.append({
@@ -610,6 +616,13 @@ class ModelEngine:
                                  error_message=str(e)[:200])
             return None
         return None
+
+    async def update_all_pricing(self):
+        """Updates pricing information from all available providers."""
+        self.log("Updating global pricing metadata...")
+        # Currently OpenRouter is the primary source for broad pricing data
+        await self.fetch_openrouter_models()
+        self.log("Pricing metadata update complete.")
 
     async def close(self):
         await self.client.aclose()

@@ -1,5 +1,11 @@
 # Changelog: LiteLLM Control Panel
 
+## [2.3.0] - 2024-06-17
+### Added
+- Cost Savings Tracking: Automatically calculates and tracks money saved by using free models.
+- Savings Dashboard: New UI to visualize total USD saved and breakdown by model.
+- Pricing Metadata Sync: Engine now extracts real-time pricing from OpenRouter to ensure accurate savings data.
+
 ## [2.2.0] - 2024-06-16
 ### Added
 - External API Layer: New FastAPI-based service for remote monitoring and control.
