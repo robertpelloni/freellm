@@ -18,7 +18,7 @@ GITHUB_MODELS_URL = "https://models.inference.ai.azure.com/models"
 HF_MODELS_URL = "https://api-inference.huggingface.co/models"
 NVIDIA_MODELS_URL = "https://integrate.api.nvidia.com/v1/models"
 
-MIN_PARAMETERS_BILLIONS = 0
+MIN_PARAMETERS_BILLIONS = 0  # Changed from 100 -- known_models fills in real values
 
 # These are defaults, will be overridden by settings
 SIZE_WEIGHT = 0.6
@@ -28,9 +28,54 @@ LATENCY_WEIGHT = 0.2
 # Regex to extract parameter size (e.g., 405b, 70B, 120b-instruct)
 SIZE_PATTERN = re.compile(r'(\d+)[bB]')
 
-# Global exclusions — set by main.py from settings at runtime.
+# Global exclusions -- set by main.py from settings at runtime.
 # Default is deliberately minimal; -preview is NOT excluded by default.
 GLOBAL_EXCLUSIONS = ["-base", "dummy"]
+
+# Models known to be decommissioned, nonexistent, or non-chat -- skip entirely
+DEAD_MODELS = {
+    # Groq decommissioned
+    "groq/llama-3.1-70b-versatile", "groq/mixtral-8x7b-32768",
+    # Cerebras old IDs
+    "cerebras/llama3.1-70b", "cerebras/llama3.1-8b",
+    # OpenRouter gone/free-tier-removed
+    "openrouter/google/gemini-2.0-flash-exp:free",
+    "openrouter/google/gemini-2.0-flash-thinking-exp:free",
+    "openrouter/google/learnlm-1.5-pro-experimental:free",
+    "openrouter/mistralai/mistral-7b-instruct:free",
+    "openrouter/huggingfaceh4/zephyr-7b-beta:free",
+    "openrouter/openchat/openchat-7b:free",
+    "openrouter/qwen/qwen-2-7b-instruct:free",
+    "openrouter/microsoft/phi-3-medium-128k-instruct:free",
+    "openrouter/meta-llama/llama-3-8b-instruct:free",
+    "openrouter/owl-alpha",
+    # NVIDIA NIM: listed in API but not actually deployable (tested 2025-06)
+    "01-ai/yi-large", "adept/fuyu-8b", "ai21labs/jamba-1.5-large-instruct",
+    "aisingapore/sea-lion-7b-instruct", "databricks/dbrx-instruct",
+    "deepseek-ai/deepseek-coder-6.7b-instruct", "deepseek-ai/deepseek-v4-flash",
+    "deepseek-ai/deepseek-v4-pro", "google/gemma-2b", "google/gemma-3-12b-it",
+    "google/gemma-3-4b-it", "google/gemma-4-31b-it", "google/recurrentgemma-2b",
+    "ibm/granite-3.0-3b-a800m-instruct", "ibm/granite-3.0-8b-instruct",
+    "ibm/granite-34b-code-instruct", "ibm/granite-8b-code-instruct",
+    "meta/codellama-70b", "meta/llama-3.1-70b-instruct",
+    "meta/llama-4-maverick-17b-128e-instruct", "meta/llama2-70b",
+    "microsoft/phi-3.5-moe-instruct", "microsoft/phi-4-mini-instruct",
+    "microsoft/phi-4-multimodal-instruct", "minimaxai/minimax-m2.7",
+    "mistralai/codestral-22b-instruct-v0.1", "mistralai/mistral-7b-instruct-v0.3",
+    "mistralai/mistral-large", "mistralai/mistral-large-2-instruct",
+    "mistralai/mistral-medium-3.5-128b", "mistralai/mistral-nemotron",
+    "mistralai/mixtral-8x22b-v0.1", "nv-mistralai/mistral-nemo-12b-instruct",
+    "nvidia/cosmos-reason2-8b", "nvidia/llama-3.1-nemotron-51b-instruct",
+    "nvidia/llama-3.1-nemotron-70b-instruct", "nvidia/llama-3.1-nemotron-ultra-253b-v1",
+    "nvidia/llama3-chatqa-1.5-70b", "nvidia/mistral-nemo-minitron-8b-8k-instruct",
+    "nvidia/nemotron-4-340b-instruct", "nvidia/nemotron-nano-3-30b-a3b",
+    "nvidia/vila", "qwen/qwen3-coder-480b-a35b-instruct",
+    "qwen/qwen3.5-397b-a17b", "writer/palmyra-creative-122b",
+    "writer/palmyra-fin-70b-32k", "writer/palmyra-med-70b",
+    "writer/palmyra-med-70b-32k", "z-ai/glm-5.1", "zyphra/zamba2-7b-instruct",
+    "deepseek-ai/deepseek-r1", "deepseek-ai/deepseek-v3",
+    "meta/llama-3.1-405b-instruct",
+}
 
 
 class ModelEngine:
@@ -70,11 +115,11 @@ class ModelEngine:
             for m in all_models:
                 pricing = m.get("pricing", {})
                 model_id = m.get("id", "")
-                
+
                 is_free = (float(pricing.get("prompt", 0)) == 0 and float(pricing.get("completion", 0)) == 0)
                 if not is_free and ":free" in model_id:
                     is_free = True
-                
+
                 if is_free:
                     params, context = self._resolve_model_metadata(m, "openrouter")
                     if params >= self.min_params or params == 0:
@@ -89,9 +134,9 @@ class ModelEngine:
             self._log(f"Exception fetching OpenRouter models: {e}")
             return []
 
-    def _resolve_model_metadata(self, model_data: Dict[str, Any],
-                                 provider: str) -> tuple:
+    def _resolve_model_metadata(self, model_data: Dict[str, Any], provider: str) -> tuple:
         """Resolve parameters and context_length for a model.
+
         Uses known good models list first, then falls back to regex extraction.
         Returns (parameters, context_length).
         """
@@ -127,14 +172,14 @@ class ModelEngine:
         """Calculates the model score based on parameters, context length, and latency."""
         # Normalize size (cap at 405B for scaling)
         size_score = (min(params, 405) / 100.0) * self.weights.get("size", 0.6)
-        
+
         # Normalize context (cap at 128k for scaling)
         context_score = (min(context_length, 128000) / 128000.0) * self.weights.get("context", 0.2)
-        
+
         # Latency penalty (capped to prevent it from overwhelming size)
         # 5 seconds is considered a "very slow" but usable model
         latency_penalty = min(latency, 5.0) * self.weights.get("latency", 0.2)
-        
+
         return size_score + context_score - latency_penalty
 
     async def fetch_groq_models(self) -> List[Dict[str, Any]]:
@@ -284,7 +329,7 @@ class ModelEngine:
         return []
 
     async def fetch_github_models(self) -> List[Dict[str, Any]]:
-        """Fetches models from GitHub Models (Azure Inference)."""
+        """Fetches chat-completion models from GitHub Models (Azure Inference)."""
         api_key = self.api_keys.get("github")
         if not api_key:
             return []
@@ -295,6 +340,10 @@ class ModelEngine:
                 data = response.json()
                 models = []
                 for m in data:
+                    # Only include chat-completion models
+                    task = m.get("task", "")
+                    if task and "chat" not in task.lower():
+                        continue
                     name = m.get("name")
                     params, context = self._resolve_model_metadata(m, "github")
                     if params >= self.min_params or params == 0:
@@ -314,7 +363,6 @@ class ModelEngine:
         api_key = self.api_keys.get("gemini")
         if not api_key:
             return []
-        
         # Google AI Studio offers these main free tier models:
         gemini_defaults = [
             {"id": "gemini-2.5-pro", "provider": "gemini", "parameters": 0, "context_length": 2000000},
@@ -326,7 +374,7 @@ class ModelEngine:
             {"id": "gemini-1.5-flash", "provider": "gemini", "parameters": 0, "context_length": 1000000},
             {"id": "gemini-1.5-flash-8b", "provider": "gemini", "parameters": 8, "context_length": 1000000},
         ]
-        
+
         models = []
         for m in gemini_defaults:
             # Re-resolve in case known_models has more precise info
@@ -342,7 +390,7 @@ class ModelEngine:
         api_key = self.api_keys.get("huggingface")
         if not api_key:
             return []
-        
+
         url = "https://huggingface.co/api/models?filter=text-generation&sort=trendingScore&limit=100"
         try:
             response = await self.client.get(url, timeout=10.0)
@@ -363,16 +411,14 @@ class ModelEngine:
                     return models
         except Exception as e:
             self._log(f"Exception fetching Hugging Face models: {e}")
-            
+
         return [
-            {"id": "meta-llama/Llama-3.1-405B-Instruct", "provider": "huggingface",
-             "parameters": 405, "context_length": 131072},
-            {"id": "meta-llama/Llama-3.1-70B-Instruct", "provider": "huggingface",
-             "parameters": 70, "context_length": 131072},
+            {"id": "meta-llama/Llama-3.1-405B-Instruct", "provider": "huggingface", "parameters": 405, "context_length": 131072},
+            {"id": "meta-llama/Llama-3.1-70B-Instruct", "provider": "huggingface", "parameters": 70, "context_length": 131072},
         ]
 
     async def fetch_nvidia_models(self) -> List[Dict[str, Any]]:
-        """Fetches models from NVIDIA NIM."""
+        """Fetches chat-completion models from NVIDIA NIM."""
         api_key = self.api_keys.get("nvidia")
         if not api_key:
             return []
@@ -382,8 +428,16 @@ class ModelEngine:
             if response.status_code == 200:
                 data = response.json().get("data", [])
                 models = []
+                skip_kw = ["embed", "safety", "guard", "reward", "parse",
+                           "detect", "qa-4", "vl-", "vision", "clip",
+                           "codegemma", "deplot", "starcoder", "kosmos",
+                           "bge-m3", "gliner", "neva", "riva", "nvclip",
+                           "retriever", "content-safety", "pii"]
                 for m in data:
-                    name = m.get("id")
+                    name = m.get("id", "")
+                    # Skip non-chat models
+                    if any(kw in name.lower() for kw in skip_kw):
+                        continue
                     params, context = self._resolve_model_metadata(m, "nvidia")
                     if params >= self.min_params or params == 0:
                         models.append({
@@ -461,6 +515,18 @@ class ModelEngine:
             candidates.extend(nvidia_models)
             database.update_provider_cycle("nvidia", len(nvidia_models) > 0)
 
+        # De-duplicate candidates by (id, provider)
+        seen = set()
+        deduped = []
+        for m in candidates:
+            key = (m['id'], m['provider'])
+            if key not in seen:
+                seen.add(key)
+                deduped.append(m)
+        candidates = deduped
+
+        self._log(f"Fetched {len(candidates)} unique candidates from all providers.")
+
         # 2. Filter using database skip/failure status
         conn = database.sqlite3.connect(database.DB_NAME)
         cursor = conn.cursor()
@@ -472,6 +538,11 @@ class ModelEngine:
         now = database.datetime.datetime.now()
 
         for m in candidates:
+            # Skip known-dead models (decommissioned, nonexistent)
+            full_id = f"{m['provider']}/{m['id']}"
+            if full_id in DEAD_MODELS or m['id'] in DEAD_MODELS:
+                continue
+
             # Global keyword exclusion check (configurable from settings)
             if any(exc in m['id'].lower() for exc in GLOBAL_EXCLUSIONS):
                 continue
@@ -493,32 +564,56 @@ class ModelEngine:
                         retry_dt = database.datetime.datetime.fromisoformat(retry_after) if isinstance(retry_after, str) else retry_after
                         if now < retry_dt:
                             continue
-
             valid_candidates.append(m)
+
+        # Track which providers returned results (so we don't force-in extras from those)
+        providers_with_results = set()
+        for c in valid_candidates:
+            providers_with_results.add(c['provider'])
 
         # 2b. Force-in known good models that the provider fetches may have missed
         # (e.g. models with no parameter count in their ID, or provider API gaps)
         known_to_force = []
+        existing_ids = {c['id'] for c in valid_candidates}
+
         for litellm_id, spec in known_models.all_models().items():
-            # Skip if already in candidates
-            if any(c['id'] == litellm_id or c['id'] == litellm_id.split('/', 1)[-1] for c in valid_candidates):
+            # The ID stored in known_models includes provider prefix, e.g. "github/DeepSeek-R1"
+            # But our candidate list uses the bare model ID, e.g. "DeepSeek-R1"
+            bare_id = litellm_id.split("/", 1)[-1] if "/" in litellm_id else litellm_id
+            prov = spec.get("provider", "")
+
+            # Skip if already in candidates (check both bare id and full id)
+            if bare_id in existing_ids or litellm_id in existing_ids:
                 continue
+
             # Skip if blacklisted in DB
-            db_stat = db_status.get(litellm_id) or db_status.get(litellm_id.split('/', 1)[-1])
+            db_stat = db_status.get(bare_id) or db_status.get(litellm_id)
             if db_stat and db_stat[4]:  # is_blacklisted
                 continue
+
             # Only force models from providers we have API keys for
-            prov = spec.get("provider", "")
-            if prov and prov not in self.api_keys:
+            # (nvidia_nim and nvidia share the same key)
+            effective_prov = prov
+            if prov == "nvidia_nim" and "nvidia_nim" not in self.api_keys:
+                effective_prov = "nvidia"
+            if effective_prov and effective_prov not in self.api_keys:
                 continue
+
+            # If we already fetched from this provider and they didn't list it,
+            # skip force-in (the provider API is authoritative for its own models)
+            # Exception: huggingface/ollama/gemini have incomplete APIs
+            if prov in providers_with_results and prov not in ["huggingface", "ollama", "gemini"]:
+                continue
+
             known_to_force.append({
-                "id": litellm_id.split("/", 1)[-1] if "/" in litellm_id else litellm_id,
+                "id": bare_id,
                 "provider": prov,
                 "parameters": spec["params"],
                 "context_length": spec["ctx"],
                 "score": 0,
                 "latency": 0,
             })
+            existing_ids.add(bare_id)  # Prevent duplicate force-in
 
         if known_to_force:
             self._log(f"Force-including {len(known_to_force)} known good models not found in provider fetches.")
@@ -532,8 +627,7 @@ class ModelEngine:
 
         async def sem_measure(m_id, prov):
             async with semaphore:
-                # Add a small staggered delay to prevent bursting
-                await asyncio.sleep(0.5) 
+                await asyncio.sleep(0.5)
                 return await self.measure_latency(m_id, prov)
 
         for m in valid_candidates:
@@ -552,6 +646,7 @@ class ModelEngine:
             tasks.append(sem_measure(m['id'], m['provider']))
             benchmarking_models.append(m)
 
+        self._log(f"Benchmarking {len(tasks)} models ({len(cached_results)} cached)...")
         latencies = await asyncio.gather(*tasks)
 
         ranked_list = []
@@ -564,8 +659,8 @@ class ModelEngine:
                 m['score'] = score
                 ranked_list.append(m)
                 database.record_probe(
-                    m['id'], m['provider'], latency, success=True,
-                    score=m.get('score', 0),
+                    m['id'], m['provider'], latency,
+                    success=True, score=m.get('score', 0),
                     context_length=m.get('context_length', 0),
                     parameters=m.get('parameters', 0),
                 )
@@ -584,6 +679,11 @@ class ModelEngine:
 
         # 4. Sort by score
         ranked_list.sort(key=lambda x: x['score'], reverse=True)
+
+        self._log(f"Ranked {len(ranked_list)} models. Top 5:")
+        for m in ranked_list[:5]:
+            self._log(f"  {m['provider']}/{m['id']} score={m['score']:.1f} latency={m['latency']:.2f}s params={m.get('parameters',0)}B")
+
         return ranked_list
 
     async def check_connectivity(self) -> bool:
@@ -605,7 +705,7 @@ class ModelEngine:
     async def measure_latency(self, model_id: str, provider: str) -> Optional[float]:
         """Measures Time-To-First-Token (TTFT) for a given model."""
         base = self.base_urls.get(provider)
-        
+
         # Clean model ID for native provider benchmarking
         bench_id = model_id
         if provider == "openrouter":
@@ -614,12 +714,13 @@ class ModelEngine:
         elif provider == "github":
             bench_id = model_id.split("/")[-1]
         elif provider in ["nvidia", "nvidia_nim"]:
+            # NVIDIA NIM API returns model IDs in their native format
+            # (e.g. "meta/llama-3.3-70b-instruct", "nvidia/nemotron-3-super-120b-a12b")
+            # Do NOT strip the nvidia_ prefix -- use the ID as-is
             if model_id.startswith("nvidia_nim/"):
                 bench_id = model_id[len("nvidia_nim/"):]
-            elif model_id.startswith("nvidia/"):
-                bench_id = model_id[len("nvidia/"):]
             else:
-                bench_id = model_id.split("/")[-1]
+                bench_id = model_id  # Use the full model ID as returned by the API
         elif provider == "huggingface":
             if model_id.startswith("huggingface/"):
                 bench_id = model_id[len("huggingface/"):]
@@ -627,7 +728,7 @@ class ModelEngine:
             if "/" in model_id:
                 bench_id = model_id.split("/")[-1]
 
-        api_key = self.api_keys.get(provider)
+        api_key = self.api_keys.get(provider) or self.api_keys.get("nvidia") if provider in ["nvidia", "nvidia_nim"] else self.api_keys.get(provider)
 
         if provider == "openrouter":
             url = (base or "https://openrouter.ai/api/v1") + "/chat/completions"
@@ -657,7 +758,7 @@ class ModelEngine:
         headers = {}
         if provider != "gemini" and api_key:
             headers["Authorization"] = f"Bearer {api_key}"
-        headers["Content-Type"] = "application/json"
+            headers["Content-Type"] = "application/json"
 
         if provider == "gemini":
             payload = {
@@ -673,7 +774,7 @@ class ModelEngine:
 
         try:
             start_time = time.perf_counter()
-            async with self.client.stream("POST", url, headers=headers, json=payload) as response:
+            async with self.client.stream("POST", url, headers=headers, json=payload, timeout=30.0) as response:
                 if response.status_code == 200:
                     async for line in response.aiter_lines():
                         if line:
@@ -681,19 +782,16 @@ class ModelEngine:
                             return ttft
                 elif response.status_code in [429, 504]:
                     self._log(f"Rate limited or timeout for {model_id} ({response.status_code})")
-                    database.record_probe(model_id, provider, None, success=False,
-                                         error_code=response.status_code)
+                    database.record_probe(model_id, provider, None, success=False, error_code=response.status_code)
                     return None
                 else:
                     err_body = await response.aread()
                     self._log(f"Error {response.status_code} for {model_id}: {err_body}")
-                    database.record_probe(model_id, provider, None, success=False,
-                                         error_code=response.status_code)
+                    database.record_probe(model_id, provider, None, success=False, error_code=response.status_code)
                     return None
         except Exception as e:
             self._log(f"Exception measuring latency for {model_id}: {e}")
-            database.record_probe(model_id, provider, None, success=False,
-                                 error_message=str(e)[:200])
+            database.record_probe(model_id, provider, None, success=False, error_message=str(e)[:200])
             return None
         return None
 

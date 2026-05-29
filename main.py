@@ -72,7 +72,7 @@ class LiteLLMControlPanel:
             "lm_studio": self.settings.get("LM_STUDIO_BASE_URL", ""),
         }
 
-        self.engine = engine.ModelEngine(api_keys=api_keys, weights=weights, base_urls=base_urls)
+        self.engine = engine.ModelEngine(api_keys=api_keys, weights=weights, base_urls=base_urls, min_params=int(self.settings.get("MIN_PARAMETERS", 100)))
 
         # Apply exclusions from settings
         engine.GLOBAL_EXCLUSIONS = [x.strip() for x in self.settings.get("GLOBAL_EXCLUSIONS", "").split(",") if x.strip()]
