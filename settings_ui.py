@@ -259,6 +259,41 @@ class SettingsUI:
         self.latency_weight.set(self.settings.get("LATENCY_WEIGHT", 0.2))
         self.latency_weight.grid(row=0, column=5, padx=5)
 
+        # Live Logs Shortcut
+        logs_frame = ttk.LabelFrame(container, text="Live Monitoring")
+        logs_frame.pack(fill='x', **padding)
+
+        btn_row = ttk.Frame(logs_frame)
+        btn_row.pack(fill='x', padx=5, pady=5)
+
+        def safe_proxy():
+            if self.on_proxy_logs_callback: self.on_proxy_logs_callback()
+            else: messagebox.showinfo("Info", "Log viewer unavailable in standalone mode.")
+
+        def safe_engine():
+            if self.on_engine_logs_callback: self.on_engine_logs_callback()
+            else: messagebox.showinfo("Info", "Log viewer unavailable in standalone mode.")
+
+        ttk.Button(btn_row, text="Open Proxy Logs",
+                   command=safe_proxy).pack(side='left', padx=5)
+        ttk.Button(btn_row, text="Open Engine Logs",
+                   command=safe_engine).pack(side='left', padx=5)
+
+        # API Server Settings
+        api_frame = ttk.LabelFrame(container, text="External API")
+        api_frame.pack(fill='x', **padding)
+
+        self.enable_api_var = tk.BooleanVar(value=self.settings.get("ENABLE_API", False))
+        ttk.Checkbutton(api_frame, text="Enable External API Server",
+                        variable=self.enable_api_var).pack(fill='x', **padding)
+
+        port_row = ttk.Frame(api_frame)
+        port_row.pack(fill='x', padx=5, pady=2)
+        ttk.Label(port_row, text="API Port:").pack(side='left', padx=5)
+        self.api_port = ttk.Entry(port_row, width=10)
+        self.api_port.insert(0, str(self.settings.get("API_PORT", 8000)))
+        self.api_port.pack(side='left', padx=5)
+
         # Save Button
         ttk.Button(container, text="Save Settings", command=self.save).pack(pady=20)
 

@@ -18,6 +18,10 @@ import log_viewer
 import dashboard_ui
 import query_ui
 import status_window
+import comparison_ui
+import api_server
+import savings_ui
+import monitoring_ui
 
 # The actual LiteLLM config used by the system
 HERMES_CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".hermes", "litellm-config.yaml")
@@ -35,6 +39,7 @@ class LiteLLMControlPanel:
         self.process_mgr = process_manager.LiteLLMProcess(config_path=self.config_path)
 
         # Load API keys: settings first, then fall back to environment variables
+        # Filter out empty API keys to avoid "Illegal header value" errors
         import os
         _env_map = {
             "openrouter": "OPENROUTER_API_KEY",
@@ -89,6 +94,11 @@ class LiteLLMControlPanel:
 
         # Primary group size (how many top models go in free-llm vs free-llm-fallback)
         self.primary_count = int(self.settings.get("PRIMARY_COUNT", 5))
+
+        # Start API server if enabled
+        if self.settings.get("ENABLE_API", False):
+            api_port = int(self.settings.get("API_PORT", 8000))
+            api_server.start_api_server(self, port=api_port)
 
         # Initialize DB
         database.init_db()
@@ -308,27 +318,39 @@ class LiteLLMControlPanel:
         return env
 
     def launch_litellm(self, icon, item):
-        if self.process_mgr.start(env=self.get_litellm_env()):
-            self.notify("LiteLLM Proxy started.", "Process Update")
+        success = self.process_mgr.start(env=self.get_litellm_env())
+        if success:
+            self.notify("LiteLLM Proxy started successfully.", "Process Update")
         else:
             self.notify("Failed to start LiteLLM Proxy.", "Process Error")
         self.update_tray_status()
+        return success
 
     def stop_litellm(self, icon, item):
-        if self.process_mgr.stop():
+        success = self.process_mgr.stop()
+        if success:
             self.notify("LiteLLM Proxy stopped.", "Process Update")
         self.update_tray_status()
+        return success
 
     def restart_litellm(self, icon, item):
-        if self.process_mgr.restart(env=self.get_litellm_env()):
+        success = self.process_mgr.restart(env=self.get_litellm_env())
+        if success:
             self.notify("LiteLLM Proxy restarted.", "Process Update")
         else:
             self.notify("Failed to restart LiteLLM Proxy.", "Process Error")
         self.update_tray_status()
+        return success
 
     def show_logs(self, icon, item):
         def run_logs():
-            viewer = log_viewer.LogViewer(self.process_mgr)
+            viewer = log_viewer.LogViewer(process_mgr=self.process_mgr)
+            viewer.run()
+        threading.Thread(target=run_logs, daemon=True).start()
+
+    def show_engine_logs(self, icon, item):
+        def run_logs():
+            viewer = log_viewer.LogViewer(engine=self.engine)
             viewer.run()
         threading.Thread(target=run_logs, daemon=True).start()
 
@@ -344,6 +366,12 @@ class LiteLLMControlPanel:
             ui.run()
         threading.Thread(target=run_query, daemon=True).start()
 
+    def show_comparison(self, icon=None, item=None):
+        def run_comparison():
+            ui = comparison_ui.ComparisonUI(self.settings, self.ranked_models)
+            ui.run()
+        threading.Thread(target=run_comparison, daemon=True).start()
+
     def show_status(self, icon=None, item=None):
         def run_status():
             ui = status_window.StatusWindow(self)
@@ -355,6 +383,18 @@ class LiteLLMControlPanel:
             ui = dashboard_ui.LeaderboardUI(self)
             ui.run()
         threading.Thread(target=run_leaderboard, daemon=True).start()
+
+    def show_savings(self, icon=None, item=None):
+        def run_savings():
+            ui = savings_ui.SavingsDashboardUI(self)
+            ui.run()
+        threading.Thread(target=run_savings, daemon=True).start()
+
+    def show_monitoring(self, icon=None, item=None):
+        def run_monitoring():
+            ui = monitoring_ui.MonitoringUI(self)
+            ui.run()
+        threading.Thread(target=run_monitoring, daemon=True).start()
 
     def view_config(self, icon, item):
         if os.path.exists(self.config_path):
@@ -423,8 +463,8 @@ class LiteLLMControlPanel:
         self.engine.min_params = int(self.settings.get("MIN_PARAMETERS", 100))
         engine.GLOBAL_EXCLUSIONS = [x.strip() for x in self.settings.get("GLOBAL_EXCLUSIONS", "").split(",") if x.strip()]
         self.primary_count = int(self.settings.get("PRIMARY_COUNT", 5))
-        self.notify("Settings saved and applied.", "Configuration Update")
 
+        self.notify("Settings saved and applied.", "Configuration Update")
         asyncio.run_coroutine_threadsafe(self.refresh_logic(), self.loop)
 
     # ── Model Selection & Reordering ──────────────────────────────────────
@@ -445,6 +485,7 @@ class LiteLLMControlPanel:
                     self.ranked_models, self.config_path,
                     primary_count=self.primary_count
                 )
+                database.log_activity("Manual Switch", model_id, f"Switched primary via menu ({provider})")
                 self.notify(f"Switched primary to {model_id}", "Model Selected")
                 if self.icon:
                     self.icon.menu = self.build_menu()
@@ -570,6 +611,7 @@ class LiteLLMControlPanel:
             return False
 
         print("Refreshing model rankings...")
+        database.log_activity("Sync Started", None, "Starting model benchmarking cycle")
         self.ranked_models = await self.engine.get_ranked_models()
         self.last_benchmark_time = datetime.datetime.now()
 
@@ -579,19 +621,23 @@ class LiteLLMControlPanel:
                 self.ranked_models, self.config_path,
                 primary_count=self.primary_count
             )
+            best = self.ranked_models[0]
             if auto_pilot:
-                best = self.ranked_models[0]
+                database.log_activity("Auto Switch", best['id'], f"Auto-pilot selected best model ({best['provider']})")
                 self.notify(f"Auto-pilot: {best['id']} ({best['provider']})", "Model Switch")
+            else:
+                database.log_activity("Sync Complete", best['id'], f"Top model identified: {best['id']}")
 
         self.is_working = False
         if self.icon:
             self.icon.menu = self.build_menu()
         self.update_tray_status()
+
         if self.ranked_models:
             best = self.ranked_models[0]
             lat = best.get('latency', 0)
-            lat_str = f"{lat:.2f}s" if lat > 0 else "?"
-            self.notify(f"Refresh complete. Top: {best['id']} ({lat_str})", "Sync Complete")
+            self.notify(f"Refresh complete. Top model: {best['id']} ({lat:.2f}s)", "Sync Complete")
+
         print("Refresh complete.")
         return True
 
@@ -613,8 +659,11 @@ class LiteLLMControlPanel:
         menu_items.append(item("Settings", self.show_settings))
         menu_items.append(pystray.Menu.SEPARATOR)
         menu_items.append(item("Quick Query", self.show_query))
+        menu_items.append(item("Model Comparison", self.show_comparison, enabled=len(self.ranked_models) > 0))
         menu_items.append(item("Show Dashboard", self.show_dashboard))
         menu_items.append(item("Model Leaderboard", self.show_leaderboard))
+        menu_items.append(item("Cost Savings", self.show_savings))
+        menu_items.append(item("Monitoring Dashboard", self.show_monitoring))
         menu_items.append(item("System Status", self.show_status))
         menu_items.append(pystray.Menu.SEPARATOR)
 
@@ -623,7 +672,8 @@ class LiteLLMControlPanel:
             item("Start Proxy", self.launch_litellm, enabled=not is_running),
             item("Stop Proxy", self.stop_litellm, enabled=is_running),
             item("Restart Proxy", self.restart_litellm, enabled=is_running),
-            item("View Logs", self.show_logs),
+            item("View Proxy Logs", self.show_logs),
+            item("View Engine Logs", self.show_engine_logs),
             item("View Config", self.view_config),
         ]
         menu_items.append(item("LiteLLM Control", pystray.Menu(*control_items)))
@@ -720,17 +770,20 @@ class LiteLLMControlPanel:
                 if not self.process_mgr.check_health():
                     consecutive_failures += 1
                     print(f"LiteLLM health check failed ({consecutive_failures}/3)")
+                    active_id = self.ranked_models[0]['id'] if self.ranked_models else "Unknown"
+                    database.log_activity("Health Check Failure", active_id, f"Attempt {consecutive_failures}/3 failed")
                 else:
                     consecutive_failures = 0
                 if consecutive_failures >= 3:
                     print("Active model seems unhealthy, triggering refresh/fallback...")
+                    database.log_activity("Fallback Triggered", None, "Triggering refresh due to consecutive health failures")
                     self.notify("LiteLLM health check failed multiple times. Triggering fallback...", "Health Alert")
                     await self.refresh_logic(auto_pilot=self.auto_pilot)
                     consecutive_failures = 0
             elif auto_manage:
                 print("LiteLLM process stopped unexpectedly. Attempting restart...")
                 self.notify("LiteLLM process stopped. Attempting restart...", "Process Alert")
-                self.process_mgr.start()
+                self.process_mgr.start(env=self.get_litellm_env())
             await asyncio.sleep(60)
 
     async def background_worker(self):

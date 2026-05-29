@@ -1,0 +1,282 @@
+# LiteLLM Config - Updated 2026-05-29
+# Two groups: free-llm (top 3) + free-llm-fallback (remaining)
+# Routing: simple-shuffle (picks smart models, not fast small ones)
+# Fallback: free-llm -> free-llm-fallback
+
+# PROBE RESULTS:
+#   p2/model-2  0.2s score=90.0 (? ctx)
+#   p1/model-1  0.1s score=100.0 (? ctx)
+model_list:
+  - # Rank 1: model-2 via p2 - ? ctx, 0.2s, 70B, score=90
+    model_name: free-llm
+    litellm_params:
+      model: p2/model-2
+      timeout: 30
+      api_key: os.environ/P2_API_KEY
+  - # Rank 2: model-1 via p1 - ? ctx, 0.1s, 100B, score=100
+    model_name: free-llm
+    litellm_params:
+      model: p1/model-1
+      timeout: 30
+      api_key: os.environ/P1_API_KEY
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: openai/gpt-4.1-mini
+      timeout: 30
+      api_key: os.environ/GITHUB_TOKEN
+      api_base: https://models.github.ai/inference/v1
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: openai/gpt-4.1
+      timeout: 30
+      api_key: os.environ/GITHUB_TOKEN
+      api_base: https://models.github.ai/inference/v1
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: openai/gpt-4o
+      timeout: 30
+      api_key: os.environ/GITHUB_TOKEN
+      api_base: https://models.github.ai/inference/v1
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: openai/gpt-4o-mini
+      timeout: 30
+      api_key: os.environ/GITHUB_TOKEN
+      api_base: https://models.github.ai/inference/v1
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: openai/o3-mini
+      timeout: 30
+      api_key: os.environ/GITHUB_TOKEN
+      api_base: https://models.github.ai/inference/v1
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: openai/o4-mini
+      timeout: 30
+      api_key: os.environ/GITHUB_TOKEN
+      api_base: https://models.github.ai/inference/v1
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: openai/o3
+      timeout: 30
+      api_key: os.environ/GITHUB_TOKEN
+      api_base: https://models.github.ai/inference/v1
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: openai/o1-mini
+      timeout: 30
+      api_key: os.environ/GITHUB_TOKEN
+      api_base: https://models.github.ai/inference/v1
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: openai/o1
+      timeout: 30
+      api_key: os.environ/GITHUB_TOKEN
+      api_base: https://models.github.ai/inference/v1
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: openai/DeepSeek-V3-0324
+      timeout: 30
+      api_key: os.environ/GITHUB_TOKEN
+      api_base: https://models.github.ai/inference/v1
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: openai/deepseek-r1-0528
+      timeout: 30
+      api_key: os.environ/GITHUB_TOKEN
+      api_base: https://models.github.ai/inference/v1
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: openai/Meta-Llama-3.1-405B-Instruct
+      timeout: 30
+      api_key: os.environ/GITHUB_TOKEN
+      api_base: https://models.github.ai/inference/v1
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: openai/Meta-Llama-3.1-70B-Instruct
+      timeout: 30
+      api_key: os.environ/GITHUB_TOKEN
+      api_base: https://models.github.ai/inference/v1
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: openai/Mistral-large-3-675B-Instruct-2512
+      timeout: 30
+      api_key: os.environ/GITHUB_TOKEN
+      api_base: https://models.github.ai/inference/v1
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: openrouter/nvidia/nemotron-3-super-120b-a12b:free
+      timeout: 30
+      api_key: os.environ/OPENROUTER_API_KEY
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: openrouter/owl-alpha
+      timeout: 30
+      api_key: os.environ/OPENROUTER_API_KEY
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: openrouter/openai/gpt-oss-120b:free
+      timeout: 30
+      api_key: os.environ/OPENROUTER_API_KEY
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: openrouter/openai/gpt-oss-20b:free
+      timeout: 30
+      api_key: os.environ/OPENROUTER_API_KEY
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: openrouter/nvidia/nemotron-nano-12b-v2-vl:free
+      timeout: 30
+      api_key: os.environ/OPENROUTER_API_KEY
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: openrouter/liquid/lfm-2.5-1.2b-instruct:free
+      timeout: 30
+      api_key: os.environ/OPENROUTER_API_KEY
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: openrouter/deepseek/deepseek-v4-flash:free
+      timeout: 30
+      api_key: os.environ/OPENROUTER_API_KEY
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: openrouter/qwen/qwen3-coder:free
+      timeout: 30
+      api_key: os.environ/OPENROUTER_API_KEY
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: openrouter/nousresearch/hermes-3-llama-3.1-405b:free
+      timeout: 30
+      api_key: os.environ/OPENROUTER_API_KEY
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: nvidia_nim/nvidia/nemotron-3-super-120b-a12b
+      timeout: 30
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: nvidia_nim/mistralai/mistral-large-3-675b-instruct-2512
+      timeout: 30
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: nvidia_nim/moonshotai/kimi-k2.6
+      timeout: 30
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: nvidia_nim/qwen/qwen3-coder-480b-a35b-instruct
+      timeout: 30
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: nvidia_nim/meta/llama-3.3-70b-instruct
+      timeout: 30
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: nvidia_nim/qwen/qwen3.5-397b-a17b
+      timeout: 30
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: nvidia_nim/meta/llama-4-maverick-17b-128e-instruct
+      timeout: 30
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: nvidia_nim/deepseek-ai/deepseek-r1
+      timeout: 30
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: groq/llama-3.3-70b-versatile
+      timeout: 30
+      api_key: os.environ/GROQ_API_KEY
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: groq/llama-3.1-8b-instant
+      timeout: 30
+      api_key: os.environ/GROQ_API_KEY
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: groq/mistral-saba-24b
+      timeout: 30
+      api_key: os.environ/GROQ_API_KEY
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: groq/qwen-qwq-32b
+      timeout: 30
+      api_key: os.environ/GROQ_API_KEY
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: cerebras/llama-3.3-70b
+      timeout: 30
+      api_key: os.environ/CEREBRAS_API_KEY
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: cerebras/llama3.1-8b
+      timeout: 30
+      api_key: os.environ/CEREBRAS_API_KEY
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: deepinfra/meta-llama/Meta-Llama-3.1-405B-Instruct
+      timeout: 30
+      api_key: os.environ/DEEPINFRA_API_KEY
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: deepinfra/meta-llama/Meta-Llama-3.1-70B-Instruct
+      timeout: 30
+      api_key: os.environ/DEEPINFRA_API_KEY
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: deepinfra/Qwen/Qwen2.5-72B-Instruct
+      timeout: 30
+      api_key: os.environ/DEEPINFRA_API_KEY
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: huggingface/meta-llama/Llama-3.1-405B-Instruct
+      timeout: 30
+      api_key: os.environ/HUGGINGFACE_API_KEY
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: huggingface/meta-llama/Llama-3.1-70B-Instruct
+      timeout: 30
+      api_key: os.environ/HUGGINGFACE_API_KEY
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: huggingface/mistralai/Mistral-Large-Instruct-2412
+      timeout: 30
+      api_key: os.environ/HUGGINGFACE_API_KEY
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: together/meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo
+      timeout: 30
+      api_key: os.environ/TOGETHER_API_KEY
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: together/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo
+      timeout: 30
+      api_key: os.environ/TOGETHER_API_KEY
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: together/mistralai/Mistral-Large-Instruct-2412
+      timeout: 30
+      api_key: os.environ/TOGETHER_API_KEY
+router_settings:
+  routing_strategy: simple-shuffle
+  cooldown_time: 30
+  allowed_fails: 2
+  num_retries: 2
+  timeout: 30
+  enable_pre_call_checks: true
+  ignore_cooldown_on_fallbacks: true
+litellm_settings:
+  drop_params: true
+  num_retries: 2
+  request_timeout: 30
+  allowed_fails: 2
+  cooldown_time: 30
+  fallbacks:
+    - free-llm:
+        - free-llm-fallback

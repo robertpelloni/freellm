@@ -1,5 +1,46 @@
 # Changelog: LiteLLM Control Panel
 
+## [2.4.0] - 2024-06-18
+### Added
+- Autonomous Monitoring Dashboard: New two-tab UI for verifying autonomous behavior and performance metrics.
+- Internal Activity Logging: Core engine and health monitor now log events (switches, failures, fallbacks) to a persistent SQLite table.
+- Reliability Analytics: 24h TTFT and success rate aggregation per model and provider.
+
+## [2.4.1] - 2024-06-19
+### Added
+- End-to-End Integration Testing: New test suite (integration_tests.py) to verify UI-to-Backend-to-API communication.
+
+## [2.3.0] - 2024-06-17
+### Added
+- Cost Savings Tracking: Automatically calculates and tracks money saved by using free models.
+- Savings Dashboard: New UI to visualize total USD saved and breakdown by model.
+- Pricing Metadata Sync: Engine now extracts real-time pricing from OpenRouter to ensure accurate savings data.
+
+## [2.2.0] - 2024-06-16
+### Added
+- External API Layer: New FastAPI-based service for remote monitoring and control.
+- Model Comparison UI: New side-by-side view to compare top-tier models with a single prompt.
+- Integrated Monitoring: Added direct log viewer shortcuts within the Settings GUI.
+- Concurrent Streaming: Model comparison supports simultaneous response streaming from up to 3 models.
+
+## [2.1.1] - 2024-06-15
+### Added
+- Dynamic Hugging Face Discovery: The engine now fetches text-generation models directly from HF API.
+- Live Engine Logs: New log viewer specifically for monitoring benchmarking and ranking events in real-time.
+- Multi-Log Support: Separated "Proxy Logs" and "Engine Logs" in the LiteLLM Control menu.
+
+### Fixed
+- Fixed bug where `log_viewer.py` would start redundant polling threads on every filter application.
+- Renamed internal parameter extraction method to align with the test suite.
+- Fixed log viewer stalling after 1000 lines by using a more robust ID-based tracking system.
+- Restored inadvertently removed features: Model Leaderboard, Probe Cleanup, and Env Var API key fallbacks.
+
+## [2.1.0] - 2024-06-14
+### Added
+- Complete known models integration.
+- Exclusions from settings.
+- Models management UI.
+
 ## [1.4.0] - 2024-06-09
 ### Added
 - Advanced Log Viewer: Added live search, filtering, and data management tools.
