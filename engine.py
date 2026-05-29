@@ -685,41 +685,49 @@ class ModelEngine:
 
         if "mistral" not in blacklisted_providers:
             mistral_models = await self.fetch_mistral_models()
+            self._log(f"  mistral: fetched {len(mistral_models)} models")
             candidates.extend(mistral_models)
             database.update_provider_cycle("mistral", len(mistral_models) > 0)
 
         if "codestral" not in blacklisted_providers:
             codestral_models = await self.fetch_codestral_models()
+            self._log(f"  codestral: fetched {len(codestral_models)} models")
             candidates.extend(codestral_models)
             database.update_provider_cycle("codestral", len(codestral_models) > 0)
 
         if "cohere" not in blacklisted_providers:
             cohere_models = await self.fetch_cohere_models()
+            self._log(f"  cohere: fetched {len(cohere_models)} models")
             candidates.extend(cohere_models)
             database.update_provider_cycle("cohere", len(cohere_models) > 0)
 
         if "sambanova" not in blacklisted_providers:
             sambanova_models = await self.fetch_sambanova_models()
+            self._log(f"  sambanova: fetched {len(sambanova_models)} models")
             candidates.extend(sambanova_models)
             database.update_provider_cycle("sambanova", len(sambanova_models) > 0)
 
         if "fireworks" not in blacklisted_providers:
             fireworks_models = await self.fetch_fireworks_models()
+            self._log(f"  fireworks: fetched {len(fireworks_models)} models")
             candidates.extend(fireworks_models)
             database.update_provider_cycle("fireworks", len(fireworks_models) > 0)
 
         if "hyperbolic" not in blacklisted_providers:
             hyperbolic_models = await self.fetch_hyperbolic_models()
+            self._log(f"  hyperbolic: fetched {len(hyperbolic_models)} models")
             candidates.extend(hyperbolic_models)
             database.update_provider_cycle("hyperbolic", len(hyperbolic_models) > 0)
 
         if "nebius" not in blacklisted_providers:
             nebius_models = await self.fetch_nebius_models()
+            self._log(f"  nebius: fetched {len(nebius_models)} models")
             candidates.extend(nebius_models)
             database.update_provider_cycle("nebius", len(nebius_models) > 0)
 
         if "cloudflare" not in blacklisted_providers:
             cloudflare_models = await self.fetch_cloudflare_models()
+            self._log(f"  cloudflare: fetched {len(cloudflare_models)} models")
             candidates.extend(cloudflare_models)
             database.update_provider_cycle("cloudflare", len(cloudflare_models) > 0)
 
