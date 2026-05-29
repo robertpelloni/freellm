@@ -1,5 +1,12 @@
 # Changelog: LiteLLM Control Panel
 
+## [2.7.0] - 2024-06-22
+### Added
+- Protocol Execution Dashboard: New visualization for monitoring execution metrics and error rates.
+- Health Trend Tracking: Persistent error rate aggregation and success/failure analysis.
+- Execution Timeline: Real-time charting of benchmarking cycle durations to identify performance bottlenecks.
+- Granular Event Logging: Added specialized 'Protocol Error' and 'Protocol Sync' event types with precise duration tracking.
+
 ## [2.6.0] - 2024-06-21
 ### Added
 - Protocol Oversight Dashboard: New real-time UI for monitoring the autonomous routing engine's state and decisions.

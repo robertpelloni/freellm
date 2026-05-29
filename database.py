@@ -610,6 +610,52 @@ def get_recent_activity(limit=100):
     return rows
 
 
+def get_protocol_health_metrics(hours=24):
+    """Aggregates protocol-specific health and execution metrics."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cutoff = datetime.datetime.now() - datetime.timedelta(hours=hours)
+
+    # 1. Error Rate (Health Failure events vs total events)
+    cursor.execute("""
+        SELECT
+            COUNT(*),
+            SUM(CASE WHEN event_type = 'Health Check Failure' OR event_type = 'Protocol Error' THEN 1 ELSE 0 END)
+        FROM activity_log
+        WHERE timestamp > ?
+    """, (cutoff,))
+    counts = cursor.fetchone()
+    total_events = counts[0] or 0
+    total_errors = counts[1] or 0
+    error_rate = (total_errors / total_events * 100) if total_events > 0 else 0
+
+    # 2. Execution Durations (Sync durations)
+    cursor.execute("""
+        SELECT details FROM activity_log
+        WHERE event_type = 'Protocol Sync' AND timestamp > ?
+    """, (cutoff,))
+    sync_logs = cursor.fetchall()
+    durations = []
+    import re
+    for row in sync_logs:
+        # Expecting details like "Cycle took 12.5s"
+        match = re.search(r'took (\d+\.?\d*)s', row[0])
+        if match:
+            durations.append(float(match.group(1)))
+
+    avg_duration = sum(durations) / len(durations) if durations else 0
+    max_duration = max(durations) if durations else 0
+
+    conn.close()
+    return {
+        "error_rate": error_rate,
+        "total_errors": total_errors,
+        "avg_sync_duration": avg_duration,
+        "max_sync_duration": max_duration,
+        "sync_count": len(durations)
+    }
+
+
 def get_performance_summary():
     """Aggregates TTFT and success rates from probe_history."""
     conn = sqlite3.connect(DB_NAME)
