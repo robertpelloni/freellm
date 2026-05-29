@@ -57,6 +57,13 @@ def _build_model_entry(model_id: str, provider: str, group_name: str,
         lp["api_base"] = base
 
     entry["litellm_params"] = lp
+
+    # Add metadata for model_info display
+    metadata = CommentedMap()
+    metadata["score"] = 0
+    metadata["latency"] = 0
+    entry["model_info"] = metadata
+
     return entry
 
 
@@ -207,6 +214,12 @@ def apply_ranked_models(ranked_models: list, path=DEFAULT_CONFIG_PATH,
         params = m.get("parameters", 0)
         ctx_str = f"{ctx//1000}K" if ctx and isinstance(ctx, (int, float)) and ctx > 0 else "?"
         comment_text = f"Rank {i+1}: {m['id']} via {m['provider']} - {ctx_str} ctx, {lat:.1f}s, {params}B, score={score:.0f}"
+        # Store actual score/latency/params in model_info
+        if "model_info" in entry:
+            entry["model_info"]["score"] = round(score, 2)
+            entry["model_info"]["latency"] = round(lat, 3)
+            entry["model_info"]["params"] = params
+            entry["model_info"]["context"] = ctx
 
         model_list.append(entry)
         model_list.yaml_add_eol_comment(comment_text, i)
@@ -222,6 +235,12 @@ def apply_ranked_models(ranked_models: list, path=DEFAULT_CONFIG_PATH,
         params = m.get("parameters", 0)
         ctx_str = f"{ctx//1000}K" if ctx and isinstance(ctx, (int, float)) and ctx > 0 else "?"
         comment_text = f"{m['id']} via {m['provider']} - {ctx_str} ctx, {lat:.1f}s, {params}B"
+        # Store actual score/latency/params in model_info
+        if "model_info" in entry:
+            entry["model_info"]["score"] = round(m.get("score", 0), 2)
+            entry["model_info"]["latency"] = round(lat, 3)
+            entry["model_info"]["params"] = params
+            entry["model_info"]["context"] = ctx
 
         model_list.append(entry)
         model_list.yaml_add_eol_comment(comment_text, fallback_start + j)

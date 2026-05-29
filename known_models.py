@@ -1,74 +1,85 @@
 """
-Known Good Models — authoritative specs for models that don't self-report.
+Known Good Models -- authoritative specs for models that don't self-report.
 
-Providers frequently omit parameter counts and context window sizes from their
-API metadata. This file is the single source of truth for model specifications
-that the Control Panel uses to ensure these models are always ranked correctly.
+Providers frequently omit parameter counts and context window sizes from
+their API metadata. This file is the single source of truth for model
+specifications that the Control Panel uses to ensure these models are
+always ranked correctly.
 
 Update this dictionary as new frontier/free models are discovered.
 """
 
 # key: litellm_model string (as it appears in config/API calls)
 # values: params (billions), ctx (tokens), provider
+
 KNOWN_MODELS = {
-    # ── GitHub Models (Azure Inference) ──────────────────────────────────
-    "github/gpt-4o-mini":                            {"params": 8,    "ctx": 128000,  "provider": "github"},
-    "github/gpt-4o":                                 {"params": 175,  "ctx": 128000,  "provider": "github"},
-    "github/o1-mini":                                {"params": 30,   "ctx": 128000,  "provider": "github"},
-    "github/o1":                                     {"params": 200,  "ctx": 128000,  "provider": "github"},
-    "github/Llama-3.3-70B-Instruct":                 {"params": 70,   "ctx": 128000,  "provider": "github"},
-    "github/Llama-3.1-405B-Instruct":                {"params": 405,  "ctx": 128000,  "provider": "github"},
-    "github/Llama-3.1-70B-Instruct":                 {"params": 70,   "ctx": 128000,  "provider": "github"},
-    "github/Mistral-Large-2411":                     {"params": 123,  "ctx": 128000,  "provider": "github"},
-    "github/Phi-4":                                  {"params": 14,   "ctx": 16384,   "provider": "github"},
-    "github/DeepSeek-R1":                            {"params": 671,  "ctx": 65536,   "provider": "github"},
-    "github/DeepSeek-V3":                            {"params": 671,  "ctx": 65536,   "provider": "github"},
+    # -- GitHub Models (Azure Inference) --
+    # Only models confirmed available on models.inference.ai.azure.com
+    "github/Meta-Llama-3.1-405B-Instruct": {"params": 405, "ctx": 128000, "provider": "github"},
+    "github/Meta-Llama-3.1-8B-Instruct": {"params": 8, "ctx": 131072, "provider": "github"},
+    "github/gpt-4o": {"params": 175, "ctx": 128000, "provider": "github"},
+    "github/gpt-4o-mini": {"params": 8, "ctx": 128000, "provider": "github"},
 
-    # ── OpenRouter Free Models ─────────────────────────────────────────────
-    "openrouter/google/gemini-2.0-flash-exp:free":       {"params": 10,  "ctx": 1048576, "provider": "openrouter"},
-    "openrouter/google/gemini-2.0-flash-thinking-exp:free":{"params": 10, "ctx": 1048576, "provider": "openrouter"},
-    "openrouter/google/learnlm-1.5-pro-experimental:free": {"params": 10, "ctx": 1048576, "provider": "openrouter"},
-    "openrouter/mistralai/mistral-7b-instruct:free":     {"params": 7,   "ctx": 32768,   "provider": "openrouter"},
-    "openrouter/huggingfaceh4/zephyr-7b-beta:free":      {"params": 7,   "ctx": 4096,    "provider": "openrouter"},
-    "openrouter/openchat/openchat-7b:free":              {"params": 7,   "ctx": 8192,    "provider": "openrouter"},
-    "openrouter/qwen/qwen-2-7b-instruct:free":           {"params": 7,   "ctx": 32768,   "provider": "openrouter"},
-    "openrouter/microsoft/phi-3-medium-128k-instruct:free":{"params": 14, "ctx": 128000,  "provider": "openrouter"},
-    "openrouter/meta-llama/llama-3-8b-instruct:free":    {"params": 8,   "ctx": 8192,    "provider": "openrouter"},
+    # -- OpenRouter Free Models (confirmed active 2025-06) --
+    "openrouter/google/gemma-4-31b-it:free": {"params": 27, "ctx": 131072, "provider": "openrouter"},
+    "openrouter/google/gemma-4-26b-a4b-it:free": {"params": 26, "ctx": 131072, "provider": "openrouter"},
+    "openrouter/nvidia/nemotron-3-super-120b-a12b:free": {"params": 120, "ctx": 4096, "provider": "openrouter"},
+    "openrouter/nvidia/nemotron-3-nano-30b-a3b:free": {"params": 30, "ctx": 4096, "provider": "openrouter"},
+    "openrouter/openai/gpt-oss-120b:free": {"params": 120, "ctx": 131072, "provider": "openrouter"},
+    "openrouter/openai/gpt-oss-20b:free": {"params": 20, "ctx": 131072, "provider": "openrouter"},
+    "openrouter/z-ai/glm-4.5-air:free": {"params": 14, "ctx": 131072, "provider": "openrouter"},
 
-    # ── NVIDIA NIM Models ──────────────────────────────────────────────────
-    "nvidia_nim/meta/llama-3.1-405b-instruct":           {"params": 405, "ctx": 128000,  "provider": "nvidia_nim"},
-    "nvidia_nim/meta/llama-3.1-70b-instruct":            {"params": 70,  "ctx": 128000,  "provider": "nvidia_nim"},
-    "nvidia_nim/meta/llama-3.3-70b-instruct":            {"params": 70,  "ctx": 128000,  "provider": "nvidia_nim"},
-    "nvidia_nim/nvidia/llama-3.1-nemotron-70b-instruct": {"params": 70,  "ctx": 128000,  "provider": "nvidia_nim"},
-    "nvidia_nim/deepseek-ai/deepseek-r1":                 {"params": 671, "ctx": 65536,   "provider": "nvidia_nim"},
+    # -- NVIDIA NIM Models (tested working 2025-06) --
+    "nvidia/meta/llama-3.3-70b-instruct": {"params": 70, "ctx": 128000, "provider": "nvidia"},
+    "nvidia/meta/llama-3.1-8b-instruct": {"params": 8, "ctx": 128000, "provider": "nvidia"},
+    "nvidia/mistralai/mistral-large-3-675b-instruct-2512": {"params": 675, "ctx": 128000, "provider": "nvidia"},
+    "nvidia/mistralai/mistral-small-4-119b-2603": {"params": 119, "ctx": 128000, "provider": "nvidia"},
+    "nvidia/mistralai/ministral-14b-instruct-2512": {"params": 14, "ctx": 128000, "provider": "nvidia"},
+    "nvidia/nvidia/llama-3.3-nemotron-super-49b-v1": {"params": 49, "ctx": 4096, "provider": "nvidia"},
+    "nvidia/nvidia/llama-3.3-nemotron-super-49b-v1.5": {"params": 49, "ctx": 4096, "provider": "nvidia"},
+    "nvidia/nvidia/nemotron-3-super-120b-a12b": {"params": 120, "ctx": 4096, "provider": "nvidia"},
+    "nvidia/openai/gpt-oss-120b": {"params": 120, "ctx": 131072, "provider": "nvidia"},
+    "nvidia/openai/gpt-oss-20b": {"params": 20, "ctx": 131072, "provider": "nvidia"},
+    "nvidia/qwen/qwen3-next-80b-a3b-instruct": {"params": 80, "ctx": 131072, "provider": "nvidia"},
+    "nvidia/qwen/qwen3.5-122b-a10b": {"params": 122, "ctx": 131072, "provider": "nvidia"},
+    "nvidia/moonshotai/kimi-k2.6": {"params": 200, "ctx": 131072, "provider": "nvidia"},
+    "nvidia/nvidia/nvidia-nemotron-nano-9b-v2": {"params": 9, "ctx": 4096, "provider": "nvidia"},
 
-    # ── Groq Models ────────────────────────────────────────────────────────
-    "groq/llama-3.3-70b-versatile":                       {"params": 70,  "ctx": 128000,  "provider": "groq"},
-    "groq/llama-3.1-70b-versatile":                       {"params": 70,  "ctx": 128000,  "provider": "groq"},
-    "groq/llama-3.1-8b-instant":                          {"params": 8,   "ctx": 131072,  "provider": "groq"},
-    "groq/mixtral-8x7b-32768":                            {"params": 47,  "ctx": 32768,   "provider": "groq"},
+    # -- Groq Models (current, not decommissioned) --
+    "groq/llama-3.3-70b-versatile": {"params": 70, "ctx": 128000, "provider": "groq"},
+    "groq/llama-3.1-8b-instant": {"params": 8, "ctx": 131072, "provider": "groq"},
 
-    # ── Cerebras Models ────────────────────────────────────────────────────
-    "cerebras/llama3.1-70b":                              {"params": 70,  "ctx": 131072,  "provider": "cerebras"},
-    "cerebras/llama3.1-8b":                               {"params": 8,   "ctx": 131072,  "provider": "cerebras"},
+    # -- Cerebras Models --
+    "cerebras/llama-3.3-70b": {"params": 70, "ctx": 131072, "provider": "cerebras"},
+    "cerebras/llama3.1-8b": {"params": 8, "ctx": 131072, "provider": "cerebras"},
 
-    # ── DeepInfra Models ───────────────────────────────────────────────────
-    "deepinfra/meta-llama/Meta-Llama-3.1-405B-Instruct":  {"params": 405, "ctx": 131072,  "provider": "deepinfra"},
-    "deepinfra/meta-llama/Meta-Llama-3.1-70B-Instruct":   {"params": 70,  "ctx": 131072,  "provider": "deepinfra"},
-    "deepinfra/Qwen/Qwen2.5-72B-Instruct":               {"params": 72,  "ctx": 131072,  "provider": "deepinfra"},
+    # -- DeepInfra Models --
+    "deepinfra/meta-llama/Meta-Llama-3.1-405B-Instruct": {"params": 405, "ctx": 131072, "provider": "deepinfra"},
+    "deepinfra/meta-llama/Meta-Llama-3.1-70B-Instruct": {"params": 70, "ctx": 131072, "provider": "deepinfra"},
+    "deepinfra/Qwen/Qwen2.5-72B-Instruct": {"params": 72, "ctx": 131072, "provider": "deepinfra"},
+    "deepinfra/deepseek-ai/DeepSeek-V3": {"params": 671, "ctx": 65536, "provider": "deepinfra"},
+    "deepinfra/deepseek-ai/DeepSeek-R1": {"params": 671, "ctx": 65536, "provider": "deepinfra"},
 
-    # ── HuggingFace Models ─────────────────────────────────────────────────
-    "huggingface/meta-llama/Llama-3.1-405B-Instruct":     {"params": 405, "ctx": 131072,  "provider": "huggingface"},
-    "huggingface/meta-llama/Llama-3.1-70B-Instruct":      {"params": 70,  "ctx": 131072,  "provider": "huggingface"},
+    # -- HuggingFace Models --
+    "huggingface/meta-llama/Llama-3.1-405B-Instruct": {"params": 405, "ctx": 131072, "provider": "huggingface"},
+    "huggingface/meta-llama/Llama-3.1-70B-Instruct": {"params": 70, "ctx": 131072, "provider": "huggingface"},
+    "huggingface/deepseek-ai/DeepSeek-V3": {"params": 671, "ctx": 65536, "provider": "huggingface"},
 
-    # ── Together Models ────────────────────────────────────────────────────
+    # -- Together Models --
     "together/meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo": {"params": 405, "ctx": 131072, "provider": "together"},
-    "together/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo":  {"params": 70,  "ctx": 131072, "provider": "together"},
+    "together/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo": {"params": 70, "ctx": 131072, "provider": "together"},
 
-    # ── Ollama / LM Studio (local) ────────────────────────────────────────
-    "ollama/llama3.3:70b":                                {"params": 70,  "ctx": 128000,  "provider": "ollama"},
-    "ollama/deepseek-r1:671b":                            {"params": 671, "ctx": 65536,   "provider": "ollama"},
-    "ollama/qwen2.5:72b":                                 {"params": 72,  "ctx": 131072,  "provider": "ollama"},
+    # -- Ollama / LM Studio (local) --
+    "ollama/llama3.3:70b": {"params": 70, "ctx": 128000, "provider": "ollama"},
+    "ollama/deepseek-r1:671b": {"params": 671, "ctx": 65536, "provider": "ollama"},
+    "ollama/qwen2.5:72b": {"params": 72, "ctx": 131072, "provider": "ollama"},
+
+    # -- Gemini (Google AI Studio) --
+    "gemini/gemini-2.5-pro": {"params": 0, "ctx": 2000000, "provider": "gemini"},
+    "gemini/gemini-2.5-flash": {"params": 0, "ctx": 1000000, "provider": "gemini"},
+    "gemini/gemini-2.0-flash": {"params": 0, "ctx": 1000000, "provider": "gemini"},
+    "gemini/gemini-1.5-pro": {"params": 0, "ctx": 2000000, "provider": "gemini"},
+    "gemini/gemini-1.5-flash": {"params": 0, "ctx": 1000000, "provider": "gemini"},
 }
 
 
@@ -85,7 +96,7 @@ def lookup(litellm_model: str) -> dict | None:
     # Try stripping provider prefixes
     for prefix in ("openrouter/", "nvidia_nim/", "github/", "groq/",
                    "together/", "deepinfra/", "cerebras/", "huggingface/",
-                   "ollama/", "openai/", "lm_studio/"):
+                   "ollama/", "openai/", "lm_studio/", "gemini/"):
         if litellm_model.startswith(prefix):
             stripped = litellm_model[len(prefix):]
             if stripped in KNOWN_MODELS:
@@ -97,9 +108,9 @@ def lookup(litellm_model: str) -> dict | None:
                     return info
 
     # Tail match: model_id ends with a known key
+    model_tail = litellm_model.split("/")[-1] if "/" in litellm_model else litellm_model
     for known_id, info in KNOWN_MODELS.items():
         known_tail = known_id.split("/")[-1] if "/" in known_id else known_id
-        model_tail = litellm_model.split("/")[-1] if "/" in litellm_model else litellm_model
         if model_tail == known_tail:
             return info
         if litellm_model.endswith(known_tail):
