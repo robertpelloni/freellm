@@ -149,8 +149,8 @@ class MonitoringUI:
 
         self.draw_load_chart(load_history)
 
-        # Schedule next refresh
-        self.root.after(10000, self.refresh_data)
+        # Schedule next refresh (more frequent for real-time oversight)
+        self.root.after(3000, self.refresh_data)
 
     def run(self):
         self.root.mainloop()

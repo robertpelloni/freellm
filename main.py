@@ -22,6 +22,7 @@ import comparison_ui
 import api_server
 import savings_ui
 import monitoring_ui
+import protocol_ui
 
 # The actual LiteLLM config used by the system
 HERMES_CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".hermes", "litellm-config.yaml")
@@ -379,6 +380,12 @@ class LiteLLMControlPanel:
             ui.run()
         threading.Thread(target=run_monitoring, daemon=True).start()
 
+    def show_protocol(self, icon=None, item=None):
+        def run_protocol():
+            ui = protocol_ui.ProtocolOversightUI(self)
+            ui.run()
+        threading.Thread(target=run_protocol, daemon=True).start()
+
     def view_config(self, icon, item):
         if os.path.exists(self.config_path):
             if os.name == 'nt':
@@ -649,6 +656,7 @@ class LiteLLMControlPanel:
         menu_items.append(item("Model Leaderboard", self.show_leaderboard))
         menu_items.append(item("Cost Savings", self.show_savings))
         menu_items.append(item("Monitoring Dashboard", self.show_monitoring))
+        menu_items.append(item("Protocol Oversight", self.show_protocol))
         menu_items.append(item("System Status", self.show_status))
         menu_items.append(pystray.Menu.SEPARATOR)
 
