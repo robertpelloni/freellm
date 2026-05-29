@@ -52,10 +52,12 @@ class MonitoringUI:
         self.probes_var = tk.StringVar(value="Total Probes: 0")
         self.ttft_var = tk.StringVar(value="Avg TTFT: 0.00s")
         self.success_var = tk.StringVar(value="Success Rate: 0.0%")
+        self.error_rate_var = tk.StringVar(value="Protocol Errors: 0.0%")
 
-        ttk.Label(summary_frame, textvariable=self.probes_var, font=('Helvetica', 12)).grid(row=0, column=0, padx=20)
-        ttk.Label(summary_frame, textvariable=self.ttft_var, font=('Helvetica', 12)).grid(row=0, column=1, padx=20)
-        ttk.Label(summary_frame, textvariable=self.success_var, font=('Helvetica', 12)).grid(row=0, column=2, padx=20)
+        ttk.Label(summary_frame, textvariable=self.probes_var, font=('Helvetica', 10)).grid(row=0, column=0, padx=10)
+        ttk.Label(summary_frame, textvariable=self.ttft_var, font=('Helvetica', 10)).grid(row=0, column=1, padx=10)
+        ttk.Label(summary_frame, textvariable=self.success_var, font=('Helvetica', 10)).grid(row=0, column=2, padx=10)
+        ttk.Label(summary_frame, textvariable=self.error_rate_var, font=('Helvetica', 10)).grid(row=0, column=3, padx=10)
 
         # Provider Breakdown
         breakdown_frame = ttk.LabelFrame(tab, text="Provider Reliability", padding=10)
@@ -133,6 +135,9 @@ class MonitoringUI:
         self.probes_var.set(f"Total Probes: {perf['total_probes']}")
         self.ttft_var.set(f"Avg TTFT: {perf['avg_ttft']:.2f}s")
         self.success_var.set(f"Success Rate: {perf['success_rate']:.1f}%")
+
+        protocol_metrics = database.get_protocol_health_metrics()
+        self.error_rate_var.set(f"Protocol Errors: {protocol_metrics['error_rate']:.1f}%")
 
         for i in self.perf_tree.get_children():
             self.perf_tree.delete(i)

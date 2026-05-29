@@ -23,6 +23,7 @@ import api_server
 import savings_ui
 import monitoring_ui
 import protocol_ui
+import execution_dashboard
 
 # The actual LiteLLM config used by the system
 HERMES_CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".hermes", "litellm-config.yaml")
@@ -386,6 +387,12 @@ class LiteLLMControlPanel:
             ui.run()
         threading.Thread(target=run_protocol, daemon=True).start()
 
+    def show_execution(self, icon=None, item=None):
+        def run_execution():
+            ui = execution_dashboard.ExecutionDashboardUI(self)
+            ui.run()
+        threading.Thread(target=run_execution, daemon=True).start()
+
     def view_config(self, icon, item):
         if os.path.exists(self.config_path):
             if os.name == 'nt':
@@ -592,6 +599,7 @@ class LiteLLMControlPanel:
     async def refresh_logic(self, auto_pilot=False):
         self.is_working = True
         self.update_tray_status()
+        start_time = time.perf_counter()
 
         # 1. Check connectivity
         self.is_online = await self.engine.check_connectivity()
@@ -614,11 +622,12 @@ class LiteLLMControlPanel:
                 primary_count=self.primary_count
             )
             best = self.ranked_models[0]
+            duration = time.perf_counter() - start_time
             if auto_pilot:
                 database.log_activity("Auto Switch", best['id'], f"Auto-pilot selected best model ({best['provider']})")
                 self.notify(f"Auto-pilot: {best['id']} ({best['provider']})", "Model Switch")
             else:
-                database.log_activity("Sync Complete", best['id'], f"Top model identified: {best['id']}")
+                database.log_activity("Protocol Sync", best['id'], f"Cycle took {duration:.2f}s | Top: {best['id']}")
 
         self.is_working = False
         if self.icon:
@@ -657,6 +666,7 @@ class LiteLLMControlPanel:
         menu_items.append(item("Cost Savings", self.show_savings))
         menu_items.append(item("Monitoring Dashboard", self.show_monitoring))
         menu_items.append(item("Protocol Oversight", self.show_protocol))
+        menu_items.append(item("Execution Dashboard", self.show_execution))
         menu_items.append(item("System Status", self.show_status))
         menu_items.append(pystray.Menu.SEPARATOR)
 
@@ -793,6 +803,7 @@ class LiteLLMControlPanel:
                     consecutive_failures = 0
             elif auto_manage:
                 print("LiteLLM process stopped unexpectedly. Attempting restart...")
+                database.log_activity("Protocol Error", None, "LiteLLM proxy crashed or stopped unexpectedly")
                 self.notify("LiteLLM process stopped. Attempting restart...", "Process Alert")
                 self.process_mgr.start(env=self.get_litellm_env())
             await asyncio.sleep(60)
