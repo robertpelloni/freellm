@@ -5,7 +5,8 @@
 - [x] Refine the Log Viewer with search and filtering capabilities.
 - [x] Implement side-by-side model comparison UI.
 - [x] Implement External API Layer for remote monitoring and control.
-- [ ] Implement Cost Savings Dashboard.
+- [x] Implement Cost Savings Dashboard.
+- [x] Implement Monitoring Dashboard for autonomous verification.
 
 ## Features
 - [x] Parameter size regex parser for various model ID formats.

@@ -1,5 +1,11 @@
 # Changelog: LiteLLM Control Panel
 
+## [2.4.0] - 2024-06-18
+### Added
+- Autonomous Monitoring Dashboard: New two-tab UI for verifying autonomous behavior and performance metrics.
+- Internal Activity Logging: Core engine and health monitor now log events (switches, failures, fallbacks) to a persistent SQLite table.
+- Reliability Analytics: 24h TTFT and success rate aggregation per model and provider.
+
 ## [2.3.0] - 2024-06-17
 ### Added
 - Cost Savings Tracking: Automatically calculates and tracks money saved by using free models.

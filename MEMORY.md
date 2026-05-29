@@ -19,3 +19,4 @@
 - The `ModelEngine` maintains a `log_queue` for real-time benchmarking events, which is consumed by the `LogViewer` in 'engine log' mode.
 - Dynamic Hugging Face discovery is implemented via the HF API, supplementing the static `known_models` list.
 - Cost savings are calculated using a `model_pricing` table that stores prompt/completion rates (USD per token), populated during benchmarking cycles.
+- Autonomous behavior is verified through an `activity_log` table that captures system events like health failures and model fallbacks.
