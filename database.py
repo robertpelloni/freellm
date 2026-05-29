@@ -92,6 +92,17 @@ def init_db():
         )
     """)
 
+    # Activity Log table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS activity_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TIMESTAMP NOT NULL,
+            event_type TEXT NOT NULL,
+            model_id TEXT,
+            details TEXT
+        )
+    """)
+
     # Create indexes for fast queries
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_probe_model ON probe_history(model_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_probe_time ON probe_history(timestamp)")
@@ -561,6 +572,70 @@ def get_savings_summary():
     breakdown = cursor.fetchall()
     conn.close()
     return total, breakdown
+
+
+def log_activity(event_type, model_id=None, details=None):
+    """Logs an internal system event."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO activity_log (timestamp, event_type, model_id, details)
+        VALUES (?, ?, ?, ?)
+    """, (datetime.datetime.now(), event_type, model_id, details))
+    conn.commit()
+    conn.close()
+
+
+def get_recent_activity(limit=100):
+    """Retrieves recent activity logs."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT timestamp, event_type, model_id, details
+        FROM activity_log
+        ORDER BY timestamp DESC LIMIT ?
+    """, (limit,))
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+
+def get_performance_summary():
+    """Aggregates TTFT and success rates from probe_history."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+
+    # 24h average TTFT and success rate
+    cutoff = datetime.datetime.now() - datetime.timedelta(hours=24)
+    cursor.execute("""
+        SELECT
+            COUNT(*),
+            AVG(CASE WHEN success = 1 THEN latency END),
+            SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*)
+        FROM probe_history
+        WHERE timestamp > ?
+    """, (cutoff,))
+    summary = cursor.fetchone()
+
+    # Breakdown by provider
+    cursor.execute("""
+        SELECT
+            provider_name,
+            AVG(latency),
+            SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*)
+        FROM probe_history
+        WHERE timestamp > ?
+        GROUP BY provider_name
+    """, (cutoff,))
+    provider_breakdown = cursor.fetchall()
+
+    conn.close()
+    return {
+        "total_probes": summary[0] or 0,
+        "avg_ttft": summary[1] or 0,
+        "success_rate": summary[2] or 0,
+        "providers": provider_breakdown
+    }
 
 
 def get_total_usage():

@@ -21,6 +21,7 @@ import status_window
 import comparison_ui
 import api_server
 import savings_ui
+import monitoring_ui
 
 # The actual LiteLLM config used by the system
 HERMES_CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".hermes", "litellm-config.yaml")
@@ -372,6 +373,12 @@ class LiteLLMControlPanel:
             ui.run()
         threading.Thread(target=run_savings, daemon=True).start()
 
+    def show_monitoring(self, icon=None, item=None):
+        def run_monitoring():
+            ui = monitoring_ui.MonitoringUI(self)
+            ui.run()
+        threading.Thread(target=run_monitoring, daemon=True).start()
+
     def view_config(self, icon, item):
         if os.path.exists(self.config_path):
             if os.name == 'nt':
@@ -463,6 +470,7 @@ class LiteLLMControlPanel:
                     self.ranked_models, self.config_path,
                     primary_count=self.primary_count
                 )
+                database.log_activity("Manual Switch", model_id, f"Switched primary via menu ({provider})")
                 self.notify(f"Switched primary to {model_id}", "Model Selected")
                 if self.icon:
                     self.icon.menu = self.build_menu()
@@ -588,6 +596,7 @@ class LiteLLMControlPanel:
             return False
 
         print("Refreshing model rankings...")
+        database.log_activity("Sync Started", None, "Starting model benchmarking cycle")
         self.ranked_models = await self.engine.get_ranked_models()
         self.last_benchmark_time = datetime.datetime.now()
 
@@ -597,9 +606,12 @@ class LiteLLMControlPanel:
                 self.ranked_models, self.config_path,
                 primary_count=self.primary_count
             )
+            best = self.ranked_models[0]
             if auto_pilot:
-                best = self.ranked_models[0]
+                database.log_activity("Auto Switch", best['id'], f"Auto-pilot selected best model ({best['provider']})")
                 self.notify(f"Auto-pilot: {best['id']} ({best['provider']})", "Model Switch")
+            else:
+                database.log_activity("Sync Complete", best['id'], f"Top model identified: {best['id']}")
 
         self.is_working = False
         if self.icon:
@@ -636,6 +648,7 @@ class LiteLLMControlPanel:
         menu_items.append(item("Show Dashboard", self.show_dashboard))
         menu_items.append(item("Model Leaderboard", self.show_leaderboard))
         menu_items.append(item("Cost Savings", self.show_savings))
+        menu_items.append(item("Monitoring Dashboard", self.show_monitoring))
         menu_items.append(item("System Status", self.show_status))
         menu_items.append(pystray.Menu.SEPARATOR)
 
@@ -742,10 +755,13 @@ class LiteLLMControlPanel:
                 if not self.process_mgr.check_health():
                     consecutive_failures += 1
                     print(f"LiteLLM health check failed ({consecutive_failures}/3)")
+                    active_id = self.ranked_models[0]['id'] if self.ranked_models else "Unknown"
+                    database.log_activity("Health Check Failure", active_id, f"Attempt {consecutive_failures}/3 failed")
                 else:
                     consecutive_failures = 0
                 if consecutive_failures >= 3:
                     print("Active model seems unhealthy, triggering refresh/fallback...")
+                    database.log_activity("Fallback Triggered", None, "Triggering refresh due to consecutive health failures")
                     self.notify("LiteLLM health check failed multiple times. Triggering fallback...", "Health Alert")
                     await self.refresh_logic(auto_pilot=self.auto_pilot)
                     consecutive_failures = 0
