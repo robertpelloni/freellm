@@ -76,7 +76,19 @@ def init_db():
             model_id TEXT,
             timestamp TIMESTAMP,
             prompt_tokens INTEGER,
-            completion_tokens INTEGER
+            completion_tokens INTEGER,
+            cost_saved REAL DEFAULT 0
+        )
+    """)
+
+    # Model Pricing table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS model_pricing (
+            model_id TEXT PRIMARY KEY,
+            provider TEXT,
+            prompt_price REAL,
+            completion_price REAL,
+            last_updated TIMESTAMP
         )
     """)
 
@@ -84,6 +96,13 @@ def init_db():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_probe_model ON probe_history(model_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_probe_time ON probe_history(timestamp)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_probe_success ON probe_history(success)")
+
+    # Schema Migration: Ensure cost_saved exists in usage table
+    try:
+        cursor.execute("ALTER TABLE usage ADD COLUMN cost_saved REAL DEFAULT 0")
+    except sqlite3.OperationalError:
+        # Column already exists
+        pass
 
     conn.commit()
     conn.close()
@@ -485,15 +504,63 @@ def clear_blacklist():
 # ── Usage Tracking ──────────────────────────────────────────────────────────
 
 def log_usage(model_id, prompt_tokens=0, completion_tokens=0):
-    """Logs model usage."""
+    """Logs model usage and calculates estimated cost saved."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+
+    # Get current pricing for this model
+    cursor.execute("SELECT prompt_price, completion_price FROM model_pricing WHERE model_id = ?", (model_id,))
+    row = cursor.fetchone()
+
+    cost_saved = 0
+    if row:
+        pp, cp = row
+        # Pricing is typically per 1M tokens in APIs, adjust calculation if needed
+        # OpenRouter pricing is already in small decimals (USD per token)
+        cost_saved = (prompt_tokens * pp) + (completion_tokens * cp)
+
+    cursor.execute("""
+        INSERT INTO usage (model_id, timestamp, prompt_tokens, completion_tokens, cost_saved)
+        VALUES (?, ?, ?, ?, ?)
+    """, (model_id, datetime.datetime.now(), prompt_tokens, completion_tokens, cost_saved))
+    conn.commit()
+    conn.close()
+
+
+def update_model_pricing(model_id, provider, prompt_price, completion_price):
+    """Updates the pricing information for a model."""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT INTO usage (model_id, timestamp, prompt_tokens, completion_tokens)
-        VALUES (?, ?, ?, ?)
-    """, (model_id, datetime.datetime.now(), prompt_tokens, completion_tokens))
+        INSERT INTO model_pricing (model_id, provider, prompt_price, completion_price, last_updated)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(model_id) DO UPDATE SET
+            prompt_price = EXCLUDED.prompt_price,
+            completion_price = EXCLUDED.completion_price,
+            last_updated = EXCLUDED.last_updated
+    """, (model_id, provider, prompt_price, completion_price, datetime.datetime.now()))
     conn.commit()
     conn.close()
+
+
+def get_savings_summary():
+    """Returns total estimated cost saved and breakdown per model."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT SUM(cost_saved) FROM usage")
+    total = cursor.fetchone()[0] or 0
+
+    cursor.execute("""
+        SELECT model_id, SUM(cost_saved), SUM(prompt_tokens + completion_tokens)
+        FROM usage
+        GROUP BY model_id
+        HAVING SUM(cost_saved) > 0
+        ORDER BY SUM(cost_saved) DESC
+    """)
+    breakdown = cursor.fetchall()
+    conn.close()
+    return total, breakdown
 
 
 def get_total_usage():

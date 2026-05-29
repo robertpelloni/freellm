@@ -107,5 +107,19 @@ class TestLiteLLMControlPanel(unittest.TestCase):
         conn.close()
         self.assertEqual(blacklisted, 1)
 
+    def test_savings_calculation(self):
+        # 1. Update pricing
+        database.update_model_pricing("expensive-model", "p1", 0.1, 0.2)
+
+        # 2. Log usage
+        database.log_usage("expensive-model", prompt_tokens=10, completion_tokens=5)
+
+        # 3. Check summary: (10 * 0.1) + (5 * 0.2) = 1.0 + 1.0 = 2.0
+        total, breakdown = database.get_savings_summary()
+        self.assertEqual(total, 2.0)
+        self.assertEqual(len(breakdown), 1)
+        self.assertEqual(breakdown[0][0], "expensive-model")
+        self.assertEqual(breakdown[0][1], 2.0)
+
 if __name__ == "__main__":
     unittest.main()

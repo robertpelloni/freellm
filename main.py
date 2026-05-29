@@ -20,6 +20,7 @@ import query_ui
 import status_window
 import comparison_ui
 import api_server
+import savings_ui
 
 # The actual LiteLLM config used by the system
 HERMES_CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".hermes", "litellm-config.yaml")
@@ -365,6 +366,12 @@ class LiteLLMControlPanel:
             ui.run()
         threading.Thread(target=run_leaderboard, daemon=True).start()
 
+    def show_savings(self, icon=None, item=None):
+        def run_savings():
+            ui = savings_ui.SavingsDashboardUI(self)
+            ui.run()
+        threading.Thread(target=run_savings, daemon=True).start()
+
     def view_config(self, icon, item):
         if os.path.exists(self.config_path):
             if os.name == 'nt':
@@ -628,6 +635,7 @@ class LiteLLMControlPanel:
         menu_items.append(item("Model Comparison", self.show_comparison, enabled=len(self.ranked_models) > 0))
         menu_items.append(item("Show Dashboard", self.show_dashboard))
         menu_items.append(item("Model Leaderboard", self.show_leaderboard))
+        menu_items.append(item("Cost Savings", self.show_savings))
         menu_items.append(item("System Status", self.show_status))
         menu_items.append(pystray.Menu.SEPARATOR)
 
