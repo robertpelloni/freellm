@@ -103,6 +103,16 @@ def init_db():
         )
     """)
 
+    # Stability Metrics table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS stability_metrics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TIMESTAMP NOT NULL,
+            qpm REAL,
+            tps REAL
+        )
+    """)
+
     # Create indexes for fast queries
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_probe_model ON probe_history(model_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_probe_time ON probe_history(timestamp)")
@@ -636,6 +646,32 @@ def get_performance_summary():
         "success_rate": summary[2] or 0,
         "providers": provider_breakdown
     }
+
+
+def log_stability_metric(qpm, tps):
+    """Logs system stability metrics (Load Analysis)."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO stability_metrics (timestamp, qpm, tps)
+        VALUES (?, ?, ?)
+    """, (datetime.datetime.now(), qpm, tps))
+    conn.commit()
+    conn.close()
+
+
+def get_load_history(limit=60):
+    """Retrieves recent stability metrics for charting."""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT timestamp, qpm, tps
+        FROM stability_metrics
+        ORDER BY timestamp DESC LIMIT ?
+    """, (limit,))
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
 
 
 def get_total_usage():

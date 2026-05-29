@@ -1,5 +1,11 @@
 # Changelog: LiteLLM Control Panel
 
+## [2.5.0] - 2024-06-20
+### Added
+- Load Analysis Dashboard: Real-time charting of Queries Per Minute (QPM) and Tokens Per Second (TPS).
+- Stability Metrics: Persistent tracking of proxy load and throughput to verify operational stability.
+- System Activity Visualizer: Live Canvas-based graphing of system activity over the last 60 minutes.
+
 ## [2.4.0] - 2024-06-18
 ### Added
 - Autonomous Monitoring Dashboard: New two-tab UI for verifying autonomous behavior and performance metrics.
