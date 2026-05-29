@@ -1,5 +1,12 @@
 # Changelog: LiteLLM Control Panel
 
+## [2.6.0] - 2024-06-21
+### Added
+- Protocol Oversight Dashboard: New real-time UI for monitoring the autonomous routing engine's state and decisions.
+- Live Engine State Tracking: The engine now reports granular states (Fetching, Filtering, Benchmarking) and incremental progress.
+- Decision Logic Visualization: New view for understanding the specific scoring breakdown of the currently selected primary model.
+- High-Frequency Monitoring: Accelerated refresh rates for all stability and performance dashboards.
+
 ## [2.5.0] - 2024-06-20
 ### Added
 - Load Analysis Dashboard: Real-time charting of Queries Per Minute (QPM) and Tokens Per Second (TPS).

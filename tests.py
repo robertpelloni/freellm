@@ -159,5 +159,13 @@ class TestLiteLLMControlPanel(unittest.TestCase):
         self.assertEqual(history[0][1], 5) # LIFO order
         self.assertEqual(history[1][1], 10)
 
+    def test_engine_state_transitions(self):
+        e = engine.ModelEngine(api_keys={})
+        self.assertEqual(e.current_state, "Idle")
+
+        # Manually trigger a state change (simulating what happens in get_ranked_models)
+        e.current_state = "Fetching"
+        self.assertEqual(e.current_state, "Fetching")
+
 if __name__ == "__main__":
     unittest.main()

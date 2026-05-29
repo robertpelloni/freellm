@@ -43,6 +43,9 @@ class ModelEngine:
         self.client = httpx.AsyncClient(timeout=10.0)
         self.log_queue = deque(maxlen=1000)
         self.log_counter = 0
+        self.current_state = "Idle"
+        self.active_task = "Waiting for next cycle"
+        self.progress = 0.0  # 0.0 to 1.0
 
     def log(self, message: str):
         """Add a timestamped message to the engine log queue."""
@@ -362,6 +365,9 @@ class ModelEngine:
 
     async def get_ranked_models(self) -> List[Dict[str, Any]]:
         """Main loop to fetch, test, and rank models."""
+        self.current_state = "Initializing"
+        self.active_task = "Checking provider status"
+        self.progress = 0.0
         self.log("Starting model ranking cycle...")
         # 0. Check which providers are still considered "free"
         conn = database.sqlite3.connect(database.DB_NAME)
@@ -372,54 +378,76 @@ class ModelEngine:
 
         # 1. Fetch from providers
         candidates = []
+        self.current_state = "Fetching"
+        self.active_task = "Fetching from OpenRouter"
+        self.progress = 0.05
 
         if "openrouter" not in blacklisted_providers:
             or_models = await self.fetch_openrouter_models()
             candidates.extend(or_models)
             database.update_provider_cycle("openrouter", len(or_models) > 0)
 
+        self.active_task = "Fetching from Groq"
+        self.progress = 0.1
         if "groq" not in blacklisted_providers:
             groq_models = await self.fetch_groq_models()
             candidates.extend(groq_models)
             database.update_provider_cycle("groq", len(groq_models) > 0)
 
+        self.active_task = "Fetching from Together"
+        self.progress = 0.15
         if "together" not in blacklisted_providers:
             together_models = await self.fetch_together_models()
             candidates.extend(together_models)
             database.update_provider_cycle("together", len(together_models) > 0)
 
+        self.active_task = "Fetching from DeepInfra"
+        self.progress = 0.2
         if "deepinfra" not in blacklisted_providers:
             deepinfra_models = await self.fetch_deepinfra_models()
             candidates.extend(deepinfra_models)
             database.update_provider_cycle("deepinfra", len(deepinfra_models) > 0)
 
+        self.active_task = "Fetching from Cerebras"
+        self.progress = 0.25
         if "cerebras" not in blacklisted_providers:
             cerebras_models = await self.fetch_cerebras_models()
             candidates.extend(cerebras_models)
             database.update_provider_cycle("cerebras", len(cerebras_models) > 0)
 
         # Local providers
+        self.active_task = "Fetching from local providers"
+        self.progress = 0.3
         ollama_models = await self.fetch_ollama_models()
         candidates.extend(ollama_models)
         lms_models = await self.fetch_lm_studio_models()
         candidates.extend(lms_models)
 
+        self.active_task = "Fetching from GitHub Models"
+        self.progress = 0.35
         if "github" not in blacklisted_providers:
             github_models = await self.fetch_github_models()
             candidates.extend(github_models)
             database.update_provider_cycle("github", len(github_models) > 0)
 
+        self.active_task = "Fetching from Hugging Face"
+        self.progress = 0.4
         if "huggingface" not in blacklisted_providers:
             hf_models = await self.fetch_huggingface_models()
             candidates.extend(hf_models)
             database.update_provider_cycle("huggingface", len(hf_models) > 0)
 
+        self.active_task = "Fetching from NVIDIA NIM"
+        self.progress = 0.45
         if "nvidia" not in blacklisted_providers:
             nvidia_models = await self.fetch_nvidia_models()
             candidates.extend(nvidia_models)
             database.update_provider_cycle("nvidia", len(nvidia_models) > 0)
 
         # 2. Filter using database skip/failure status
+        self.current_state = "Filtering"
+        self.active_task = "Applying exclusions and circuit breakers"
+        self.progress = 0.5
         conn = database.sqlite3.connect(database.DB_NAME)
         cursor = conn.cursor()
         cursor.execute("SELECT model_id, manually_skipped, skip_expiry, failure_count, retry_after, is_blacklisted, last_success, avg_latency FROM model_history")
@@ -483,6 +511,9 @@ class ModelEngine:
             valid_candidates.extend(known_to_force)
 
         # 3. Benchmark in parallel (limited concurrency)
+        self.current_state = "Benchmarking"
+        self.active_task = "Measuring TTFT latencies"
+        self.progress = 0.6
         tasks = []
         benchmarking_models = []
         cached_results = []
@@ -504,9 +535,20 @@ class ModelEngine:
             benchmarking_models.append(m)
 
         self.log(f"Benchmarking {len(tasks)} models...")
-        latencies = await asyncio.gather(*tasks)
+
+        # Use a wrapper to track incremental progress
+        async def benchmark_with_progress(m_id, prov):
+            res = await self.measure_latency(m_id, prov)
+            self.progress += (0.35 / max(len(tasks), 1)) # Benchmark phase is 35% of total
+            return res
+
+        progress_tasks = [benchmark_with_progress(m['id'], m['provider']) for m in benchmarking_models]
+        latencies = await asyncio.gather(*progress_tasks)
 
         ranked_list = []
+        self.current_state = "Ranking"
+        self.active_task = "Calculating scores"
+        self.progress = 0.95
 
         # Add benchmarking results
         for m, latency in zip(benchmarking_models, latencies):
@@ -532,6 +574,10 @@ class ModelEngine:
 
         # 4. Sort by score
         ranked_list.sort(key=lambda x: x['score'], reverse=True)
+
+        self.current_state = "Idle"
+        self.active_task = "Sync cycle complete"
+        self.progress = 1.0
         return ranked_list[:10]
 
     async def check_connectivity(self) -> bool:
