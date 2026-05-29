@@ -18,6 +18,14 @@ ENV_KEY_MAP = {
     "GEMINI_API_KEY": "GEMINI_API_KEY",
     "HUGGINGFACE_API_KEY": "HUGGINGFACE_API_KEY",
     "NVIDIA_API_KEY": "NVIDIA_NIM_API_KEY",
+    "MISTRAL_API_KEY": "MISTRAL_API_KEY",
+    "CODESTRAL_API_KEY": "CODESTRAL_API_KEY",
+    "COHERE_API_KEY": "COHERE_API_KEY",
+    "SAMBANOVA_API_KEY": "SAMBANOVA_API_KEY",
+    "FIREWORKS_API_KEY": "FIREWORKS_API_KEY",
+    "HYPERBOLIC_API_KEY": "HYPERBOLIC_API_KEY",
+    "NEBIUS_API_KEY": "NEBIUS_API_KEY",
+    "CLOUDFLARE_API_KEY": "CLOUDFLARE_API_KEY",
 }
 
 def load_settings():
@@ -159,17 +167,25 @@ class SettingsUI:
         self.gemini_key, self.gemini_url = add_provider_fields(keys_frame, "Gemini", "GEMINI_API_KEY", "GEMINI_BASE_URL", 6)
         self.hf_key, self.hf_url = add_provider_fields(keys_frame, "HuggingFace", "HUGGINGFACE_API_KEY", "HUGGINGFACE_BASE_URL", 7)
         self.nvidia_key, self.nvidia_url = add_provider_fields(keys_frame, "NVIDIA", "NVIDIA_API_KEY", "NVIDIA_BASE_URL", 8)
+        self.mistral_key, self.mistral_url = add_provider_fields(keys_frame, "Mistral", "MISTRAL_API_KEY", "MISTRAL_BASE_URL", 9)
+        self.codestral_key, self.codestral_url = add_provider_fields(keys_frame, "Codestral", "CODESTRAL_API_KEY", "CODESTRAL_BASE_URL", 10)
+        self.cohere_key, self.cohere_url = add_provider_fields(keys_frame, "Cohere", "COHERE_API_KEY", "COHERE_BASE_URL", 11)
+        self.sambanova_key, self.sambanova_url = add_provider_fields(keys_frame, "SambaNova", "SAMBANOVA_API_KEY", "SAMBANOVA_BASE_URL", 12)
+        self.fireworks_key, self.fireworks_url = add_provider_fields(keys_frame, "Fireworks", "FIREWORKS_API_KEY", "FIREWORKS_BASE_URL", 13)
+        self.hyperbolic_key, self.hyperbolic_url = add_provider_fields(keys_frame, "Hyperbolic", "HYPERBOLIC_API_KEY", "HYPERBOLIC_BASE_URL", 14)
+        self.nebius_key, self.nebius_url = add_provider_fields(keys_frame, "Nebius", "NEBIUS_API_KEY", "NEBIUS_BASE_URL", 15)
+        self.cloudflare_key, self.cloudflare_url = add_provider_fields(keys_frame, "Cloudflare", "CLOUDFLARE_API_KEY", "CLOUDFLARE_BASE_URL", 16)
 
         # Local URLs
-        ttk.Label(keys_frame, text="Ollama URL:").grid(row=9, column=0, sticky='w', padx=5, pady=2)
+        ttk.Label(keys_frame, text="Ollama URL:").grid(row=17, column=0, sticky='w', padx=5, pady=2)
         self.ollama_url = ttk.Entry(keys_frame)
         self.ollama_url.insert(0, self.settings.get("OLLAMA_BASE_URL", "http://localhost:11434"))
         self.ollama_url.grid(row=9, column=1, columnspan=3, sticky='ew', padx=5, pady=2)
 
-        ttk.Label(keys_frame, text="LM Studio URL:").grid(row=10, column=0, sticky='w', padx=5, pady=2)
+        ttk.Label(keys_frame, text="LM Studio URL:").grid(row=18, column=0, sticky='w', padx=5, pady=2)
         self.lms_url = ttk.Entry(keys_frame)
         self.lms_url.insert(0, self.settings.get("LM_STUDIO_BASE_URL", "http://localhost:1234"))
-        self.lms_url.grid(row=10, column=1, columnspan=3, sticky='ew', padx=5, pady=2)
+        self.lms_url.grid(row=18, column=1, columnspan=3, sticky='ew', padx=5, pady=2)
 
         keys_frame.columnconfigure(1, weight=1)
         keys_frame.columnconfigure(3, weight=1)
@@ -307,6 +323,14 @@ class SettingsUI:
             self.settings["GITHUB_API_KEY"] = self.github_key.get()
             self.settings["HUGGINGFACE_API_KEY"] = self.hf_key.get()
             self.settings["NVIDIA_API_KEY"] = self.nvidia_key.get()
+            self.settings["MISTRAL_API_KEY"] = self.mistral_key.get()
+            self.settings["CODESTRAL_API_KEY"] = self.codestral_key.get()
+            self.settings["COHERE_API_KEY"] = self.cohere_key.get()
+            self.settings["SAMBANOVA_API_KEY"] = self.sambanova_key.get()
+            self.settings["FIREWORKS_API_KEY"] = self.fireworks_key.get()
+            self.settings["HYPERBOLIC_API_KEY"] = self.hyperbolic_key.get()
+            self.settings["NEBIUS_API_KEY"] = self.nebius_key.get()
+            self.settings["CLOUDFLARE_API_KEY"] = self.cloudflare_key.get()
 
             self.settings["OPENROUTER_BASE_URL"] = self.or_url.get()
             self.settings["GROQ_BASE_URL"] = self.groq_url.get()
@@ -316,6 +340,15 @@ class SettingsUI:
             self.settings["GITHUB_BASE_URL"] = self.github_url.get()
             self.settings["HUGGINGFACE_BASE_URL"] = self.hf_url.get()
             self.settings["NVIDIA_BASE_URL"] = self.nvidia_url.get()
+            self.settings["MISTRAL_BASE_URL"] = self.mistral_url.get()
+            self.settings["CODESTRAL_BASE_URL"] = self.codestral_url.get()
+            self.settings["COHERE_BASE_URL"] = self.cohere_url.get()
+            self.settings["SAMBANOVA_BASE_URL"] = self.sambanova_url.get()
+            self.settings["FIREWORKS_BASE_URL"] = self.fireworks_url.get()
+            self.settings["HYPERBOLIC_BASE_URL"] = self.hyperbolic_url.get()
+            self.settings["NEBIUS_BASE_URL"] = self.nebius_url.get()
+            self.settings["CLOUDFLARE_BASE_URL"] = self.cloudflare_url.get()
+            self.settings["CLOUDFLARE_ACCOUNT_ID"] = self.settings.get("CLOUDFLARE_ACCOUNT_ID", "")
             self.settings["OLLAMA_BASE_URL"] = self.ollama_url.get()
             self.settings["LM_STUDIO_BASE_URL"] = self.lms_url.get()
             

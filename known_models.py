@@ -69,6 +69,38 @@ KNOWN_MODELS = {
     "together/meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo": {"params": 405, "ctx": 131072, "provider": "together"},
     "together/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo": {"params": 70, "ctx": 131072, "provider": "together"},
 
+    # -- Mistral La Plateforme --
+    "mistral/mistral-large-latest": {"params": 123, "ctx": 128000, "provider": "mistral"},
+    "mistral/mistral-medium-latest": {"params": 35, "ctx": 128000, "provider": "mistral"},
+    "mistral/mistral-small-latest": {"params": 22, "ctx": 128000, "provider": "mistral"},
+    "mistral/open-mistral-nemo": {"params": 12, "ctx": 128000, "provider": "mistral"},
+    "mistral/codestral-latest": {"params": 22, "ctx": 256000, "provider": "mistral"},
+
+    # -- Codestral (separate endpoint) --
+    "codestral/codestral-latest": {"params": 22, "ctx": 256000, "provider": "codestral"},
+
+    # -- Cohere --
+    "cohere/command-a-03-2025": {"params": 111, "ctx": 256000, "provider": "cohere"},
+    "cohere/command-a-plus-05-2026": {"params": 111, "ctx": 256000, "provider": "cohere"},
+    "cohere/command-a-reasoning-08-2025": {"params": 111, "ctx": 256000, "provider": "cohere"},
+    "cohere/command-r-plus-08-2024": {"params": 104, "ctx": 128000, "provider": "cohere"},
+    "cohere/c4ai-aya-expanse-32b": {"params": 32, "ctx": 128000, "provider": "cohere"},
+
+    # -- SambaNova Cloud --
+    "sambanova/deepseek-v3.1": {"params": 671, "ctx": 65536, "provider": "sambanova"},
+    "sambanova/deepseek-v3.2": {"params": 671, "ctx": 65536, "provider": "sambanova"},
+    "sambanova/gpt-oss-120b": {"params": 120, "ctx": 131072, "provider": "sambanova"},
+    "sambanova/llama-4-maverick-17b-128e-instruct": {"params": 400, "ctx": 1048576, "provider": "sambanova"},
+    "sambanova/meta-llama-3.3-70b-instruct": {"params": 70, "ctx": 128000, "provider": "sambanova"},
+    "sambanova/minimax-m2.7": {"params": 456, "ctx": 65536, "provider": "sambanova"},
+    "sambanova/gemma-3-12b-it": {"params": 12, "ctx": 128000, "provider": "sambanova"},
+
+    # -- Cloudflare Workers AI --
+    "cloudflare/@cf/nvidia/nemotron-3-120b-a12b": {"params": 120, "ctx": 4096, "provider": "cloudflare"},
+    "cloudflare/@cf/openai/gpt-oss-120b": {"params": 120, "ctx": 4096, "provider": "cloudflare"},
+    "cloudflare/@cf/moonshotai/kimi-k2.6": {"params": 200, "ctx": 4096, "provider": "cloudflare"},
+    "cloudflare/@cf/qwen/qwen3-30b-a3b-fp8": {"params": 30, "ctx": 4096, "provider": "cloudflare"},
+
     # -- Ollama / LM Studio (local) --
     "ollama/llama3.3:70b": {"params": 70, "ctx": 128000, "provider": "ollama"},
     "ollama/deepseek-r1:671b": {"params": 671, "ctx": 65536, "provider": "ollama"},
@@ -96,7 +128,9 @@ def lookup(litellm_model: str) -> dict | None:
     # Try stripping provider prefixes
     for prefix in ("openrouter/", "nvidia_nim/", "github/", "groq/",
                    "together/", "deepinfra/", "cerebras/", "huggingface/",
-                   "ollama/", "openai/", "lm_studio/", "gemini/"):
+                   "ollama/", "openai/", "lm_studio/", "gemini/",
+                   "mistral/", "codestral/", "cohere/", "sambanova/",
+                   "fireworks/", "hyperbolic/", "nebius/", "cloudflare/"):
         if litellm_model.startswith(prefix):
             stripped = litellm_model[len(prefix):]
             if stripped in KNOWN_MODELS:

@@ -72,6 +72,9 @@ class LiteLLMControlPanel:
             "lm_studio": self.settings.get("LM_STUDIO_BASE_URL", ""),
         }
 
+        # Pass cloudflare account ID through api_keys (special case)
+        api_keys["cloudflare_account_id"] = self.settings.get("CLOUDFLARE_ACCOUNT_ID", "")
+
         self.engine = engine.ModelEngine(api_keys=api_keys, weights=weights, base_urls=base_urls, min_params=int(self.settings.get("MIN_PARAMETERS", 100)))
 
         # Apply exclusions from settings
