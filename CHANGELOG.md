@@ -6,6 +6,10 @@
 - Internal Activity Logging: Core engine and health monitor now log events (switches, failures, fallbacks) to a persistent SQLite table.
 - Reliability Analytics: 24h TTFT and success rate aggregation per model and provider.
 
+## [2.4.1] - 2024-06-19
+### Added
+- End-to-End Integration Testing: New test suite (integration_tests.py) to verify UI-to-Backend-to-API communication.
+
 ## [2.3.0] - 2024-06-17
 ### Added
 - Cost Savings Tracking: Automatically calculates and tracks money saved by using free models.
