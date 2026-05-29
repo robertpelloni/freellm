@@ -111,7 +111,7 @@ class ModelEngine:
 
     async def fetch_openrouter_models(self) -> List[Dict[str, Any]]:
         """Fetches free models from OpenRouter."""
-        self.log("Fetching models from OpenRouter...")
+        self._log("Fetching models from OpenRouter...")
         url = self.base_urls.get("openrouter", OPENROUTER_MODELS_URL.replace("/models", "")) + "/models"
         try:
             response = await self.client.get(url)
@@ -473,6 +473,9 @@ class ModelEngine:
                 models = []
                 for m in data:
                     mid = m.get("id", "")
+                    # Skip non-chat models (embed, moderation, OCR, TTS, etc.)
+                    if any(kw in mid.lower() for kw in ["embed", "moderation", "ocr", "tts", "transcribe", "realtime"]):
+                        continue
                     params, context = self._resolve_model_metadata(m, "mistral")
                     if params >= self.min_params or params == 0:
                         models.append({"id": mid, "provider": "mistral", "parameters": params, "context_length": context})
@@ -623,7 +626,7 @@ class ModelEngine:
 
     async def get_ranked_models(self) -> List[Dict[str, Any]]:
         """Main loop to fetch, test, and rank models."""
-        self.log("Starting model ranking cycle...")
+        self._log("Starting model ranking cycle...")
         # 0. Check which providers are still considered "free"
         conn = database.sqlite3.connect(database.DB_NAME)
         cursor = conn.cursor()
@@ -637,27 +640,27 @@ class ModelEngine:
         if "openrouter" not in blacklisted_providers:
             or_models = await self.fetch_openrouter_models()
             candidates.extend(or_models)
-            database.update_provider_cycle("openrouter", len(or_models) > 0)
+            database.update_provider_cycle("openrouter", len(or_models) > 0, has_api_key=bool(self.api_keys.get("openrouter")))
 
         if "groq" not in blacklisted_providers:
             groq_models = await self.fetch_groq_models()
             candidates.extend(groq_models)
-            database.update_provider_cycle("groq", len(groq_models) > 0)
+            database.update_provider_cycle("groq", len(groq_models) > 0, has_api_key=bool(self.api_keys.get("groq")))
 
         if "together" not in blacklisted_providers:
             together_models = await self.fetch_together_models()
             candidates.extend(together_models)
-            database.update_provider_cycle("together", len(together_models) > 0)
+            database.update_provider_cycle("together", len(together_models) > 0, has_api_key=bool(self.api_keys.get("together")))
 
         if "deepinfra" not in blacklisted_providers:
             deepinfra_models = await self.fetch_deepinfra_models()
             candidates.extend(deepinfra_models)
-            database.update_provider_cycle("deepinfra", len(deepinfra_models) > 0)
+            database.update_provider_cycle("deepinfra", len(deepinfra_models) > 0, has_api_key=bool(self.api_keys.get("deepinfra")))
 
         if "cerebras" not in blacklisted_providers:
             cerebras_models = await self.fetch_cerebras_models()
             candidates.extend(cerebras_models)
-            database.update_provider_cycle("cerebras", len(cerebras_models) > 0)
+            database.update_provider_cycle("cerebras", len(cerebras_models) > 0, has_api_key=bool(self.api_keys.get("cerebras")))
 
         # Local providers
         ollama_models = await self.fetch_ollama_models()
@@ -668,70 +671,62 @@ class ModelEngine:
         if "github" not in blacklisted_providers:
             github_models = await self.fetch_github_models()
             candidates.extend(github_models)
-            database.update_provider_cycle("github", len(github_models) > 0)
+            database.update_provider_cycle("github", len(github_models) > 0, has_api_key=bool(self.api_keys.get("github")))
 
         if "gemini" not in blacklisted_providers:
             gemini_models = await self.fetch_gemini_models()
             candidates.extend(gemini_models)
-            database.update_provider_cycle("gemini", len(gemini_models) > 0)
+            database.update_provider_cycle("gemini", len(gemini_models) > 0, has_api_key=bool(self.api_keys.get("gemini")))
 
         if "huggingface" not in blacklisted_providers:
             hf_models = await self.fetch_huggingface_models()
             candidates.extend(hf_models)
-            database.update_provider_cycle("huggingface", len(hf_models) > 0)
+            database.update_provider_cycle("huggingface", len(hf_models) > 0, has_api_key=bool(self.api_keys.get("huggingface")))
 
         if "nvidia" not in blacklisted_providers:
             nvidia_models = await self.fetch_nvidia_models()
             candidates.extend(nvidia_models)
-            database.update_provider_cycle("nvidia", len(nvidia_models) > 0)
+            database.update_provider_cycle("nvidia", len(nvidia_models) > 0, has_api_key=bool(self.api_keys.get("nvidia")))
 
         if "mistral" not in blacklisted_providers:
             mistral_models = await self.fetch_mistral_models()
-            self._log(f"  mistral: fetched {len(mistral_models)} models")
             candidates.extend(mistral_models)
-            database.update_provider_cycle("mistral", len(mistral_models) > 0)
+            database.update_provider_cycle("mistral", len(mistral_models) > 0, has_api_key=bool(self.api_keys.get("mistral")))
 
         if "codestral" not in blacklisted_providers:
             codestral_models = await self.fetch_codestral_models()
-            self._log(f"  codestral: fetched {len(codestral_models)} models")
             candidates.extend(codestral_models)
-            database.update_provider_cycle("codestral", len(codestral_models) > 0)
+            database.update_provider_cycle("codestral", len(codestral_models) > 0, has_api_key=bool(self.api_keys.get("codestral")))
 
         if "cohere" not in blacklisted_providers:
             cohere_models = await self.fetch_cohere_models()
-            self._log(f"  cohere: fetched {len(cohere_models)} models")
             candidates.extend(cohere_models)
-            database.update_provider_cycle("cohere", len(cohere_models) > 0)
+            database.update_provider_cycle("cohere", len(cohere_models) > 0, has_api_key=bool(self.api_keys.get("cohere")))
 
         if "sambanova" not in blacklisted_providers:
             sambanova_models = await self.fetch_sambanova_models()
-            self._log(f"  sambanova: fetched {len(sambanova_models)} models")
             candidates.extend(sambanova_models)
-            database.update_provider_cycle("sambanova", len(sambanova_models) > 0)
+            database.update_provider_cycle("sambanova", len(sambanova_models) > 0, has_api_key=bool(self.api_keys.get("sambanova")))
 
         if "fireworks" not in blacklisted_providers:
             fireworks_models = await self.fetch_fireworks_models()
-            self._log(f"  fireworks: fetched {len(fireworks_models)} models")
             candidates.extend(fireworks_models)
-            database.update_provider_cycle("fireworks", len(fireworks_models) > 0)
+            database.update_provider_cycle("fireworks", len(fireworks_models) > 0, has_api_key=bool(self.api_keys.get("fireworks")))
 
         if "hyperbolic" not in blacklisted_providers:
             hyperbolic_models = await self.fetch_hyperbolic_models()
-            self._log(f"  hyperbolic: fetched {len(hyperbolic_models)} models")
             candidates.extend(hyperbolic_models)
-            database.update_provider_cycle("hyperbolic", len(hyperbolic_models) > 0)
+            database.update_provider_cycle("hyperbolic", len(hyperbolic_models) > 0, has_api_key=bool(self.api_keys.get("hyperbolic")))
 
         if "nebius" not in blacklisted_providers:
             nebius_models = await self.fetch_nebius_models()
-            self._log(f"  nebius: fetched {len(nebius_models)} models")
             candidates.extend(nebius_models)
-            database.update_provider_cycle("nebius", len(nebius_models) > 0)
+            database.update_provider_cycle("nebius", len(nebius_models) > 0, has_api_key=bool(self.api_keys.get("nebius")))
 
         if "cloudflare" not in blacklisted_providers:
             cloudflare_models = await self.fetch_cloudflare_models()
-            self._log(f"  cloudflare: fetched {len(cloudflare_models)} models")
             candidates.extend(cloudflare_models)
-            database.update_provider_cycle("cloudflare", len(cloudflare_models) > 0)
+            database.update_provider_cycle("cloudflare", len(cloudflare_models) > 0, has_api_key=bool(self.api_keys.get("cloudflare")))
 
         # De-duplicate candidates by (id, provider)
         seen = set()
@@ -872,7 +867,7 @@ class ModelEngine:
         # Add benchmarking results
         for m, latency in zip(benchmarking_models, latencies):
             if latency is not None:
-                self.log(f"Model {m['id']} ({m['provider']}): {latency:.3f}s")
+                self._log(f"Model {m['id']} ({m['provider']}): {latency:.3f}s")
                 score = self.calculate_score(m['parameters'], latency, m.get('context_length', 4096))
                 m['latency'] = latency
                 m['score'] = score
@@ -1042,10 +1037,10 @@ class ModelEngine:
 
     async def update_all_pricing(self):
         """Updates pricing information from all available providers."""
-        self.log("Updating global pricing metadata...")
+        self._log("Updating global pricing metadata...")
         # Currently OpenRouter is the primary source for broad pricing data
         await self.fetch_openrouter_models()
-        self.log("Pricing metadata update complete.")
+        self._log("Pricing metadata update complete.")
 
     async def close(self):
         await self.client.aclose()

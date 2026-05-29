@@ -1,6 +1,5 @@
 import sqlite3
 import datetime
-import os
 
 DB_NAME = "provider_metrics.db"
 
@@ -104,9 +103,15 @@ def init_db():
     """)
 
     # Create indexes for fast queries
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_probe_model ON probe_history(model_id)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_probe_time ON probe_history(timestamp)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_probe_success ON probe_history(success)")
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_probe_model ON probe_history(model_id)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_probe_time ON probe_history(timestamp)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_probe_success ON probe_history(success)"
+    )
 
     # Schema Migration: Ensure cost_saved exists in usage table
     try:
@@ -121,9 +126,18 @@ def init_db():
 
 # ── Model Probe Recording ──────────────────────────────────────────────────
 
-def record_probe(model_id, provider_name, latency, success,
-                 error_code=None, error_message=None, score=0,
-                 context_length=0, parameters=0):
+
+def record_probe(
+    model_id,
+    provider_name,
+    latency,
+    success,
+    error_code=None,
+    error_message=None,
+    score=0,
+    context_length=0,
+    parameters=0,
+):
     """Record a single probe result and update aggregate model stats.
     This is the single entry point for all probe data — success or failure.
     """
@@ -132,30 +146,51 @@ def record_probe(model_id, provider_name, latency, success,
     now = datetime.datetime.now()
 
     # 1. Insert into probe_history
-    cursor.execute("""
+    cursor.execute(
+        """
         INSERT INTO probe_history (model_id, provider_name, timestamp, latency, success,
                                     error_code, error_message, score, context_length, parameters)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (model_id, provider_name, now, latency, success,
-          error_code, error_message, score, context_length, parameters))
+    """,
+        (
+            model_id,
+            provider_name,
+            now,
+            latency,
+            success,
+            error_code,
+            error_message,
+            score,
+            context_length,
+            parameters,
+        ),
+    )
 
     # 2. Ensure provider exists
-    cursor.execute("INSERT OR IGNORE INTO providers (provider_name) VALUES (?)", (provider_name,))
+    cursor.execute(
+        "INSERT OR IGNORE INTO providers (provider_name) VALUES (?)", (provider_name,)
+    )
 
     # 3. Ensure model_history row exists
-    cursor.execute("""
+    cursor.execute(
+        """
         INSERT OR IGNORE INTO model_history (model_id, provider_name, first_seen)
         VALUES (?, ?, ?)
-    """, (model_id, provider_name, now))
+    """,
+        (model_id, provider_name, now),
+    )
 
     # 4. Update model_history aggregates
     if success:
         # Get current stats for running calculations
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT avg_latency, min_latency, max_latency, total_probes,
                    total_successes, consecutive_successes, p50_latency, parameters
             FROM model_history WHERE model_id = ?
-        """, (model_id,))
+        """,
+            (model_id,),
+        )
         row = cursor.fetchone()
         if row:
             curr_avg = row[0] if row[0] else latency
@@ -182,11 +217,14 @@ def record_probe(model_id, provider_name, latency, success,
         new_params = parameters if parameters > 0 else stored_params
 
         # Compute p50 from recent probes (last 20)
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT latency FROM probe_history
             WHERE model_id = ? AND success = 1 AND latency IS NOT NULL
             ORDER BY timestamp DESC LIMIT 20
-        """, (model_id,))
+        """,
+            (model_id,),
+        )
         recent = [r[0] for r in cursor.fetchall()]
         if recent:
             recent.sort()
@@ -195,34 +233,46 @@ def record_probe(model_id, provider_name, latency, success,
             new_p50 = latency
 
         # Uptime percentage
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT COUNT(*) FROM probe_history
             WHERE model_id = ? AND timestamp > ?
-        """, (model_id, now - datetime.timedelta(days=7)))
+        """,
+            (model_id, now - datetime.timedelta(days=7)),
+        )
         total_recent = cursor.fetchone()[0]
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT COUNT(*) FROM probe_history
             WHERE model_id = ? AND success = 1 AND timestamp > ?
-        """, (model_id, now - datetime.timedelta(days=7)))
+        """,
+            (model_id, now - datetime.timedelta(days=7)),
+        )
         success_recent = cursor.fetchone()[0]
         uptime = (success_recent / total_recent * 100) if total_recent > 0 else 100
 
         # Score tracking
-        cursor.execute("SELECT score_best FROM model_history WHERE model_id = ?", (model_id,))
+        cursor.execute(
+            "SELECT score_best FROM model_history WHERE model_id = ?", (model_id,)
+        )
         best_score_row = cursor.fetchone()
         best_score = best_score_row[0] if best_score_row and best_score_row[0] else 0
         new_best_score = max(best_score, score)
         new_avg_score = 0
         if score > 0:
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT AVG(score) FROM probe_history
                 WHERE model_id = ? AND score > 0
                 ORDER BY timestamp DESC LIMIT 20
-            """, (model_id,))
+            """,
+                (model_id,),
+            )
             avg_row = cursor.fetchone()
             new_avg_score = avg_row[0] if avg_row and avg_row[0] else score
 
-        cursor.execute("""
+        cursor.execute(
+            """
             UPDATE model_history SET
                 avg_latency = ?,
                 min_latency = ?,
@@ -241,16 +291,33 @@ def record_probe(model_id, provider_name, latency, success,
                 parameters = ?,
                 retry_after = NULL
             WHERE model_id = ?
-        """, (new_avg, new_min, new_max, new_p50,
-              consec_succ, total, successes, now,
-              uptime, new_avg_score, new_best_score,
-              context_length, new_params, model_id))
+        """,
+            (
+                new_avg,
+                new_min,
+                new_max,
+                new_p50,
+                consec_succ,
+                total,
+                successes,
+                now,
+                uptime,
+                new_avg_score,
+                new_best_score,
+                context_length,
+                new_params,
+                model_id,
+            ),
+        )
     else:
         # Failure case
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT failure_count, total_probes, total_failures, consecutive_failures
             FROM model_history WHERE model_id = ?
-        """, (model_id,))
+        """,
+            (model_id,),
+        )
         row = cursor.fetchone()
         fail_count = (row[0] if row else 0) + 1
         total = (row[1] if row else 0) + 1
@@ -262,19 +329,26 @@ def record_probe(model_id, provider_name, latency, success,
             retry_after = now + datetime.timedelta(hours=2)
 
         # Uptime percentage
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT COUNT(*) FROM probe_history
             WHERE model_id = ? AND timestamp > ?
-        """, (model_id, now - datetime.timedelta(days=7)))
+        """,
+            (model_id, now - datetime.timedelta(days=7)),
+        )
         total_recent = cursor.fetchone()[0]
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT COUNT(*) FROM probe_history
             WHERE model_id = ? AND success = 1 AND timestamp > ?
-        """, (model_id, now - datetime.timedelta(days=7)))
+        """,
+            (model_id, now - datetime.timedelta(days=7)),
+        )
         success_recent = cursor.fetchone()[0]
         uptime = (success_recent / total_recent * 100) if total_recent > 0 else 0
 
-        cursor.execute("""
+        cursor.execute(
+            """
             UPDATE model_history SET
                 failure_count = ?,
                 consecutive_successes = 0,
@@ -285,14 +359,25 @@ def record_probe(model_id, provider_name, latency, success,
                 retry_after = ?,
                 uptime_pct = ?
             WHERE model_id = ?
-        """, (fail_count, consec_fails, total, total_fails, now,
-              retry_after, uptime, model_id))
+        """,
+            (
+                fail_count,
+                consec_fails,
+                total,
+                total_fails,
+                now,
+                retry_after,
+                uptime,
+                model_id,
+            ),
+        )
 
     conn.commit()
     conn.close()
 
 
 # ── Legacy wrappers (for backward compat) ──────────────────────────────────
+
 
 def update_model_latency(model_id, provider_name, latency):
     """Legacy: records a successful probe."""
@@ -305,6 +390,7 @@ def handle_test_failure(model_id, provider_name):
 
 
 # ── Query Functions ─────────────────────────────────────────────────────────
+
 
 def get_candidate_models():
     """Fetches models that are not manually skipped, haven't crashed repeatedly,
@@ -329,26 +415,40 @@ def get_model_stats(model_id):
     """Returns full reliability stats for a model."""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT model_id, provider_name, avg_latency, min_latency, max_latency,
                p50_latency, total_probes, total_successes, total_failures,
                consecutive_successes, consecutive_failures, uptime_pct,
                score_avg, score_best, last_success, last_failure,
                parameters, context_length
         FROM model_history WHERE model_id = ?
-    """, (model_id,))
+    """,
+        (model_id,),
+    )
     row = cursor.fetchone()
     conn.close()
     if not row:
         return None
     return {
-        "id": row[0], "provider": row[1],
-        "avg_latency": row[2], "min_latency": row[3], "max_latency": row[4],
-        "p50_latency": row[5], "total_probes": row[6], "successes": row[7],
-        "failures": row[8], "consec_successes": row[9], "consec_failures": row[10],
-        "uptime_pct": row[11], "score_avg": row[12], "score_best": row[13],
-        "last_success": row[14], "last_failure": row[15],
-        "parameters": row[16], "context_length": row[17],
+        "id": row[0],
+        "provider": row[1],
+        "avg_latency": row[2],
+        "min_latency": row[3],
+        "max_latency": row[4],
+        "p50_latency": row[5],
+        "total_probes": row[6],
+        "successes": row[7],
+        "failures": row[8],
+        "consec_successes": row[9],
+        "consec_failures": row[10],
+        "uptime_pct": row[11],
+        "score_avg": row[12],
+        "score_best": row[13],
+        "last_success": row[14],
+        "last_failure": row[15],
+        "parameters": row[16],
+        "context_length": row[17],
     }
 
 
@@ -356,16 +456,27 @@ def get_model_probe_history(model_id, limit=50):
     """Returns recent probe history for a model."""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT timestamp, latency, success, error_code, score
         FROM probe_history
         WHERE model_id = ?
         ORDER BY timestamp DESC LIMIT ?
-    """, (model_id, limit))
+    """,
+        (model_id, limit),
+    )
     rows = cursor.fetchall()
     conn.close()
-    return [{"timestamp": r[0], "latency": r[1], "success": r[2],
-             "error_code": r[3], "score": r[4]} for r in rows]
+    return [
+        {
+            "timestamp": r[0],
+            "latency": r[1],
+            "success": r[2],
+            "error_code": r[3],
+            "score": r[4],
+        }
+        for r in rows
+    ]
 
 
 def get_leaderboard(sort_by="score_best", limit=20):
@@ -374,8 +485,15 @@ def get_leaderboard(sort_by="score_best", limit=20):
     sort_by options: score_best, score_avg, avg_latency, min_latency,
                      p50_latency, uptime_pct, total_successes
     """
-    allowed = {"score_best", "score_avg", "avg_latency", "min_latency",
-               "p50_latency", "uptime_pct", "total_successes"}
+    allowed = {
+        "score_best",
+        "score_avg",
+        "avg_latency",
+        "min_latency",
+        "p50_latency",
+        "uptime_pct",
+        "total_successes",
+    }
     if sort_by not in allowed:
         sort_by = "score_best"
 
@@ -391,7 +509,7 @@ def get_leaderboard(sort_by="score_best", limit=20):
         FROM model_history
         WHERE manually_skipped = 0 AND is_blacklisted = 0
           AND total_probes > 0
-        ORDER BY {sort_by} {'ASC' if ascending else 'DESC'}
+        ORDER BY {sort_by} {"ASC" if ascending else "DESC"}
         LIMIT ?
     """
     cursor.execute(query, (limit,))
@@ -400,14 +518,25 @@ def get_leaderboard(sort_by="score_best", limit=20):
 
     results = []
     for r in rows:
-        results.append({
-            "id": r[0], "provider": r[1],
-            "avg_latency": r[2], "p50_latency": r[3], "min_latency": r[4],
-            "total_probes": r[5], "successes": r[6], "failures": r[7],
-            "uptime_pct": r[8], "score_avg": r[9], "score_best": r[10],
-            "parameters": r[11], "context_length": r[12],
-            "consec_successes": r[13], "last_success": r[14],
-        })
+        results.append(
+            {
+                "id": r[0],
+                "provider": r[1],
+                "avg_latency": r[2],
+                "p50_latency": r[3],
+                "min_latency": r[4],
+                "total_probes": r[5],
+                "successes": r[6],
+                "failures": r[7],
+                "uptime_pct": r[8],
+                "score_avg": r[9],
+                "score_best": r[10],
+                "parameters": r[11],
+                "context_length": r[12],
+                "consec_successes": r[13],
+                "last_success": r[14],
+            }
+        )
     return results
 
 
@@ -416,7 +545,8 @@ def get_reliability_trend(model_id, days=7):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     since = datetime.datetime.now() - datetime.timedelta(days=days)
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT DATE(timestamp) as day,
                COUNT(*) as total,
                SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as successes,
@@ -427,11 +557,22 @@ def get_reliability_trend(model_id, days=7):
         WHERE model_id = ? AND timestamp > ?
         GROUP BY DATE(timestamp)
         ORDER BY day DESC
-    """, (model_id, since))
+    """,
+        (model_id, since),
+    )
     rows = cursor.fetchall()
     conn.close()
-    return [{"day": r[0], "total": r[1], "successes": r[2],
-             "avg_lat": r[3], "min_lat": r[4], "max_lat": r[5]} for r in rows]
+    return [
+        {
+            "day": r[0],
+            "total": r[1],
+            "successes": r[2],
+            "avg_lat": r[3],
+            "min_lat": r[4],
+            "max_lat": r[5],
+        }
+        for r in rows
+    ]
 
 
 def get_last_rankings():
@@ -454,20 +595,23 @@ def get_last_rankings():
     conn.close()
     results = []
     for r in rows:
-        results.append({
-            "id": r[0],
-            "provider": r[1],
-            "parameters": r[7] if r[7] and r[7] > 0 else 100,
-            "latency": r[2] if r[2] else 0,
-            "score": r[4] if r[4] else 0,
-            "p50_latency": r[3] if r[3] else 0,
-            "uptime_pct": r[5] if r[5] else 0,
-            "context_length": r[8] if r[8] else 0,
-        })
+        results.append(
+            {
+                "id": r[0],
+                "provider": r[1],
+                "parameters": r[7] if r[7] and r[7] > 0 else 100,
+                "latency": r[2] if r[2] else 0,
+                "score": r[4] if r[4] else 0,
+                "p50_latency": r[3] if r[3] else 0,
+                "uptime_pct": r[5] if r[5] else 0,
+                "context_length": r[8] if r[8] else 0,
+            }
+        )
     return results
 
 
 # ── Manual Overrides ────────────────────────────────────────────────────────
+
 
 def set_model_skip_status(model_id, skipped=True, duration_hours=24):
     """Manually skip a model for a specified duration."""
@@ -476,10 +620,13 @@ def set_model_skip_status(model_id, skipped=True, duration_hours=24):
     expiry = None
     if skipped:
         expiry = datetime.datetime.now() + datetime.timedelta(hours=duration_hours)
-    cursor.execute("""
+    cursor.execute(
+        """
         UPDATE model_history SET manually_skipped = ?, skip_expiry = ?
         WHERE model_id = ?
-    """, (1 if skipped else 0, expiry, model_id))
+    """,
+        (1 if skipped else 0, expiry, model_id),
+    )
     conn.commit()
     conn.close()
 
@@ -488,8 +635,10 @@ def set_model_blacklist_status(model_id, blacklisted=True):
     """Permanently blacklist a model."""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    cursor.execute("UPDATE model_history SET is_blacklisted = ? WHERE model_id = ?",
-                   (1 if blacklisted else 0, model_id))
+    cursor.execute(
+        "UPDATE model_history SET is_blacklisted = ? WHERE model_id = ?",
+        (1 if blacklisted else 0, model_id),
+    )
     conn.commit()
     conn.close()
 
@@ -514,13 +663,17 @@ def clear_blacklist():
 
 # ── Usage Tracking ──────────────────────────────────────────────────────────
 
+
 def log_usage(model_id, prompt_tokens=0, completion_tokens=0):
     """Logs model usage and calculates estimated cost saved."""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
 
     # Get current pricing for this model
-    cursor.execute("SELECT prompt_price, completion_price FROM model_pricing WHERE model_id = ?", (model_id,))
+    cursor.execute(
+        "SELECT prompt_price, completion_price FROM model_pricing WHERE model_id = ?",
+        (model_id,),
+    )
     row = cursor.fetchone()
 
     cost_saved = 0
@@ -530,10 +683,19 @@ def log_usage(model_id, prompt_tokens=0, completion_tokens=0):
         # OpenRouter pricing is already in small decimals (USD per token)
         cost_saved = (prompt_tokens * pp) + (completion_tokens * cp)
 
-    cursor.execute("""
+    cursor.execute(
+        """
         INSERT INTO usage (model_id, timestamp, prompt_tokens, completion_tokens, cost_saved)
         VALUES (?, ?, ?, ?, ?)
-    """, (model_id, datetime.datetime.now(), prompt_tokens, completion_tokens, cost_saved))
+    """,
+        (
+            model_id,
+            datetime.datetime.now(),
+            prompt_tokens,
+            completion_tokens,
+            cost_saved,
+        ),
+    )
     conn.commit()
     conn.close()
 
@@ -542,14 +704,17 @@ def update_model_pricing(model_id, provider, prompt_price, completion_price):
     """Updates the pricing information for a model."""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    cursor.execute("""
+    cursor.execute(
+        """
         INSERT INTO model_pricing (model_id, provider, prompt_price, completion_price, last_updated)
         VALUES (?, ?, ?, ?, ?)
         ON CONFLICT(model_id) DO UPDATE SET
             prompt_price = EXCLUDED.prompt_price,
             completion_price = EXCLUDED.completion_price,
             last_updated = EXCLUDED.last_updated
-    """, (model_id, provider, prompt_price, completion_price, datetime.datetime.now()))
+    """,
+        (model_id, provider, prompt_price, completion_price, datetime.datetime.now()),
+    )
     conn.commit()
     conn.close()
 
@@ -578,10 +743,13 @@ def log_activity(event_type, model_id=None, details=None):
     """Logs an internal system event."""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    cursor.execute("""
+    cursor.execute(
+        """
         INSERT INTO activity_log (timestamp, event_type, model_id, details)
         VALUES (?, ?, ?, ?)
-    """, (datetime.datetime.now(), event_type, model_id, details))
+    """,
+        (datetime.datetime.now(), event_type, model_id, details),
+    )
     conn.commit()
     conn.close()
 
@@ -590,11 +758,14 @@ def get_recent_activity(limit=100):
     """Retrieves recent activity logs."""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT timestamp, event_type, model_id, details
         FROM activity_log
         ORDER BY timestamp DESC LIMIT ?
-    """, (limit,))
+    """,
+        (limit,),
+    )
     rows = cursor.fetchall()
     conn.close()
     return rows
@@ -607,18 +778,22 @@ def get_performance_summary():
 
     # 24h average TTFT and success rate
     cutoff = datetime.datetime.now() - datetime.timedelta(hours=24)
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT
             COUNT(*),
             AVG(CASE WHEN success = 1 THEN latency END),
             SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*)
         FROM probe_history
         WHERE timestamp > ?
-    """, (cutoff,))
+    """,
+        (cutoff,),
+    )
     summary = cursor.fetchone()
 
     # Breakdown by provider
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT
             provider_name,
             AVG(latency),
@@ -626,7 +801,9 @@ def get_performance_summary():
         FROM probe_history
         WHERE timestamp > ?
         GROUP BY provider_name
-    """, (cutoff,))
+    """,
+        (cutoff,),
+    )
     provider_breakdown = cursor.fetchall()
 
     conn.close()
@@ -634,7 +811,7 @@ def get_performance_summary():
         "total_probes": summary[0] or 0,
         "avg_ttft": summary[1] or 0,
         "success_rate": summary[2] or 0,
-        "providers": provider_breakdown
+        "providers": provider_breakdown,
     }
 
 
@@ -642,7 +819,9 @@ def get_total_usage():
     """Returns total query count and token counts."""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*), SUM(prompt_tokens), SUM(completion_tokens) FROM usage")
+    cursor.execute(
+        "SELECT COUNT(*), SUM(prompt_tokens), SUM(completion_tokens) FROM usage"
+    )
     row = cursor.fetchone()
     conn.close()
     return row if row else (0, 0, 0)
@@ -650,11 +829,14 @@ def get_total_usage():
 
 # ── Maintenance ─────────────────────────────────────────────────────────────
 
+
 def reset_all_stats():
     """Resets provider failures and model histories, but keeps probe_history."""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    cursor.execute("UPDATE providers SET consecutive_empty_cycles = 0, is_free_provider = 1")
+    cursor.execute(
+        "UPDATE providers SET consecutive_empty_cycles = 0, is_free_provider = 1"
+    )
     cursor.execute("""
         UPDATE model_history SET
             failure_count = 0, retry_after = NULL,
@@ -692,29 +874,51 @@ def get_provider_status():
     return stats
 
 
-def update_provider_cycle(provider_name, found_models: bool):
-    """Updates consecutive empty cycles and flags if provider seems to have no free models."""
+def update_provider_cycle(provider_name, found_models: bool, has_api_key: bool = True):
+    """Updates consecutive empty cycles and flags if provider seems to have no free models.
+
+    If has_api_key is False, we skip the cycle count entirely (a provider without
+    credentials can't be expected to return models, so counting empty cycles would
+    be a false signal that triggers a death-spiral blacklist).
+    """
+    if not has_api_key:
+        return  # Don't penalize providers that lack credentials
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     if found_models:
-        cursor.execute("""
+        cursor.execute(
+            """
             UPDATE providers SET consecutive_empty_cycles = 0, is_free_provider = 1,
                                  last_checked = ?
             WHERE provider_name = ?
-        """, (datetime.datetime.now(), provider_name))
+        """,
+            (datetime.datetime.now(), provider_name),
+        )
     else:
-        cursor.execute("SELECT consecutive_empty_cycles FROM providers WHERE provider_name = ?",
-                       (provider_name,))
+        cursor.execute(
+            "SELECT consecutive_empty_cycles FROM providers WHERE provider_name = ?",
+            (provider_name,),
+        )
         row = cursor.fetchone()
         count = (row[0] if row else 0) + 1
         is_free = 1 if count < 3 else 0
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO providers (provider_name, consecutive_empty_cycles, is_free_provider, last_checked)
             VALUES (?, ?, ?, ?)
             ON CONFLICT(provider_name) DO UPDATE SET
                 consecutive_empty_cycles = ?, is_free_provider = ?, last_checked = ?
-        """, (provider_name, count, is_free, datetime.datetime.now(),
-              count, is_free, datetime.datetime.now()))
+        """,
+            (
+                provider_name,
+                count,
+                is_free,
+                datetime.datetime.now(),
+                count,
+                is_free,
+                datetime.datetime.now(),
+            ),
+        )
     conn.commit()
     conn.close()
 

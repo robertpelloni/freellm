@@ -175,6 +175,10 @@ class SettingsUI:
         self.hyperbolic_key, self.hyperbolic_url = add_provider_fields(keys_frame, "Hyperbolic", "HYPERBOLIC_API_KEY", "HYPERBOLIC_BASE_URL", 14)
         self.nebius_key, self.nebius_url = add_provider_fields(keys_frame, "Nebius", "NEBIUS_API_KEY", "NEBIUS_BASE_URL", 15)
         self.cloudflare_key, self.cloudflare_url = add_provider_fields(keys_frame, "Cloudflare", "CLOUDFLARE_API_KEY", "CLOUDFLARE_BASE_URL", 16)
+        ttk.Label(keys_frame, text="CF Account ID:").grid(row=16, column=2, sticky='w', padx=5, pady=2)
+        self.cf_account_id = ttk.Entry(keys_frame, width=30)
+        self.cf_account_id.insert(0, self.settings.get("CLOUDFLARE_ACCOUNT_ID", ""))
+        self.cf_account_id.grid(row=16, column=3, sticky='ew', padx=5, pady=2)
 
         # Local URLs
         ttk.Label(keys_frame, text="Ollama URL:").grid(row=17, column=0, sticky='w', padx=5, pady=2)
@@ -383,7 +387,7 @@ class SettingsUI:
             self.settings["HYPERBOLIC_BASE_URL"] = self.hyperbolic_url.get()
             self.settings["NEBIUS_BASE_URL"] = self.nebius_url.get()
             self.settings["CLOUDFLARE_BASE_URL"] = self.cloudflare_url.get()
-            self.settings["CLOUDFLARE_ACCOUNT_ID"] = self.settings.get("CLOUDFLARE_ACCOUNT_ID", "")
+            self.settings["CLOUDFLARE_ACCOUNT_ID"] = self.cf_account_id.get()
             self.settings["OLLAMA_BASE_URL"] = self.ollama_url.get()
             self.settings["LM_STUDIO_BASE_URL"] = self.lms_url.get()
             
