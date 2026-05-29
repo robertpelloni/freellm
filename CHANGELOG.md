@@ -26,6 +26,19 @@
 - Lifecycle Automation: Option to automatically start and stop the LiteLLM proxy with the Control Panel.
 - UX Refinements: Added Quick Query to the top of the tray menu for instant access.
 
+## [2.1.0] - 2024-06-16
+### Added
+- Repository Synchronization: Comprehensive upstream sync and intelligent branch merge.
+- Environment Propagation: API keys are now correctly passed to the LiteLLM child process.
+- UI Prioritization: "Open LLM Interface" and "Settings" promoted to top-level tray actions.
+- UX Enhancements: Primary tray click now launches the LLM interface; added detailed status notifications.
+
+## [2.0.0] - 2024-06-15
+### Added
+- Major Convergence: Unified all feature branches into the main production line.
+- Robust Config Orchestration: Full Hermes-compatible routing with two-group fallback.
+- Enhanced Tray UI: Added manual model reordering (promote/demote) and status color coding.
+
 ## [1.9.0] - 2024-06-14
 ### Added
 - Provider Expansion: Added direct support for GitHub Models, Hugging Face, and NVIDIA NIM.
