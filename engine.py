@@ -409,6 +409,18 @@ class ModelEngine:
                 models = []
                 for m in data:
                     model_id = m.get("id")
+                    # Skip GGUF quantizations, community forks, tiny models
+                    skip_kw = ["gguf", "-q2", "-q4", "-q5", "-q8", "-iq",
+                               "nvfp4", "fp8", "bf16", "dq-", "-gguf",
+                               "-reap-", "-abliterated", "-jang-",
+                               "gpt2", "270m", "350m", "600m", "50m",
+                               "supra-50m", "nandi-mini", "soren-1",
+                               "functiongemma", "prism-pro",
+                               "cyberneurova", "mradermacher",
+                               "ex0bit", "dealignai", "unsloth/",
+                               "antirez/"]
+                    if any(kw.lower() in model_id.lower() for kw in skip_kw):
+                        continue
                     params, context = self._resolve_model_metadata(m, "huggingface")
                     if params >= self.min_params or params == 0:
                         models.append({
@@ -474,8 +486,11 @@ class ModelEngine:
                 models = []
                 for m in data:
                     mid = m.get("id", "")
-                    # Skip non-chat models (embed, moderation, OCR, TTS, etc.)
-                    if any(kw in mid.lower() for kw in ["embed", "moderation", "ocr", "tts", "transcribe", "realtime"]):
+                    # Skip non-chat models - only keep known chat-capable models
+                    non_chat = ["embed", "moderation", "ocr", "tts", "transcribe", "realtime",
+                                "voxtral", "pixtral", "magistral", "vibe", "devstral",
+                                "codestral", "tiny", "leanstral", "nemo"]
+                    if any(kw in mid.lower() for kw in non_chat):
                         continue
                     params, context = self._resolve_model_metadata(m, "mistral")
                     if params >= self.min_params or params == 0:
