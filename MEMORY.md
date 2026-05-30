@@ -20,3 +20,5 @@
 - Dynamic Hugging Face discovery is implemented via the HF API, supplementing the static `known_models` list.
 - Cost savings are calculated using a `model_pricing` table that stores prompt/completion rates (USD per token), populated during benchmarking cycles.
 - Autonomous behavior is verified through an `activity_log` table that captures system events like health failures and model fallbacks.
+- Protocol execution health is monitored via `protocol_metrics`, tracking sync durations and error rates per benchmarking cycle.
+- The system supports real-time operational stability monitoring (QPM/TPS) via a 60s sliding window.

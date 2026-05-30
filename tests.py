@@ -148,5 +148,38 @@ class TestLiteLLMControlPanel(unittest.TestCase):
         self.assertAlmostEqual(summary['success_rate'], 66.66, places=1)
         self.assertEqual(len(summary['providers']), 2)
 
+    def test_stability_logging(self):
+        # 1. Log metrics
+        database.log_stability_metric(10, 500) # 10 QPM, 500 TPS
+        database.log_stability_metric(5, 250)
+
+        # 2. Retrieve
+        history = database.get_load_history(limit=5)
+        self.assertEqual(len(history), 2)
+        self.assertEqual(history[0][1], 5) # LIFO order
+        self.assertEqual(history[1][1], 10)
+
+    def test_protocol_metrics_aggregation(self):
+        # 1. Log some activities
+        database.log_activity("Protocol Sync", "m1", "Cycle took 10.5s")
+        database.log_activity("Protocol Sync", "m2", "Cycle took 5.0s")
+        database.log_activity("Health Check Failure", "m1", "Failed")
+        database.log_activity("Something Else", None, "Detail")
+
+        # 2. Aggregate
+        metrics = database.get_protocol_health_metrics()
+        self.assertEqual(metrics['sync_count'], 2)
+        self.assertEqual(metrics['avg_sync_duration'], 7.75) # (10.5 + 5.0) / 2
+        # 4 events total, 1 failure = 25%
+        self.assertEqual(metrics['error_rate'], 25.0)
+
+    def test_engine_state_transitions(self):
+        e = engine.ModelEngine(api_keys={})
+        self.assertEqual(e.current_state, "Idle")
+
+        # Manually trigger a state change (simulating what happens in get_ranked_models)
+        e.current_state = "Fetching"
+        self.assertEqual(e.current_state, "Fetching")
+
 if __name__ == "__main__":
     unittest.main()

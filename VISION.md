@@ -14,3 +14,4 @@ To build a dynamic, latency-aware system tray router for LiteLLM on Windows that
 - **Real-Time Feedback:** Display the current best models and their performance metrics at a glance.
 - **Customizability:** Allow users to skip or blacklist models they find unsuitable, even if they meet technical criteria.
 - **Integrity:** Preserve the user's manual LiteLLM configuration structure and comments.
+- **Protocol Oversight:** Provide deep visibility into the autonomous engine's decisions and execution health through real-time dashboards and stability metrics.
