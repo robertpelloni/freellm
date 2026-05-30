@@ -24,6 +24,8 @@ import comparison_ui
 import api_server
 import savings_ui
 import monitoring_ui
+import protocol_ui
+import execution_dashboard
 
 # ── Single-instance enforcement ──────────────────────────────────────────────
 LOCK_FILE = os.path.join(tempfile.gettempdir(), "litellm_control_panel.lock")
@@ -519,6 +521,18 @@ class LiteLLMControlPanel:
 
         threading.Thread(target=run_monitoring, daemon=True).start()
 
+    def show_protocol(self, icon=None, item=None):
+        def run_protocol():
+            ui = protocol_ui.ProtocolOversightUI(self)
+            ui.run()
+        threading.Thread(target=run_protocol, daemon=True).start()
+
+    def show_execution(self, icon=None, item=None):
+        def run_execution():
+            ui = execution_dashboard.ExecutionDashboardUI(self)
+            ui.run()
+        threading.Thread(target=run_execution, daemon=True).start()
+
     def view_config(self, icon, item):
         if os.path.exists(self.config_path):
             if os.name == "nt":
@@ -776,6 +790,7 @@ class LiteLLMControlPanel:
     async def refresh_logic(self, auto_pilot=False):
         self.is_working = True
         self.update_tray_status()
+        start_time = time.perf_counter()
 
         # 1. Check connectivity
         self.is_online = await self.engine.check_connectivity()
@@ -800,6 +815,7 @@ class LiteLLMControlPanel:
                 self.ranked_models, self.config_path, primary_count=self.primary_count
             )
             best = self.ranked_models[0]
+            duration = time.perf_counter() - start_time
             if auto_pilot:
                 database.log_activity(
                     "Auto Switch",
@@ -881,6 +897,8 @@ class LiteLLMControlPanel:
         menu_items.append(item("Model Leaderboard", self.show_leaderboard))
         menu_items.append(item("Cost Savings", self.show_savings))
         menu_items.append(item("Monitoring Dashboard", self.show_monitoring))
+        menu_items.append(item("Protocol Oversight", self.show_protocol))
+        menu_items.append(item("Execution Dashboard", self.show_execution))
         menu_items.append(item("System Status", self.show_status))
         menu_items.append(pystray.Menu.SEPARATOR)
 
@@ -1016,9 +1034,27 @@ class LiteLLMControlPanel:
         return pystray.Menu(*menu_items)
 
     async def monitor_active_model(self):
-        """Monitors the active LiteLLM model health and triggers fallback if needed."""
+        """Monitors the active LiteLLM model health and tracks load stability."""
         consecutive_failures = 0
+        last_metrics_time = time.time()
         while self.running:
+            now = time.time()
+            # 1. Stability Tracking: Calculate QPM and TPS every minute
+            if now - last_metrics_time >= 60:
+                conn = database.sqlite3.connect(database.DB_NAME)
+                cursor = conn.cursor()
+                one_min_ago = datetime.datetime.now() - datetime.timedelta(minutes=1)
+                cursor.execute("""
+                    SELECT COUNT(*), SUM(prompt_tokens + completion_tokens)
+                    FROM usage WHERE timestamp > ?
+                """, (one_min_ago,))
+                counts = cursor.fetchone()
+                qpm = counts[0] or 0
+                tps = (counts[1] or 0) / 60.0
+                database.log_stability_metric(qpm, tps)
+                last_metrics_time = now
+                conn.close()
+
             is_running = self.process_mgr.is_running()
             auto_manage = self.settings.get("AUTO_MANAGE_LITELLM", True)
             if is_running:

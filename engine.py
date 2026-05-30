@@ -681,38 +681,53 @@ class ModelEngine:
 
         # 1. Fetch from providers
         candidates = []
+        self.current_state = "Fetching"
+        self.active_task = "Fetching from OpenRouter"
+        self.progress = 0.05
 
         if "openrouter" not in blacklisted_providers:
             or_models = await self.fetch_openrouter_models()
             candidates.extend(or_models)
             database.update_provider_cycle("openrouter", len(or_models) > 0, has_api_key=bool(self.api_keys.get("openrouter")))
 
+        self.active_task = "Fetching from Groq"
+        self.progress = 0.1
         if "groq" not in blacklisted_providers:
             groq_models = await self.fetch_groq_models()
             candidates.extend(groq_models)
             database.update_provider_cycle("groq", len(groq_models) > 0, has_api_key=bool(self.api_keys.get("groq")))
 
+        self.active_task = "Fetching from Together"
+        self.progress = 0.15
         if "together" not in blacklisted_providers:
             together_models = await self.fetch_together_models()
             candidates.extend(together_models)
             database.update_provider_cycle("together", len(together_models) > 0, has_api_key=bool(self.api_keys.get("together")))
 
+        self.active_task = "Fetching from DeepInfra"
+        self.progress = 0.2
         if "deepinfra" not in blacklisted_providers:
             deepinfra_models = await self.fetch_deepinfra_models()
             candidates.extend(deepinfra_models)
             database.update_provider_cycle("deepinfra", len(deepinfra_models) > 0, has_api_key=bool(self.api_keys.get("deepinfra")))
 
+        self.active_task = "Fetching from Cerebras"
+        self.progress = 0.25
         if "cerebras" not in blacklisted_providers:
             cerebras_models = await self.fetch_cerebras_models()
             candidates.extend(cerebras_models)
             database.update_provider_cycle("cerebras", len(cerebras_models) > 0, has_api_key=bool(self.api_keys.get("cerebras")))
 
         # Local providers
+        self.active_task = "Fetching from local providers"
+        self.progress = 0.3
         ollama_models = await self.fetch_ollama_models()
         candidates.extend(ollama_models)
         lms_models = await self.fetch_lm_studio_models()
         candidates.extend(lms_models)
 
+        self.active_task = "Fetching from GitHub Models"
+        self.progress = 0.35
         if "github" not in blacklisted_providers:
             github_models = await self.fetch_github_models()
             candidates.extend(github_models)
@@ -723,11 +738,15 @@ class ModelEngine:
             candidates.extend(gemini_models)
             database.update_provider_cycle("gemini", len(gemini_models) > 0, has_api_key=bool(self.api_keys.get("gemini")))
 
+        self.active_task = "Fetching from Hugging Face"
+        self.progress = 0.4
         if "huggingface" not in blacklisted_providers:
             hf_models = await self.fetch_huggingface_models()
             candidates.extend(hf_models)
             database.update_provider_cycle("huggingface", len(hf_models) > 0, has_api_key=bool(self.api_keys.get("huggingface")))
 
+        self.active_task = "Fetching from NVIDIA NIM"
+        self.progress = 0.45
         if "nvidia" not in blacklisted_providers:
             nvidia_models = await self.fetch_nvidia_models()
             candidates.extend(nvidia_models)
@@ -791,6 +810,9 @@ class ModelEngine:
         self._log(f"Fetched {len(candidates)} unique candidates from all providers.")
 
         # 2. Filter using database skip/failure status
+        self.current_state = "Filtering"
+        self.active_task = "Applying exclusions and circuit breakers"
+        self.progress = 0.5
         conn = database.sqlite3.connect(database.DB_NAME)
         cursor = conn.cursor()
         cursor.execute("SELECT model_id, manually_skipped, skip_expiry, failure_count, retry_after, is_blacklisted, last_success, avg_latency FROM model_history")
@@ -913,6 +935,9 @@ class ModelEngine:
         latencies = await asyncio.gather(*tasks)
 
         ranked_list = []
+        self.current_state = "Ranking"
+        self.active_task = "Calculating scores"
+        self.progress = 0.95
 
         # Add benchmarking results
         for m, latency in zip(benchmarking_models, latencies):

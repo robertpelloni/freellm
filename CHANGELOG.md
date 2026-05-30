@@ -1,5 +1,30 @@
 # Changelog: LiteLLM Control Panel
 
+## [2.7.1] - 2024-06-23
+### Added
+- Repository Reconciliation: Merged latest features and fixes from the dynamic-hf-and-live-logs branch.
+- Unified Architecture: Finalized convergence of autonomous protocol oversight and real-time monitoring suites.
+
+## [2.7.0] - 2024-06-22
+### Added
+- Protocol Execution Dashboard: New visualization for monitoring execution metrics and error rates.
+- Health Trend Tracking: Persistent error rate aggregation and success/failure analysis.
+- Execution Timeline: Real-time charting of benchmarking cycle durations to identify performance bottlenecks.
+- Granular Event Logging: Added specialized 'Protocol Error' and 'Protocol Sync' event types with precise duration tracking.
+
+## [2.6.0] - 2024-06-21
+### Added
+- Protocol Oversight Dashboard: New real-time UI for monitoring the autonomous routing engine's state and decisions.
+- Live Engine State Tracking: The engine now reports granular states (Fetching, Filtering, Benchmarking) and incremental progress.
+- Decision Logic Visualization: New view for understanding the specific scoring breakdown of the currently selected primary model.
+- High-Frequency Monitoring: Accelerated refresh rates for all stability and performance dashboards.
+
+## [2.5.0] - 2024-06-20
+### Added
+- Load Analysis Dashboard: Real-time charting of Queries Per Minute (QPM) and Tokens Per Second (TPS).
+- Stability Metrics: Persistent tracking of proxy load and throughput to verify operational stability.
+- System Activity Visualizer: Live Canvas-based graphing of system activity over the last 60 minutes.
+
 ## [2.4.0] - 2024-06-18
 ### Added
 - Autonomous Monitoring Dashboard: New two-tab UI for verifying autonomous behavior and performance metrics.
