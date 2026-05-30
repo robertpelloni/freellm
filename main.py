@@ -3,6 +3,8 @@ import threading
 import time
 import datetime
 import os
+import sys
+import tempfile
 from typing import List, Dict, Any
 
 from PIL import Image, ImageDraw
@@ -22,6 +24,54 @@ import comparison_ui
 import api_server
 import savings_ui
 import monitoring_ui
+
+# ── Single-instance enforcement ──────────────────────────────────────────────
+LOCK_FILE = os.path.join(tempfile.gettempdir(), "litellm_control_panel.lock")
+
+
+def enforce_single_instance():
+    """Kill any existing instance and take over the lock."""
+    import subprocess, signal
+
+    # Read existing PID from lock file
+    old_pid = None
+    if os.path.exists(LOCK_FILE):
+        try:
+            with open(LOCK_FILE, "r") as f:
+                old_pid = int(f.read().strip())
+        except (ValueError, OSError):
+            pass
+
+    # Kill the old process if it's still running
+    if old_pid:
+        try:
+            if sys.platform == "win32":
+                subprocess.run(
+                    ["taskkill", "/F", "/T", "/PID", str(old_pid)],
+                    capture_output=True,
+                    timeout=5,
+                )
+            else:
+                os.kill(old_pid, signal.SIGTERM)
+                time.sleep(1)
+                try:
+                    os.kill(old_pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            print(f"Terminated previous instance (PID {old_pid})")
+            time.sleep(2)
+        except (ProcessLookupError, FileNotFoundError, PermissionError, OSError):
+            pass  # Process already dead
+
+    # Write our PID to the lock file
+    with open(LOCK_FILE, "w") as f:
+        f.write(str(os.getpid()))
+
+    # Register cleanup on exit
+    import atexit
+
+    atexit.register(lambda: os.remove(LOCK_FILE) if os.path.exists(LOCK_FILE) else None)
+
 
 # The actual LiteLLM config used by the system
 HERMES_CONFIG_PATH = os.path.join(
@@ -520,6 +570,7 @@ class LiteLLMControlPanel:
             "hyperbolic": "HYPERBOLIC_API_KEY",
             "nebius": "NEBIUS_API_KEY",
             "cloudflare": "CLOUDFLARE_API_KEY",
+            "opencode_zen": "",  # No key needed
         }
         new_api_keys = {}
         for provider, env_name in _env_map.items():
@@ -1070,5 +1121,6 @@ class LiteLLMControlPanel:
 
 
 if __name__ == "__main__":
+    enforce_single_instance()
     app = LiteLLMControlPanel()
     app.run()

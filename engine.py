@@ -18,6 +18,7 @@ LM_STUDIO_MODELS_URL = "http://localhost:1234/v1/models"
 GITHUB_MODELS_URL = "https://models.inference.ai.azure.com/models"
 HF_MODELS_URL = "https://api-inference.huggingface.co/models"
 NVIDIA_MODELS_URL = "https://integrate.api.nvidia.com/v1/models"
+OPENCODE_ZEN_MODELS_URL = "https://opencode.ai/zen/v1/models"
 MISTRAL_MODELS_URL = "https://api.mistral.ai/v1/models"
 CODESTRAL_MODELS_URL = "https://codestral.mistral.ai/v1/models"
 COHERE_MODELS_URL = "https://api.cohere.ai/v1/models"
@@ -492,23 +493,41 @@ class ModelEngine:
         return [{"id": "codestral-latest", "provider": "codestral", "parameters": 22, "context_length": 256000}]
 
     async def fetch_cohere_models(self) -> List[Dict[str, Any]]:
-        """Fetches free models from Cohere."""
+        """Fetches chat models from Cohere."""
         api_key = self.api_keys.get("cohere")
         if not api_key:
             return []
-        cohere_models = [
-            {"id": "command-a-03-2025", "parameters": 111, "context_length": 256000},
-            {"id": "command-a-plus-05-2026", "parameters": 111, "context_length": 256000},
-            {"id": "command-a-reasoning-08-2025", "parameters": 111, "context_length": 256000},
-            {"id": "command-r-plus-08-2024", "parameters": 104, "context_length": 128000},
-            {"id": "c4ai-aya-expanse-32b", "parameters": 32, "context_length": 128000},
-        ]
-        models = []
-        for m in cohere_models:
-            params, context = self._resolve_model_metadata(m, "cohere")
-            if params >= self.min_params or params == 0:
-                models.append({"id": m["id"], "provider": "cohere", "parameters": params, "context_length": context})
-        return models
+        url = self.base_urls.get("cohere", "https://api.cohere.ai/v1") + "/models"
+        try:
+            response = await self.client.get(url, headers={"Authorization": f"Bearer {api_key}"})
+            if response.status_code == 200:
+                data = response.json()
+                # Cohere returns {models: [{name: "command-a-03-2025", endpoints: ["chat"], context_length: 288000}, ...]}
+                raw_models = data.get("models", []) if isinstance(data, dict) else []
+                models = []
+                for m in raw_models:
+                    if isinstance(m, str):
+                        mid = m
+                        endpoints = []
+                        ctx = 0
+                    elif isinstance(m, dict):
+                        mid = m.get("name", "")
+                        endpoints = m.get("endpoints", [])
+                        ctx = m.get("context_length", 0)
+                    else:
+                        continue
+                    # Skip non-chat models (embed, transcribe, rerank, etc.)
+                    if "chat" not in endpoints and "generate" not in endpoints:
+                        continue
+                    params, resolved_ctx = self._resolve_model_metadata({"id": mid}, "cohere")
+                    if not resolved_ctx and ctx:
+                        resolved_ctx = ctx
+                    if params >= self.min_params or params == 0:
+                        models.append({"id": mid, "provider": "cohere", "parameters": params, "context_length": resolved_ctx})
+                return models
+        except:
+            pass
+        return []
 
     async def fetch_sambanova_models(self) -> List[Dict[str, Any]]:
         """Fetches models from SambaNova Cloud."""
@@ -610,15 +629,41 @@ class ModelEngine:
                 cf_models = data.get("result", []) if isinstance(data, dict) else []
                 models = []
                 for m in cf_models:
-                    mid = m.get("id", m.get("name", ""))
+                    mid = m.get("name", m.get("id", ""))
                     if not mid:
                         continue
-                    task = m.get("task", "")
-                    if task and "text-generation" not in task and "chat" not in task:
+                    # Cloudflare task field is a dict: {id: ..., name: "Text Generation", ...}
+                    task = m.get("task", {})
+                    task_name = task.get("name", "") if isinstance(task, dict) else str(task)
+                    if task_name and "Text Generation" not in task_name and "chat" not in task_name.lower():
                         continue
-                    params, context = self._resolve_model_metadata(m, "cloudflare")
+                    # Use the "name" field as the model ID (e.g. @cf/openai/gpt-oss-120b)
+                    params, context = self._resolve_model_metadata({"id": mid}, "cloudflare")
                     if params >= self.min_params or params == 0:
                         models.append({"id": mid, "provider": "cloudflare", "parameters": params, "context_length": context})
+                return models
+        except:
+            pass
+        return []
+
+    async def fetch_opencode_zen_models(self) -> List[Dict[str, Any]]:
+        """Fetches free models from OpenCode Zen (no API key needed)."""
+        url = self.base_urls.get("opencode_zen", "https://opencode.ai/zen/v1") + "/models"
+        try:
+            response = await self.client.get(url)
+            if response.status_code == 200:
+                data = response.json().get("data", [])
+                models = []
+                for m in data:
+                    mid = m.get("id", "")
+                    if not mid:
+                        continue
+                    # Only include free models (those ending in -free or big-pickle)
+                    if "-free" not in mid and mid != "big-pickle":
+                        continue
+                    params, context = self._resolve_model_metadata(m, "opencode_zen")
+                    if params >= self.min_params or params == 0:
+                        models.append({"id": mid, "provider": "opencode_zen", "parameters": params, "context_length": context})
                 return models
         except:
             pass
@@ -727,6 +772,11 @@ class ModelEngine:
             cloudflare_models = await self.fetch_cloudflare_models()
             candidates.extend(cloudflare_models)
             database.update_provider_cycle("cloudflare", len(cloudflare_models) > 0, has_api_key=bool(self.api_keys.get("cloudflare")))
+
+        if "opencode_zen" not in blacklisted_providers:
+            opencode_zen_models = await self.fetch_opencode_zen_models()
+            candidates.extend(opencode_zen_models)
+            database.update_provider_cycle("opencode_zen", len(opencode_zen_models) > 0, has_api_key=True)
 
         # De-duplicate candidates by (id, provider)
         seen = set()
@@ -948,6 +998,8 @@ class ModelEngine:
                 bench_id = model_id  # Keep @cf/ prefix for CF API
         elif provider in ["mistral", "codestral"]:
             pass  # Use model_id as-is
+        elif provider == "opencode_zen":
+            pass  # Use model_id as-is (e.g. nemotron-3-super-free)
 
         api_key = self.api_keys.get(provider) or self.api_keys.get("nvidia") if provider in ["nvidia", "nvidia_nim"] else self.api_keys.get(provider)
 
@@ -978,7 +1030,8 @@ class ModelEngine:
         elif provider == "codestral":
             url = (base or "https://codestral.mistral.ai/v1") + "/chat/completions"
         elif provider == "cohere":
-            url = (base or "https://api.cohere.ai/v1") + "/chat/completions"
+            # Cohere uses /v2/chat (not OpenAI-compatible /chat/completions)
+            url = (base or "https://api.cohere.ai/v2") + "/chat"
         elif provider == "sambanova":
             url = (base or "https://api.sambanova.ai/v1") + "/chat/completions"
         elif provider == "fireworks":
@@ -992,6 +1045,8 @@ class ModelEngine:
             if not account_id:
                 return None
             url = f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1/chat/completions"
+        elif provider == "opencode_zen":
+            url = (base or "https://opencode.ai/zen/v1") + "/chat/completions"
         else:
             return None
 
@@ -1003,6 +1058,13 @@ class ModelEngine:
         if provider == "gemini":
             payload = {
                 "contents": [{"parts": [{"text": "hi"}]}]
+            }
+        elif provider == "cohere":
+            payload = {
+                "model": bench_id,
+                "messages": [{"role": "user", "content": "hi"}],
+                "max_tokens": 1,
+                "stream": True
             }
         else:
             payload = {

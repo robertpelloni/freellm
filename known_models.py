@@ -80,26 +80,45 @@ KNOWN_MODELS = {
     "codestral/codestral-latest": {"params": 22, "ctx": 256000, "provider": "codestral"},
 
     # -- Cohere --
-    "cohere/command-a-03-2025": {"params": 111, "ctx": 256000, "provider": "cohere"},
-    "cohere/command-a-plus-05-2026": {"params": 111, "ctx": 256000, "provider": "cohere"},
-    "cohere/command-a-reasoning-08-2025": {"params": 111, "ctx": 256000, "provider": "cohere"},
+    "cohere/command-a-03-2025": {"params": 111, "ctx": 288000, "provider": "cohere"},
+    "cohere/command-a-plus-05-2026": {"params": 111, "ctx": 128000, "provider": "cohere"},
+    "cohere/command-a-reasoning-08-2025": {"params": 111, "ctx": 128000, "provider": "cohere"},
+    "cohere/command-a-translate-08-2025": {"params": 111, "ctx": 8992, "provider": "cohere"},
+    "cohere/command-a-vision-07-2025": {"params": 111, "ctx": 128000, "provider": "cohere"},
     "cohere/command-r-plus-08-2024": {"params": 104, "ctx": 128000, "provider": "cohere"},
+    "cohere/command-r-08-2024": {"params": 52, "ctx": 128000, "provider": "cohere"},
     "cohere/c4ai-aya-expanse-32b": {"params": 32, "ctx": 128000, "provider": "cohere"},
 
     # -- SambaNova Cloud --
-    "sambanova/deepseek-v3.1": {"params": 671, "ctx": 65536, "provider": "sambanova"},
-    "sambanova/deepseek-v3.2": {"params": 671, "ctx": 65536, "provider": "sambanova"},
+    "sambanova/DeepSeek-V3.1": {"params": 671, "ctx": 65536, "provider": "sambanova"},
+    "sambanova/DeepSeek-V3.2": {"params": 671, "ctx": 65536, "provider": "sambanova"},
     "sambanova/gpt-oss-120b": {"params": 120, "ctx": 131072, "provider": "sambanova"},
-    "sambanova/llama-4-maverick-17b-128e-instruct": {"params": 400, "ctx": 1048576, "provider": "sambanova"},
-    "sambanova/meta-llama-3.3-70b-instruct": {"params": 70, "ctx": 128000, "provider": "sambanova"},
-    "sambanova/minimax-m2.7": {"params": 456, "ctx": 65536, "provider": "sambanova"},
+    "sambanova/Llama-4-Maverick-17B-128E-Instruct": {"params": 400, "ctx": 1048576, "provider": "sambanova"},
+    "sambanova/Meta-Llama-3.3-70B-Instruct": {"params": 70, "ctx": 128000, "provider": "sambanova"},
+    "sambanova/MiniMax-M2.7": {"params": 456, "ctx": 65536, "provider": "sambanova"},
     "sambanova/gemma-3-12b-it": {"params": 12, "ctx": 128000, "provider": "sambanova"},
+    "sambanova/gemma-4-31B-it": {"params": 31, "ctx": 128000, "provider": "sambanova"},
 
     # -- Cloudflare Workers AI --
-    "cloudflare/@cf/nvidia/nemotron-3-120b-a12b": {"params": 120, "ctx": 4096, "provider": "cloudflare"},
     "cloudflare/@cf/openai/gpt-oss-120b": {"params": 120, "ctx": 4096, "provider": "cloudflare"},
+    "cloudflare/@cf/nvidia/nemotron-3-120b-a12b": {"params": 120, "ctx": 4096, "provider": "cloudflare"},
+    "cloudflare/@cf/moonshotai/kimi-k2.5": {"params": 200, "ctx": 4096, "provider": "cloudflare"},
     "cloudflare/@cf/moonshotai/kimi-k2.6": {"params": 200, "ctx": 4096, "provider": "cloudflare"},
+    "cloudflare/@cf/meta/llama-3.3-70b-instruct-fp8-fast": {"params": 70, "ctx": 4096, "provider": "cloudflare"},
     "cloudflare/@cf/qwen/qwen3-30b-a3b-fp8": {"params": 30, "ctx": 4096, "provider": "cloudflare"},
+    "cloudflare/@cf/qwen/qwq-32b": {"params": 32, "ctx": 4096, "provider": "cloudflare"},
+    "cloudflare/@cf/deepseek-ai/deepseek-r1-distill-qwen-32b": {"params": 32, "ctx": 4096, "provider": "cloudflare"},
+    "cloudflare/@cf/mistralai/mistral-small-3.1-24b-instruct": {"params": 24, "ctx": 4096, "provider": "cloudflare"},
+    "cloudflare/@cf/meta/llama-4-scout-17b-16e-instruct": {"params": 109, "ctx": 4096, "provider": "cloudflare"},
+    "cloudflare/@cf/google/gemma-4-26b-a4b-it": {"params": 26, "ctx": 4096, "provider": "cloudflare"},
+
+    # -- OpenCode Zen (free, no key needed) --
+    "opencode_zen/big-pickle": {"params": 120, "ctx": 4096, "provider": "opencode_zen"},
+    "opencode_zen/nemotron-3-super-free": {"params": 120, "ctx": 4096, "provider": "opencode_zen"},
+    "opencode_zen/deepseek-v4-flash-free": {"params": 671, "ctx": 65536, "provider": "opencode_zen"},
+    "opencode_zen/mimo-v2.5-free": {"params": 200, "ctx": 4096, "provider": "opencode_zen"},
+    "opencode_zen/qwen3.6-plus-free": {"params": 200, "ctx": 4096, "provider": "opencode_zen"},
+    "opencode_zen/minimax-m2.5-free": {"params": 456, "ctx": 65536, "provider": "opencode_zen"},
 
     # -- Ollama / LM Studio (local) --
     "ollama/llama3.3:70b": {"params": 70, "ctx": 128000, "provider": "ollama"},
@@ -130,7 +149,8 @@ def lookup(litellm_model: str) -> dict | None:
                    "together/", "deepinfra/", "cerebras/", "huggingface/",
                    "ollama/", "openai/", "lm_studio/", "gemini/",
                    "mistral/", "codestral/", "cohere/", "sambanova/",
-                   "fireworks/", "hyperbolic/", "nebius/", "cloudflare/"):
+                   "fireworks/", "hyperbolic/", "nebius/", "cloudflare/",
+                   "opencode_zen/"):
         if litellm_model.startswith(prefix):
             stripped = litellm_model[len(prefix):]
             if stripped in KNOWN_MODELS:

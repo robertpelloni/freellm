@@ -26,6 +26,7 @@ ENV_KEY_MAP = {
     "HYPERBOLIC_API_KEY": "HYPERBOLIC_API_KEY",
     "NEBIUS_API_KEY": "NEBIUS_API_KEY",
     "CLOUDFLARE_API_KEY": "CLOUDFLARE_API_KEY",
+    "OPENCODE_ZEN_API_KEY": "OPENCODE_ZEN_API_KEY",
 }
 
 def load_settings():
@@ -179,6 +180,11 @@ class SettingsUI:
         self.cf_account_id = ttk.Entry(keys_frame, width=30)
         self.cf_account_id.insert(0, self.settings.get("CLOUDFLARE_ACCOUNT_ID", ""))
         self.cf_account_id.grid(row=16, column=3, sticky='ew', padx=5, pady=2)
+
+        ttk.Label(keys_frame, text="OpenCode Zen:").grid(row=17, column=0, sticky='w', padx=5, pady=2)
+        self.opencode_zen_url = ttk.Entry(keys_frame)
+        self.opencode_zen_url.insert(0, self.settings.get("OPENCODE_ZEN_BASE_URL", "https://opencode.ai/zen/v1"))
+        self.opencode_zen_url.grid(row=17, column=1, columnspan=3, sticky='ew', padx=5, pady=2)
 
         # Local URLs
         ttk.Label(keys_frame, text="Ollama URL:").grid(row=17, column=0, sticky='w', padx=5, pady=2)
@@ -388,6 +394,7 @@ class SettingsUI:
             self.settings["NEBIUS_BASE_URL"] = self.nebius_url.get()
             self.settings["CLOUDFLARE_BASE_URL"] = self.cloudflare_url.get()
             self.settings["CLOUDFLARE_ACCOUNT_ID"] = self.cf_account_id.get()
+            self.settings["OPENCODE_ZEN_BASE_URL"] = self.opencode_zen_url.get()
             self.settings["OLLAMA_BASE_URL"] = self.ollama_url.get()
             self.settings["LM_STUDIO_BASE_URL"] = self.lms_url.get()
             
