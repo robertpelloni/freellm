@@ -1067,12 +1067,9 @@ class LiteLLMControlPanel:
             is_running = self.process_mgr.is_running()
             auto_manage = self.settings.get("AUTO_MANAGE_LITELLM", True)
             if is_running:
-                # Give LiteLLM a 30s grace period after startup before health checking
-                if self.process_mgr.process and self.process_mgr.process.poll() is None:
-                    import time as _time
-                    # Just wait a bit on first iteration to let it initialize
-                    if consecutive_failures == 0:
-                        await asyncio.sleep(15)
+                # Give LiteLLM a grace period on first health check
+                if consecutive_failures == 0:
+                    await asyncio.sleep(15)
                 if not self.process_mgr.check_health():
                     consecutive_failures += 1
                     print(f"LiteLLM health check failed ({consecutive_failures}/3)")

@@ -1,6 +1,6 @@
 {
-  "signature": "process_manager.py::📐 Cascade errors in 1 neighbor file(s) — fix before finishing turn:\n<diagnostics file=\"main.py\" reason=\"fallback\">\n  line 23, col 8 rule=cascade:reportMissingImports: Import \"comparison_ui\" could not be resolved\n  line 24, col 8 rule=cascade:reportMissingImports: Import \"api_server\" could not be resolved\n  line 25, col 8 rule=cascade:reportMissingImports: Import \"savings_ui\" could not be resolved\n  line 26, col 8 rule=cascade:reportMissingImports: Import \"monitoring_ui\" could not be resolved\n  line 1025, col 41 rule=cascade:reportAttributeAccessIssue: Cannot access attribute \"check_health\" for class \"LiteLLMProcess\"\n</diagnostics>",
+  "signature": "process_manager.py::Unresolved from this turn — process_manager.py:\n🔴 STOP — 3 issue(s) must be fixed:\n  L103: \"_kill_port_4000\" is not defined\n  L154: \"_kill_port_4000\" is not defined\n  \"_kill_port_4000\" is not defined\n\nℹ️ Advisory — no action required this turn:\nCode-quality warnings introduced/touched this turn: 3 across 1 file(s).\nTop rules: F821×2, E722×1\nDetails written to .pi-lens/cache/code-quality-warnings.json\nNo action required unless you are already refactoring these areas.",
   "sessionId": "lens-mpr889ut-c73c34be",
-  "projectSeqStart": 9,
-  "projectSeqEnd": 10
+  "projectSeqStart": 14,
+  "projectSeqEnd": 16
 }
