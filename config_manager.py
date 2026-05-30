@@ -24,8 +24,19 @@ PROVIDER_MAP = {
     "nvidia":     {"prefix": "nvidia_nim", "env_key": "NVIDIA_NIM_API_KEY"},
     "nvidia_nim": {"prefix": "nvidia_nim", "env_key": "NVIDIA_NIM_API_KEY"},
     "ollama":     {"prefix": "ollama",     "env_key": ""},
-    "lm_studio":  {"prefix": "openai",     "env_key": "",
-                   "api_base": "http://localhost:1234/v1"},
+    "lm_studio": {"prefix": "openai", "env_key": "",
+    "api_base": "http://localhost:1234/v1"},
+    "mistral": {"prefix": "mistral", "env_key": "MISTRAL_API_KEY"},
+    "codestral": {"prefix": "codestral", "env_key": "CODESTRAL_API_KEY",
+                  "api_base": "https://codestral.mistral.ai/v1"},
+    "cohere": {"prefix": "cohere", "env_key": "COHERE_API_KEY"},
+    "sambanova": {"prefix": "sambanova", "env_key": "SAMBANOVA_API_KEY"},
+    "fireworks": {"prefix": "fireworks_ai", "env_key": "FIREWORKS_API_KEY"},
+    "hyperbolic": {"prefix": "hyperbolic", "env_key": "HYPERBOLIC_API_KEY"},
+    "nebius": {"prefix": "nebius", "env_key": "NEBIUS_API_KEY"},
+    "cloudflare": {"prefix": "cloudflare", "env_key": "CLOUDFLARE_API_KEY"},
+    "opencode_zen": {"prefix": "openai", "env_key": "",
+                     "api_base": "https://opencode.ai/zen/v1"},
 }
 
 
@@ -54,7 +65,17 @@ def _build_model_entry(model_id: str, provider: str, group_name: str,
 
     base = api_base or info.get("api_base")
     if base:
-        lp["api_base"] = base
+        # Resolve Cloudflare account_id placeholder
+        if "{account_id}" in base:
+            from settings_ui import load_settings
+            _settings = load_settings()
+            account_id = _settings.get("CLOUDFLARE_ACCOUNT_ID", "")
+            if account_id:
+                base = base.replace("{account_id}", account_id)
+            else:
+                base = ""  # Can't build URL without account_id
+        if base:
+            lp["api_base"] = base
 
     entry["litellm_params"] = lp
 
@@ -331,6 +352,9 @@ def apply_ranked_models(ranked_models: list, path=DEFAULT_CONFIG_PATH,
         {primary_group: [fallback_group]}
     ]
     config["litellm_settings"] = litellm_settings
+
+    # Port setting
+    config["port"] = 4000
 
     # Add header comment
     header = "\n".join(comment_lines) + "\n"

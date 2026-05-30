@@ -18,12 +18,16 @@ class LiteLLMProcess:
         """Continuously read stdout to prevent pipe deadlocks and track traffic."""
         if not self.process or not self.process.stdout:
             return
-        for line in iter(self.process.stdout.readline, ''):
+        for line in iter(self.process.stdout.readline, ""):
             if line:
                 # Detect traffic patterns in LiteLLM logs
                 # Common patterns: "POST /chat/completions", "GAVE_RESPONSE", "LiteLLM: Success"
                 line_lower = line.lower()
-                if "post /" in line_lower or "gave_response" in line_lower or "success" in line_lower:
+                if (
+                    "post /" in line_lower
+                    or "gave_response" in line_lower
+                    or "success" in line_lower
+                ):
                     self.last_traffic_time = time.time()
                     self.traffic_active = True
 
@@ -70,12 +74,12 @@ class LiteLLMProcess:
                 text=True,
                 creationflags=creationflags,
                 env=full_env,
-                bufsize=1, # Line buffered
+                bufsize=1,  # Line buffered
             )
-            
+
             # Start background thread to consume stdout
             threading.Thread(target=self._read_stdout, daemon=True).start()
-            
+
             return True
         except Exception as e:
             print(f"Failed to start LiteLLM: {e}")
@@ -85,7 +89,7 @@ class LiteLLMProcess:
         if self.process:
             print("Stopping LiteLLM...")
             if sys.platform == "win32":
-                subprocess.call(['taskkill', '/F', '/T', '/PID', str(self.process.pid)])
+                subprocess.call(["taskkill", "/F", "/T", "/PID", str(self.process.pid)])
             else:
                 os.killpg(os.getpgid(self.process.pid), signal.SIGTERM)
             self.process = None
@@ -96,20 +100,25 @@ class LiteLLMProcess:
         """Restart the LiteLLM proxy process."""
         self.stop()
         import time
+
         time.sleep(1)
         return self.start(env=env)
 
     def is_running(self):
         return self.process is not None and self.process.poll() is None
 
-    def check_health(self):
-        """Checks if the LiteLLM proxy is responding."""
-        import httpx
-        for endpoint in ["/health", "/health/readiness", "/health/liveness"]:
-            try:
-                response = httpx.get(f"http://localhost:4000{endpoint}", timeout=2.0)
-                if response.status_code == 200:
-                    return True
-            except:
-                continue
-        return False
+
+def check_health(self):
+    """Checks if the LiteLLM proxy is responding."""
+    import httpx
+
+    for endpoint in ["/health", "/health/readiness", "/health/liveness"]:
+        try:
+            # Large model lists cause slow health checks;
+            # use a generous timeout to avoid false negatives
+            response = httpx.get(f"http://localhost:4000{endpoint}", timeout=90.0)
+            if response.status_code == 200:
+                return True
+        except:
+            continue
+    return False
