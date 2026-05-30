@@ -1,10 +1,10 @@
 {
-  "generatedAt": "2026-05-30T13:21:44.331Z",
+  "generatedAt": "2026-05-30T17:55:02.088Z",
   "scope": "turn_delta",
-  "sessionId": "lens-mpr889ut-c73c34be",
-  "turnIndex": 520,
-  "projectSeqStart": 18,
-  "projectSeqEnd": 18,
+  "sessionId": "lens-mpsm1g58-40ce7075",
+  "turnIndex": 31,
+  "projectSeqStart": 20,
+  "projectSeqEnd": 20,
   "deltaOnly": true,
   "files": [],
   "summary": {
