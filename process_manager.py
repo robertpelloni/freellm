@@ -6,6 +6,41 @@ import threading
 import time
 
 
+def _kill_port_4000():
+    """Kill any process listening on port 4000 to prevent bind failures."""
+    try:
+        if sys.platform == "win32":
+            result = subprocess.run(
+                ["netstat", "-ano"], capture_output=True, text=True, timeout=5
+            )
+            pids = set()
+            for line in result.stdout.split("\n"):
+                if ":4000" in line and "LISTEN" in line:
+                    parts = line.strip().split()
+                    if parts:
+                        try:
+                            pids.add(int(parts[-1]))
+                        except ValueError:
+                            pass
+            import ctypes
+
+            kernel32 = ctypes.windll.kernel32
+            for pid in pids:
+                handle = kernel32.OpenProcess(1, False, pid)
+                if handle:
+                    kernel32.TerminateProcess(handle, 1)
+                    kernel32.CloseHandle()
+                    print(f"Killed zombie on port 4000 (PID {pid})")
+            if pids:
+                time.sleep(2)
+        else:
+            # Unix: use lsof or fuser
+            subprocess.run(["fuser", "-k", "4000/tcp"], capture_output=True, timeout=5)
+            time.sleep(1)
+    except Exception as e:
+        print(f"Warning: could not clear port 4000: {e}")
+
+
 class LiteLLMProcess:
     def __init__(self, config_path="config.yaml"):
         self.config_path = config_path
@@ -20,8 +55,6 @@ class LiteLLMProcess:
             return
         for line in iter(self.process.stdout.readline, ""):
             if line:
-                # Detect traffic patterns in LiteLLM logs
-                # Common patterns: "POST /chat/completions", "GAVE_RESPONSE", "LiteLLM: Success"
                 line_lower = line.lower()
                 if (
                     "post /" in line_lower
@@ -30,7 +63,6 @@ class LiteLLMProcess:
                 ):
                     self.last_traffic_time = time.time()
                     self.traffic_active = True
-
                 self.log_buffer.append(line)
                 if len(self.log_buffer) > 1000:
                     self.log_buffer.pop(0)
@@ -54,10 +86,13 @@ class LiteLLMProcess:
             print("LiteLLM is already running.")
             return True
 
-        print(f"Starting LiteLLM with config: {self.config_path}")
-        try:
-            cmd = ["litellm", "--config", self.config_path]
+        # Always kill any zombie on port 4000 before starting
+        _kill_port_4000()
 
+        print(f"Starting LiteLLM with config: {self.config_path}")
+
+        try:
+            cmd = ["litellm", "--config", self.config_path, "--port", "4000"]
             creationflags = 0
             if sys.platform == "win32":
                 creationflags = subprocess.CREATE_NO_WINDOW
@@ -80,7 +115,38 @@ class LiteLLMProcess:
             # Start background thread to consume stdout
             threading.Thread(target=self._read_stdout, daemon=True).start()
 
+            # Wait for startup and verify
+            time.sleep(10)
+            if self.process.poll() is not None:
+                print(
+                    f"LiteLLM DIED IMMEDIATELY with code {self.process.poll()}"
+                )
+                print(f"First log lines: {self.log_buffer[:10]}")
+                return False
+
+            # Verify port 4000 is listening
+            import socket
+
+            for attempt in range(6):  # Wait up to 30s for port
+                try:
+                    sock = socket.create_connection(
+                        ("127.0.0.1", 4000), timeout=2
+                    )
+                    sock.close()
+                    print("LiteLLM is listening on port 4000")
+                    return True
+                except (ConnectionRefusedError, OSError):
+                    time.sleep(5)
+                    if self.process.poll() is not None:
+                        print(
+                            f"LiteLLM exited during startup with code {self.process.poll()}"
+                        )
+                        print(f"Log lines: {self.log_buffer[:10]}")
+                        return False
+
+            print("WARNING: LiteLLM started but port 4000 not yet open")
             return True
+
         except Exception as e:
             print(f"Failed to start LiteLLM: {e}")
             return False
@@ -89,7 +155,9 @@ class LiteLLMProcess:
         if self.process:
             print("Stopping LiteLLM...")
             if sys.platform == "win32":
-                subprocess.call(["taskkill", "/F", "/T", "/PID", str(self.process.pid)])
+                subprocess.call(
+                    ["taskkill", "/F", "/T", "/PID", str(self.process.pid)]
+                )
             else:
                 os.killpg(os.getpgid(self.process.pid), signal.SIGTERM)
             self.process = None
@@ -99,9 +167,8 @@ class LiteLLMProcess:
     def restart(self, env=None):
         """Restart the LiteLLM proxy process."""
         self.stop()
-        import time
-
-        time.sleep(1)
+        _kill_port_4000()
+        time.sleep(2)
         return self.start(env=env)
 
     def is_running(self):
@@ -113,22 +180,28 @@ class LiteLLMProcess:
             return False
         return True
 
-
     def check_health(self):
         """Checks if the LiteLLM proxy is responding.
+
         First does a quick TCP port check, then tries HTTP endpoints.
-        A timeout on the HTTP check means the server is alive but busy = healthy."""
-        import socket, httpx
+        A timeout on the HTTP check means the server is alive but busy = healthy.
+        """
+        import socket
+        import httpx
+
         # Quick TCP check - if port 4000 isn't open, server is down
         try:
             sock = socket.create_connection(("127.0.0.1", 4000), timeout=2)
             sock.close()
         except (socket.timeout, ConnectionRefusedError, OSError):
             return False
+
         # Port is open - try HTTP health endpoint
         for endpoint in ["/health", "/health/readiness", "/health/liveness"]:
             try:
-                response = httpx.get(f"http://localhost:4000{endpoint}", timeout=5.0)
+                response = httpx.get(
+                    f"http://localhost:4000{endpoint}", timeout=5.0
+                )
                 if response.status_code == 200:
                     return True
             except httpx.TimeoutException:
@@ -136,5 +209,6 @@ class LiteLLMProcess:
                 return True
             except:
                 continue
+
         # Port is open but no HTTP response yet (still initializing)
         return True  # Port is open = server is alive
