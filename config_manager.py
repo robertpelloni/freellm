@@ -40,8 +40,22 @@ PROVIDER_MAP = {
 }
 
 
+# Providers with exhausted/depleted API keys that should never be included
+DEAD_PROVIDERS = {"huggingface", "cohere"}
+
+
+def _get_context_for_model(model_id: str, provider: str) -> int:
+    """Look up context_length from known_models for a given model."""
+    # Try with provider prefix first, then without
+    for candidate in [f"{provider}/{model_id}", model_id]:
+        known = known_models.lookup(candidate)
+        if known and known.get("ctx", 0) > 0:
+            return known["ctx"]
+    return 0
+
+
 def _build_model_entry(model_id: str, provider: str, group_name: str, 
-                       timeout: int = 30, api_base: str = None) -> CommentedMap:
+    timeout: int = 30, api_base: str | None = None, context_length: int = 0) -> CommentedMap:
     """Build a single model_list entry for the LiteLLM config as a CommentedMap."""
     info = PROVIDER_MAP.get(provider, {"prefix": provider, "env_key": f"{provider.upper()}_API_KEY"})
 
@@ -77,12 +91,22 @@ def _build_model_entry(model_id: str, provider: str, group_name: str,
         if base:
             lp["api_base"] = base
 
+    # Set max_tokens based on context_length to prevent overflow errors
+    # (NVIDIA, OpenRouter etc. don't enforce this automatically)
+    if context_length and context_length > 0:
+        # Leave 256 tokens buffer for prompt overhead; cap output at 16K
+        max_out = min(context_length - 256, 16384)
+        if max_out > 0:
+            lp["max_tokens"] = max_out
+
     entry["litellm_params"] = lp
 
     # Add metadata for model_info display
     metadata = CommentedMap()
     metadata["score"] = 0
     metadata["latency"] = 0
+    if context_length:
+        metadata["context"] = context_length
     entry["model_info"] = metadata
 
     return entry
@@ -168,6 +192,9 @@ def apply_ranked_models(ranked_models: list, path=DEFAULT_CONFIG_PATH,
     config that were NOT in this benchmark run are preserved in fallback.
     Preserves router_settings, litellm_settings, and fallbacks structure.
     """
+    # Filter out providers with exhausted/depleted API keys
+    ranked_models = [m for m in ranked_models if m.get("provider", "") not in DEAD_PROVIDERS]
+
     # Read existing config for settings and existing model entries to preserve
     existing_config = read_config(path)
     router_settings = CommentedMap()
@@ -203,7 +230,7 @@ def apply_ranked_models(ranked_models: list, path=DEFAULT_CONFIG_PATH,
     comment_lines = [
         f"LiteLLM Config - Updated {now}",
         f"Two groups: {primary_group} (top {primary_count}) + {fallback_group} (remaining)",
-        f"Routing: simple-shuffle (picks smart models, not fast small ones)",
+        "Routing: simple-shuffle (picks smart models, not fast small ones)",
         f"Fallback: {primary_group} -> {fallback_group}",
         "",
         "PROBE RESULTS:",
@@ -227,7 +254,8 @@ def apply_ranked_models(ranked_models: list, path=DEFAULT_CONFIG_PATH,
     model_list.yaml_add_eol_comment("=== PRIMARY GROUP ===", 0)
     for i, m in enumerate(ranked_models[:primary_count]):
         timeout = 45 if m.get("latency", 0) > 4.0 else 30
-        entry = _build_model_entry(m["id"], m["provider"], primary_group, timeout)
+        ctx = m.get("context_length", 0) or _get_context_for_model(m["id"], m["provider"])
+        entry = _build_model_entry(m["id"], m["provider"], primary_group, timeout, context_length=ctx)
 
         ctx = m.get("context_length", 0)
         lat = m.get("latency", 0)
@@ -249,7 +277,8 @@ def apply_ranked_models(ranked_models: list, path=DEFAULT_CONFIG_PATH,
     fallback_start = len(model_list)
     for j, m in enumerate(ranked_models[primary_count:]):
         timeout = 60 if m.get("latency", 0) > 4.0 else 30
-        entry = _build_model_entry(m["id"], m["provider"], fallback_group, timeout)
+        ctx = m.get("context_length", 0) or _get_context_for_model(m["id"], m["provider"])
+        entry = _build_model_entry(m["id"], m["provider"], fallback_group, timeout, context_length=ctx)
 
         ctx = m.get("context_length", 0)
         lat = m.get("latency", 0)
@@ -270,6 +299,9 @@ def apply_ranked_models(ranked_models: list, path=DEFAULT_CONFIG_PATH,
     preserved_count = 0
     for litellm_model, entry in existing_entries.items():
         if litellm_model not in ranked_model_ids:
+            # Skip dead providers
+            if any(f"{p}/" in litellm_model for p in DEAD_PROVIDERS):
+                continue
             entry["model_name"] = fallback_group
             model_list.append(entry)
             preserved_count += 1
@@ -288,6 +320,8 @@ def apply_ranked_models(ranked_models: list, path=DEFAULT_CONFIG_PATH,
     injected_count = 0
     for litellm_id, spec in known_models.all_models().items():
         prov = spec.get("provider", "")
+        if prov in DEAD_PROVIDERS:
+            continue
         info = PROVIDER_MAP.get(prov, {"prefix": prov})
         prefix = info.get("prefix", prov)
         
@@ -305,11 +339,13 @@ def apply_ranked_models(ranked_models: list, path=DEFAULT_CONFIG_PATH,
             continue  # Local providers like ollama - skip auto-injection
             
         # Build entry from known model spec
+        known_ctx = known.get("ctx", 0) if known else 0
         new_entry = _build_model_entry(
             base_id,
             prov,
             fallback_group,
             timeout=30,
+            context_length=known_ctx,
         )
         model_list.append(new_entry)
         injected_count += 1
@@ -458,7 +494,7 @@ def ensure_config_exists(path=DEFAULT_CONFIG_PATH):
 # Legacy compatibility
 def apply_model_to_litellm(model_id, provider_name, path=DEFAULT_CONFIG_PATH):
     """Legacy: updates a single model entry. Prefer apply_ranked_models for full config management."""
-    print(f"Note: apply_model_to_litellm is deprecated. Use apply_ranked_models for full config management.")
+    print("Note: apply_model_to_litellm is deprecated. Use apply_ranked_models for full config management.")
     ensure_config_exists(path)
     config = read_config(path)
     if config and "model_list" in config and len(config["model_list"]) > 0:
