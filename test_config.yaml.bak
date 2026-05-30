@@ -1,0 +1,404 @@
+# LiteLLM Config - Updated 2026-05-30
+# Two groups: free-llm (top 3) + free-llm-fallback (remaining)
+# Routing: simple-shuffle (picks smart models, not fast small ones)
+# Fallback: free-llm -> free-llm-fallback
+
+# PROBE RESULTS:
+#   p2/model-2  0.2s score=90.0 (? ctx)
+#   p1/model-1  0.1s score=100.0 (? ctx)
+model_list:
+  - # Rank 1: model-2 via p2 - ? ctx, 0.2s, 70B, score=90
+    model_name: free-llm
+    litellm_params:
+      model: p2/model-2
+      timeout: 30
+      api_key: os.environ/P2_API_KEY
+    model_info:
+      score: 90
+      latency: 0.2
+      params: 70
+      context: 0
+  - # Rank 2: model-1 via p1 - ? ctx, 0.1s, 100B, score=100
+    model_name: free-llm
+    litellm_params:
+      model: p1/model-1
+      timeout: 30
+      api_key: os.environ/P1_API_KEY
+    model_info:
+      score: 100
+      latency: 0.1
+      params: 100
+      context: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: openai/Meta-Llama-3.1-405B-Instruct
+      timeout: 30
+      api_key: os.environ/GITHUB_TOKEN
+      api_base: https://models.inference.ai.azure.com
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: openai/Meta-Llama-3.1-8B-Instruct
+      timeout: 30
+      api_key: os.environ/GITHUB_TOKEN
+      api_base: https://models.inference.ai.azure.com
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: openai/gpt-4o
+      timeout: 30
+      api_key: os.environ/GITHUB_TOKEN
+      api_base: https://models.inference.ai.azure.com
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: openai/gpt-4o-mini
+      timeout: 30
+      api_key: os.environ/GITHUB_TOKEN
+      api_base: https://models.inference.ai.azure.com
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: openrouter/google/gemma-4-31b-it:free
+      timeout: 30
+      api_key: os.environ/OPENROUTER_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: openrouter/google/gemma-4-26b-a4b-it:free
+      timeout: 30
+      api_key: os.environ/OPENROUTER_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: openrouter/nvidia/nemotron-3-super-120b-a12b:free
+      timeout: 30
+      api_key: os.environ/OPENROUTER_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: openrouter/nvidia/nemotron-3-nano-30b-a3b:free
+      timeout: 30
+      api_key: os.environ/OPENROUTER_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: openrouter/openai/gpt-oss-120b:free
+      timeout: 30
+      api_key: os.environ/OPENROUTER_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: openrouter/openai/gpt-oss-20b:free
+      timeout: 30
+      api_key: os.environ/OPENROUTER_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: openrouter/z-ai/glm-4.5-air:free
+      timeout: 30
+      api_key: os.environ/OPENROUTER_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: nvidia_nim/meta/llama-3.3-70b-instruct
+      timeout: 30
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: nvidia_nim/meta/llama-3.1-8b-instruct
+      timeout: 30
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: nvidia_nim/mistralai/mistral-large-3-675b-instruct-2512
+      timeout: 30
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: nvidia_nim/mistralai/mistral-small-4-119b-2603
+      timeout: 30
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: nvidia_nim/mistralai/ministral-14b-instruct-2512
+      timeout: 30
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: nvidia_nim/nvidia/llama-3.3-nemotron-super-49b-v1
+      timeout: 30
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: nvidia_nim/nvidia/llama-3.3-nemotron-super-49b-v1.5
+      timeout: 30
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: nvidia_nim/nvidia/nemotron-3-super-120b-a12b
+      timeout: 30
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: nvidia_nim/openai/gpt-oss-120b
+      timeout: 30
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: nvidia_nim/openai/gpt-oss-20b
+      timeout: 30
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: nvidia_nim/qwen/qwen3-next-80b-a3b-instruct
+      timeout: 30
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: nvidia_nim/qwen/qwen3.5-122b-a10b
+      timeout: 30
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: nvidia_nim/moonshotai/kimi-k2.6
+      timeout: 30
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: nvidia_nim/nvidia/nvidia-nemotron-nano-9b-v2
+      timeout: 30
+      api_key: os.environ/NVIDIA_NIM_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: groq/llama-3.3-70b-versatile
+      timeout: 30
+      api_key: os.environ/GROQ_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: groq/llama-3.1-8b-instant
+      timeout: 30
+      api_key: os.environ/GROQ_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: cerebras/llama-3.3-70b
+      timeout: 30
+      api_key: os.environ/CEREBRAS_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: cerebras/llama3.1-8b
+      timeout: 30
+      api_key: os.environ/CEREBRAS_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: deepinfra/meta-llama/Meta-Llama-3.1-405B-Instruct
+      timeout: 30
+      api_key: os.environ/DEEPINFRA_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: deepinfra/meta-llama/Meta-Llama-3.1-70B-Instruct
+      timeout: 30
+      api_key: os.environ/DEEPINFRA_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: deepinfra/Qwen/Qwen2.5-72B-Instruct
+      timeout: 30
+      api_key: os.environ/DEEPINFRA_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: deepinfra/deepseek-ai/DeepSeek-V3
+      timeout: 30
+      api_key: os.environ/DEEPINFRA_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: deepinfra/deepseek-ai/DeepSeek-R1
+      timeout: 30
+      api_key: os.environ/DEEPINFRA_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: huggingface/meta-llama/Llama-3.1-405B-Instruct
+      timeout: 30
+      api_key: os.environ/HUGGINGFACE_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: huggingface/meta-llama/Llama-3.1-70B-Instruct
+      timeout: 30
+      api_key: os.environ/HUGGINGFACE_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: huggingface/deepseek-ai/DeepSeek-V3
+      timeout: 30
+      api_key: os.environ/HUGGINGFACE_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: together/meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo
+      timeout: 30
+      api_key: os.environ/TOGETHER_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: together/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo
+      timeout: 30
+      api_key: os.environ/TOGETHER_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: gemini/gemini-2.5-pro
+      timeout: 30
+      api_key: os.environ/GEMINI_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: gemini/gemini-2.5-flash
+      timeout: 30
+      api_key: os.environ/GEMINI_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: gemini/gemini-2.0-flash
+      timeout: 30
+      api_key: os.environ/GEMINI_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: gemini/gemini-1.5-pro
+      timeout: 30
+      api_key: os.environ/GEMINI_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+  - model_name: free-llm-fallback
+    litellm_params:
+      model: gemini/gemini-1.5-flash
+      timeout: 30
+      api_key: os.environ/GEMINI_API_KEY
+    model_info:
+      score: 0
+      latency: 0
+router_settings:
+  routing_strategy: simple-shuffle
+  cooldown_time: 30
+  allowed_fails: 2
+  num_retries: 2
+  timeout: 30
+  enable_pre_call_checks: false
+  ignore_cooldown_on_fallbacks: true
+litellm_settings:
+  drop_params: true
+  num_retries: 2
+  request_timeout: 30
+  allowed_fails: 2
+  cooldown_time: 30
+  fallbacks:
+    - free-llm:
+        - free-llm-fallback

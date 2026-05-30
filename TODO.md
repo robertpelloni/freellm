@@ -11,6 +11,7 @@
 - [x] Implement Load Analysis and Stability Dashboard.
 - [x] Integrate Protocol Oversight Dashboard for real-time engine tracking.
 - [x] Implement Protocol Execution Visualizer and Dashboard.
+- [ ] Implement Mobile push notifications for model switches.
 
 ## Features
 - [x] Parameter size regex parser for various model ID formats.
