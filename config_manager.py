@@ -13,51 +13,103 @@ DEFAULT_CONFIG_PATH = "config.yaml"
 # Provider -> litellm prefix + env var mapping
 PROVIDER_MAP = {
     "openrouter": {"prefix": "openrouter", "env_key": "OPENROUTER_API_KEY"},
-    "groq":       {"prefix": "groq",       "env_key": "GROQ_API_KEY"},
-    "together":   {"prefix": "together_ai",   "env_key": "TOGETHER_API_KEY"},
-    "deepinfra":  {"prefix": "deepinfra",  "env_key": "DEEPINFRA_API_KEY"},
-    "cerebras":   {"prefix": "cerebras",   "env_key": "CEREBRAS_API_KEY"},
-    "github":     {"prefix": "openai",     "env_key": "GITHUB_TOKEN",
-                   "api_base": "https://models.inference.ai.azure.com"},
-    "gemini":     {"prefix": "gemini",     "env_key": "GEMINI_API_KEY"},
-    "huggingface":{"prefix": "huggingface","env_key": "HUGGINGFACE_API_KEY"},
-    "nvidia":     {"prefix": "nvidia_nim", "env_key": "NVIDIA_NIM_API_KEY"},
+    "groq": {"prefix": "groq", "env_key": "GROQ_API_KEY"},
+    "together": {"prefix": "together_ai", "env_key": "TOGETHER_API_KEY"},
+    "deepinfra": {"prefix": "deepinfra", "env_key": "DEEPINFRA_API_KEY"},
+    "cerebras": {"prefix": "cerebras", "env_key": "CEREBRAS_API_KEY"},
+    "github": {
+        "prefix": "openai",
+        "env_key": "GITHUB_TOKEN",
+        "api_base": "https://models.inference.ai.azure.com",
+    },
+    "gemini": {"prefix": "gemini", "env_key": "GEMINI_API_KEY"},
+    "huggingface": {"prefix": "huggingface", "env_key": "HUGGINGFACE_API_KEY"},
+    "nvidia": {"prefix": "nvidia_nim", "env_key": "NVIDIA_NIM_API_KEY"},
     "nvidia_nim": {"prefix": "nvidia_nim", "env_key": "NVIDIA_NIM_API_KEY"},
-    "ollama":     {"prefix": "ollama",     "env_key": ""},
-    "lm_studio": {"prefix": "openai", "env_key": "",
-    "api_base": "http://localhost:1234/v1"},
+    "ollama": {"prefix": "ollama", "env_key": ""},
+    "lm_studio": {
+        "prefix": "openai",
+        "env_key": "",
+        "api_base": "http://localhost:1234/v1",
+    },
     "mistral": {"prefix": "mistral", "env_key": "MISTRAL_API_KEY"},
-    "codestral": {"prefix": "codestral", "env_key": "CODESTRAL_API_KEY",
-                  "api_base": "https://codestral.mistral.ai/v1"},
+    "codestral": {
+        "prefix": "codestral",
+        "env_key": "CODESTRAL_API_KEY",
+        "api_base": "https://codestral.mistral.ai/v1",
+    },
     "cohere": {"prefix": "cohere", "env_key": "COHERE_API_KEY"},
     "sambanova": {"prefix": "sambanova", "env_key": "SAMBANOVA_API_KEY"},
     "fireworks": {"prefix": "fireworks_ai", "env_key": "FIREWORKS_API_KEY"},
     "hyperbolic": {"prefix": "hyperbolic", "env_key": "HYPERBOLIC_API_KEY"},
     "nebius": {"prefix": "nebius", "env_key": "NEBIUS_API_KEY"},
     "cloudflare": {"prefix": "cloudflare", "env_key": "CLOUDFLARE_API_KEY"},
-    "opencode_zen": {"prefix": "openai", "env_key": "",
-                     "api_base": "https://opencode.ai/zen/v1"},
+    "opencode_zen": {
+        "prefix": "openai",
+        "env_key": "",
+        "api_base": "https://opencode.ai/zen/v1",
+    },
 }
 
 
 # Providers with exhausted/depleted API keys that should never be included
 DEAD_PROVIDERS = {"huggingface", "cohere"}
 
+# Keywords that identify non-chat models (TTS, ASR, image gen, safety, embedding, etc.)
+NON_CHAT_KEYWORDS = {
+    "whisper",
+    "orpheus",
+    "flux",
+    "prompt-guard",
+    "embed",
+    "safety",
+    "guard",
+    "reward",
+    "parse",
+    "detect",
+    "clip",
+    "vision",
+    "tts",
+    "asr",
+    "image-gen",
+    "dall",
+    "stable-diffusion",
+    "midjourney",
+    "canopylabs",
+    "compound", "compound-mini",
+    "compound:",
+    "sdxl",
+    "codellama",
+}
+
 
 def _get_context_for_model(model_id: str, provider: str) -> int:
-    """Look up context_length from known_models for a given model."""
+    """Look up context_length from known_models for a given model.
+
+    Uses the lookup function which handles prefix stripping and tail matching.
+    Returns the best context_length available, or 0 if unknown.
+    """
     # Try with provider prefix first, then without
     for candidate in [f"{provider}/{model_id}", model_id]:
         known = known_models.lookup(candidate)
         if known and known.get("ctx", 0) > 0:
             return known["ctx"]
-    return 0
+    # Default: models we know nothing about get 4096 (safe minimum)
+    return 4096
 
 
-def _build_model_entry(model_id: str, provider: str, group_name: str, 
-    timeout: int = 30, api_base: str | None = None, context_length: int = 0) -> CommentedMap:
+def _build_model_entry(
+    model_id: str,
+    provider: str,
+    group_name: str,
+    timeout: int = 30,
+    api_base: str | None = None,
+    context_length: int = 0,
+) -> CommentedMap:
     """Build a single model_list entry for the LiteLLM config as a CommentedMap."""
-    info = PROVIDER_MAP.get(provider, {"prefix": provider, "env_key": f"{provider.upper()}_API_KEY"})
+    info = PROVIDER_MAP.get(
+        provider, {"prefix": provider, "env_key": f"{provider.upper()}_API_KEY"}
+    )
 
     prefix = info["prefix"]
     # For github, we want the prefix to be 'openai' as per LiteLLM standards for Azure Inference
@@ -82,6 +134,7 @@ def _build_model_entry(model_id: str, provider: str, group_name: str,
         # Resolve Cloudflare account_id placeholder
         if "{account_id}" in base:
             from settings_ui import load_settings
+
             _settings = load_settings()
             account_id = _settings.get("CLOUDFLARE_ACCOUNT_ID", "")
             if account_id:
@@ -116,13 +169,13 @@ def read_config(path=DEFAULT_CONFIG_PATH):
     """Read and return the parsed config, or None if it doesn't exist."""
     if not os.path.exists(path):
         return None
-    with open(path, 'r', encoding='utf-8') as f:
+    with open(path, "r", encoding="utf-8") as f:
         return yaml.load(f)
 
 
 def write_config(config, path=DEFAULT_CONFIG_PATH):
     """Write config dict to yaml file."""
-    with open(path, 'w', encoding='utf-8') as f:
+    with open(path, "w", encoding="utf-8") as f:
         yaml.dump(config, f)
 
 
@@ -148,19 +201,21 @@ def get_model_entries(path=DEFAULT_CONFIG_PATH):
             prefix = info["prefix"]
             if litellm_model.startswith(prefix + "/"):
                 provider = prov_key
-                model_id = litellm_model[len(prefix) + 1:]
+                model_id = litellm_model[len(prefix) + 1 :]
                 break
 
-        entries.append({
-            "id": model_id,
-            "provider": provider,
-            "group": model_name,
-            "litellm_model": litellm_model,
-            "api_key": lp.get("api_key", ""),
-            "api_base": lp.get("api_base", ""),
-            "timeout": lp.get("timeout", 30),
-            "raw_entry": entry,
-        })
+        entries.append(
+            {
+                "id": model_id,
+                "provider": provider,
+                "group": model_name,
+                "litellm_model": litellm_model,
+                "api_key": lp.get("api_key", ""),
+                "api_base": lp.get("api_base", ""),
+                "timeout": lp.get("timeout", 30),
+                "raw_entry": entry,
+            }
+        )
 
     return entries
 
@@ -179,10 +234,13 @@ def get_groups(path=DEFAULT_CONFIG_PATH):
     return groups, group_order
 
 
-def apply_ranked_models(ranked_models: list, path=DEFAULT_CONFIG_PATH,
-                         primary_group="free-llm",
-                         fallback_group="free-llm-fallback",
-                         primary_count=5):
+def apply_ranked_models(
+    ranked_models: list,
+    path=DEFAULT_CONFIG_PATH,
+    primary_group="free-llm",
+    fallback_group="free-llm-fallback",
+    primary_count=5,
+):
     """Write the config merging benchmarked models with existing entries.
 
     ranked_models: list of dicts with at least: id, provider, latency, score, parameters
@@ -193,7 +251,15 @@ def apply_ranked_models(ranked_models: list, path=DEFAULT_CONFIG_PATH,
     Preserves router_settings, litellm_settings, and fallbacks structure.
     """
     # Filter out providers with exhausted/depleted API keys
-    ranked_models = [m for m in ranked_models if m.get("provider", "") not in DEAD_PROVIDERS]
+    ranked_models = [
+        m for m in ranked_models if m.get("provider", "") not in DEAD_PROVIDERS
+    ]
+    # Also filter out non-chat models (TTS, ASR, image gen, safety, etc.)
+    ranked_models = [
+        m
+        for m in ranked_models
+        if not any(kw in m.get("id", "").lower() for kw in NON_CHAT_KEYWORDS)
+    ]
 
     # Read existing config for settings and existing model entries to preserve
     existing_config = read_config(path)
@@ -217,14 +283,21 @@ def apply_ranked_models(ranked_models: list, path=DEFAULT_CONFIG_PATH,
     # Identify which models from ranked_models are already in the config
     ranked_model_ids = set()
     for m in ranked_models:
-        info = PROVIDER_MAP.get(m.get("provider", ""), {"prefix": m.get("provider", "")})
+        info = PROVIDER_MAP.get(
+            m.get("provider", ""), {"prefix": m.get("provider", "")}
+        )
         prefix = info.get("prefix", m.get("provider", ""))
         model_id = m["id"]
-        litellm_model = f"{prefix}/{model_id}" if not model_id.startswith(prefix + "/") else model_id
+        litellm_model = (
+            f"{prefix}/{model_id}"
+            if not model_id.startswith(prefix + "/")
+            else model_id
+        )
         ranked_model_ids.add(litellm_model)
 
     # Build header comment with probe results
     import datetime
+
     now = datetime.datetime.now().strftime("%Y-%m-%d")
 
     comment_lines = [
@@ -239,7 +312,9 @@ def apply_ranked_models(ranked_models: list, path=DEFAULT_CONFIG_PATH,
         ctx = m.get("context_length", "?")
         lat = m.get("latency", 0)
         score = m.get("score", 0)
-        comment_lines.append(f"  {m['provider']}/{m['id']}  {lat:.1f}s score={score:.1f} ({ctx} ctx)")
+        comment_lines.append(
+            f"  {m['provider']}/{m['id']}  {lat:.1f}s score={score:.1f} ({ctx} ctx)"
+        )
 
     # Cap primary_count to available models
     effective_primary = min(primary_count, len(ranked_models))
@@ -254,15 +329,22 @@ def apply_ranked_models(ranked_models: list, path=DEFAULT_CONFIG_PATH,
     model_list.yaml_add_eol_comment("=== PRIMARY GROUP ===", 0)
     for i, m in enumerate(ranked_models[:primary_count]):
         timeout = 45 if m.get("latency", 0) > 4.0 else 30
-        ctx = m.get("context_length", 0) or _get_context_for_model(m["id"], m["provider"])
-        entry = _build_model_entry(m["id"], m["provider"], primary_group, timeout, context_length=ctx)
+        ctx = m.get("context_length", 0) or _get_context_for_model(
+            m["id"], m["provider"]
+        )
+        entry = _build_model_entry(
+            m["id"], m["provider"], primary_group, timeout, context_length=ctx
+        )
 
-        ctx = m.get("context_length", 0)
         lat = m.get("latency", 0)
         score = m.get("score", 0)
         params = m.get("parameters", 0)
-        ctx_str = f"{ctx//1000}K" if ctx and isinstance(ctx, (int, float)) and ctx > 0 else "?"
-        comment_text = f"Rank {i+1}: {m['id']} via {m['provider']} - {ctx_str} ctx, {lat:.1f}s, {params}B, score={score:.0f}"
+        ctx_str = (
+            f"{ctx // 1000}K"
+            if ctx and isinstance(ctx, (int, float)) and ctx > 0
+            else "?"
+        )
+        comment_text = f"Rank {i + 1}: {m['id']} via {m['provider']} - {ctx_str} ctx, {lat:.1f}s, {params}B, score={score:.0f}"
         # Store actual score/latency/params in model_info
         if "model_info" in entry:
             entry["model_info"]["score"] = round(score, 2)
@@ -277,14 +359,23 @@ def apply_ranked_models(ranked_models: list, path=DEFAULT_CONFIG_PATH,
     fallback_start = len(model_list)
     for j, m in enumerate(ranked_models[primary_count:]):
         timeout = 60 if m.get("latency", 0) > 4.0 else 30
-        ctx = m.get("context_length", 0) or _get_context_for_model(m["id"], m["provider"])
-        entry = _build_model_entry(m["id"], m["provider"], fallback_group, timeout, context_length=ctx)
+        ctx = m.get("context_length", 0) or _get_context_for_model(
+            m["id"], m["provider"]
+        )
+        entry = _build_model_entry(
+            m["id"], m["provider"], fallback_group, timeout, context_length=ctx
+        )
 
-        ctx = m.get("context_length", 0)
         lat = m.get("latency", 0)
         params = m.get("parameters", 0)
-        ctx_str = f"{ctx//1000}K" if ctx and isinstance(ctx, (int, float)) and ctx > 0 else "?"
-        comment_text = f"{m['id']} via {m['provider']} - {ctx_str} ctx, {lat:.1f}s, {params}B"
+        ctx_str = (
+            f"{ctx // 1000}K"
+            if ctx and isinstance(ctx, (int, float)) and ctx > 0
+            else "?"
+        )
+        comment_text = (
+            f"{m['id']} via {m['provider']} - {ctx_str} ctx, {lat:.1f}s, {params}B"
+        )
         # Store actual score/latency/params in model_info
         if "model_info" in entry:
             entry["model_info"]["score"] = round(m.get("score", 0), 2)
@@ -301,6 +392,9 @@ def apply_ranked_models(ranked_models: list, path=DEFAULT_CONFIG_PATH,
         if litellm_model not in ranked_model_ids:
             # Skip dead providers
             if any(f"{p}/" in litellm_model for p in DEAD_PROVIDERS):
+                continue
+            # Skip non-chat models
+            if any(kw in litellm_model.lower() for kw in NON_CHAT_KEYWORDS):
                 continue
             entry["model_name"] = fallback_group
             model_list.append(entry)
@@ -322,24 +416,29 @@ def apply_ranked_models(ranked_models: list, path=DEFAULT_CONFIG_PATH,
         prov = spec.get("provider", "")
         if prov in DEAD_PROVIDERS:
             continue
+        # Skip non-chat models (TTS, ASR, image gen, etc.)
+        if any(kw in litellm_id.lower() for kw in NON_CHAT_KEYWORDS):
+            continue
         info = PROVIDER_MAP.get(prov, {"prefix": prov})
         prefix = info.get("prefix", prov)
-        
+
         # Calculate the actual litellm_model string that will be generated
         base_id = litellm_id.split("/", 1)[-1] if "/" in litellm_id else litellm_id
-        target_model_name = f"{prefix}/{base_id}" if not base_id.startswith(prefix + "/") else base_id
+        target_model_name = (
+            f"{prefix}/{base_id}" if not base_id.startswith(prefix + "/") else base_id
+        )
 
         if target_model_name in current_models_in_config:
             continue
-            
+
         # Only inject if we have the provider's API key in the config already
         # (i.e. the provider is configured)
         env_key = info.get("env_key", "")
         if not env_key:
             continue  # Local providers like ollama - skip auto-injection
-            
+
         # Build entry from known model spec
-        known_ctx = known.get("ctx", 0) if known else 0
+        known_ctx = spec.get("ctx", 0)
         new_entry = _build_model_entry(
             base_id,
             prov,
@@ -358,15 +457,17 @@ def apply_ranked_models(ranked_models: list, path=DEFAULT_CONFIG_PATH,
 
     # Router settings (preserve or default)
     if not router_settings:
-        router_settings = CommentedMap({
-            "routing_strategy": "simple-shuffle",
-            "cooldown_time": 30,
-            "allowed_fails": 2,
-            "num_retries": 2,
-            "timeout": 30,
-            "enable_pre_call_checks": False,
-            "ignore_cooldown_on_fallbacks": True,
-        })
+        router_settings = CommentedMap(
+            {
+                "routing_strategy": "simple-shuffle",
+                "cooldown_time": 30,
+                "allowed_fails": 2,
+                "num_retries": 2,
+                "timeout": 30,
+                "enable_pre_call_checks": False,
+                "ignore_cooldown_on_fallbacks": True,
+            }
+        )
     else:
         # Always force this to False to prevent startup health check failures
         router_settings["enable_pre_call_checks"] = False
@@ -375,18 +476,18 @@ def apply_ranked_models(ranked_models: list, path=DEFAULT_CONFIG_PATH,
 
     # LiteLLM settings (preserve or default)
     if not litellm_settings:
-        litellm_settings = CommentedMap({
-            "drop_params": True,
-            "num_retries": 2,
-            "request_timeout": 30,
-            "allowed_fails": 2,
-            "cooldown_time": 30,
-        })
+        litellm_settings = CommentedMap(
+            {
+                "drop_params": True,
+                "num_retries": 2,
+                "request_timeout": 30,
+                "allowed_fails": 2,
+                "cooldown_time": 30,
+            }
+        )
 
     # Ensure fallbacks are set
-    litellm_settings["fallbacks"] = [
-        {primary_group: [fallback_group]}
-    ]
+    litellm_settings["fallbacks"] = [{primary_group: [fallback_group]}]
     config["litellm_settings"] = litellm_settings
 
     # Port setting
@@ -401,12 +502,17 @@ def apply_ranked_models(ranked_models: list, path=DEFAULT_CONFIG_PATH,
         shutil.copy2(path, path + ".bak")
 
     write_config(config, path)
-    print(f"Applied {len(ranked_models)} models to {path} (primary={effective_primary}, fallback={len(ranked_models)-effective_primary})")
+    print(
+        f"Applied {len(ranked_models)} models to {path} (primary={effective_primary}, fallback={len(ranked_models) - effective_primary})"
+    )
 
 
-def reorder_primary(models_in_primary: list, path=DEFAULT_CONFIG_PATH,
-                     primary_group="free-llm",
-                     fallback_group="free-llm-fallback"):
+def reorder_primary(
+    models_in_primary: list,
+    path=DEFAULT_CONFIG_PATH,
+    primary_group="free-llm",
+    fallback_group="free-llm-fallback",
+):
     """Reorder models between primary and fallback groups without re-benchmarking.
 
     models_in_primary: list of model_id strings that should be in the primary group
@@ -420,13 +526,25 @@ def reorder_primary(models_in_primary: list, path=DEFAULT_CONFIG_PATH,
         return
 
     # Split into primary and fallback based on user's selection
-    primary_entries = [e for e in entries if e["id"] in models_in_primary or e["litellm_model"] in models_in_primary]
+    primary_entries = [
+        e
+        for e in entries
+        if e["id"] in models_in_primary or e["litellm_model"] in models_in_primary
+    ]
     fallback_entries = [e for e in entries if e not in primary_entries]
 
     # Rebuild config preserving settings
     existing_config = read_config(path)
-    router_settings = existing_config.get("router_settings", CommentedMap()) if existing_config else CommentedMap()
-    litellm_settings = existing_config.get("litellm_settings", CommentedMap()) if existing_config else CommentedMap()
+    router_settings = (
+        existing_config.get("router_settings", CommentedMap())
+        if existing_config
+        else CommentedMap()
+    )
+    litellm_settings = (
+        existing_config.get("litellm_settings", CommentedMap())
+        if existing_config
+        else CommentedMap()
+    )
 
     model_list = CommentedSeq()
     for i, e in enumerate(primary_entries):
@@ -444,16 +562,16 @@ def reorder_primary(models_in_primary: list, path=DEFAULT_CONFIG_PATH,
     config["model_list"] = model_list
     config["router_settings"] = router_settings
     config["litellm_settings"] = litellm_settings
-    config["litellm_settings"]["fallbacks"] = [
-        {primary_group: [fallback_group]}
-    ]
+    config["litellm_settings"]["fallbacks"] = [{primary_group: [fallback_group]}]
 
     # Backup and write
     if os.path.exists(path):
         shutil.copy2(path, path + ".bak")
 
     write_config(config, path)
-    print(f"Reordered: {len(primary_entries)} primary, {len(fallback_entries)} fallback")
+    print(
+        f"Reordered: {len(primary_entries)} primary, {len(fallback_entries)} fallback"
+    )
 
 
 def ensure_config_exists(path=DEFAULT_CONFIG_PATH):
@@ -461,49 +579,68 @@ def ensure_config_exists(path=DEFAULT_CONFIG_PATH):
     if not os.path.exists(path):
         config = CommentedMap()
         model_list = CommentedSeq()
-        entry = CommentedMap({
-            "model_name": "free-llm",
-            "litellm_params": CommentedMap({
-                "model": "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
-                "api_key": "os.environ/OPENROUTER_API_KEY",
-                "timeout": 30,
-            })
-        })
+        entry = CommentedMap(
+            {
+                "model_name": "free-llm",
+                "litellm_params": CommentedMap(
+                    {
+                        "model": "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+                        "api_key": "os.environ/OPENROUTER_API_KEY",
+                        "timeout": 30,
+                    }
+                ),
+            }
+        )
         model_list.append(entry)
         config["model_list"] = model_list
-        config["router_settings"] = CommentedMap({
-            "routing_strategy": "simple-shuffle",
-            "cooldown_time": 30,
-            "allowed_fails": 2,
-            "num_retries": 2,
-            "timeout": 30,
-            "enable_pre_call_checks": False,
-            "ignore_cooldown_on_fallbacks": True,
-        })
-        config["litellm_settings"] = CommentedMap({
-            "drop_params": True,
-            "num_retries": 2,
-            "request_timeout": 30,
-            "allowed_fails": 2,
-            "cooldown_time": 30,
-            "fallbacks": [{"free-llm": ["free-llm-fallback"]}],
-        })
+        config["router_settings"] = CommentedMap(
+            {
+                "routing_strategy": "simple-shuffle",
+                "cooldown_time": 30,
+                "allowed_fails": 2,
+                "num_retries": 2,
+                "timeout": 30,
+                "enable_pre_call_checks": False,
+                "ignore_cooldown_on_fallbacks": True,
+            }
+        )
+        config["litellm_settings"] = CommentedMap(
+            {
+                "drop_params": True,
+                "num_retries": 2,
+                "request_timeout": 30,
+                "allowed_fails": 2,
+                "cooldown_time": 30,
+                "fallbacks": [{"free-llm": ["free-llm-fallback"]}],
+            }
+        )
         write_config(config, path)
 
 
 # Legacy compatibility
 def apply_model_to_litellm(model_id, provider_name, path=DEFAULT_CONFIG_PATH):
     """Legacy: updates a single model entry. Prefer apply_ranked_models for full config management."""
-    print("Note: apply_model_to_litellm is deprecated. Use apply_ranked_models for full config management.")
+    print(
+        "Note: apply_model_to_litellm is deprecated. Use apply_ranked_models for full config management."
+    )
     ensure_config_exists(path)
     config = read_config(path)
     if config and "model_list" in config and len(config["model_list"]) > 0:
-        info = PROVIDER_MAP.get(provider_name, {"prefix": provider_name, "env_key": f"{provider_name.upper()}_API_KEY"})
+        info = PROVIDER_MAP.get(
+            provider_name,
+            {"prefix": provider_name, "env_key": f"{provider_name.upper()}_API_KEY"},
+        )
         prefix = info["prefix"]
-        litellm_model = f"{prefix}/{model_id}" if not model_id.startswith(prefix + "/") else model_id
+        litellm_model = (
+            f"{prefix}/{model_id}"
+            if not model_id.startswith(prefix + "/")
+            else model_id
+        )
         config["model_list"][0]["litellm_params"]["model"] = litellm_model
         if info.get("env_key"):
-            config["model_list"][0]["litellm_params"]["api_key"] = f"os.environ/{info['env_key']}"
+            config["model_list"][0]["litellm_params"]["api_key"] = (
+                f"os.environ/{info['env_key']}"
+            )
         if info.get("api_base"):
             config["model_list"][0]["litellm_params"]["api_base"] = info["api_base"]
         write_config(config, path)
@@ -517,4 +654,6 @@ if __name__ == "__main__":
     for g in order:
         print(f"\n  {g}:")
         for e in groups[g]:
-            print(f"    {e['litellm_model']} (provider={e['provider']}, timeout={e['timeout']})")
+            print(
+                f"    {e['litellm_model']} (provider={e['provider']}, timeout={e['timeout']})"
+            )

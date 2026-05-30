@@ -1165,7 +1165,14 @@ class LiteLLMControlPanel:
 
         threading.Thread(target=_delayed_update, daemon=True).start()
         print("Starting tray icon...")
-        self.icon.run()
+        try:
+            self.icon.run()
+        except Exception as e:
+            print(f"Tray icon error: {e}")
+        # Keep app alive even if tray icon fails
+        print("Tray icon stopped. Keeping process alive for LiteLLM...")
+        while self.running:
+            time.sleep(5)
 
 
 if __name__ == "__main__":
