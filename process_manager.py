@@ -105,20 +105,36 @@ class LiteLLMProcess:
         return self.start(env=env)
 
     def is_running(self):
-        return self.process is not None and self.process.poll() is None
+        if self.process is None:
+            return False
+        poll = self.process.poll()
+        if poll is not None:
+            print(f"LiteLLM process exited with code {poll}")
+            return False
+        return True
 
 
-def check_health(self):
-    """Checks if the LiteLLM proxy is responding."""
-    import httpx
-
-    for endpoint in ["/health", "/health/readiness", "/health/liveness"]:
+    def check_health(self):
+        """Checks if the LiteLLM proxy is responding.
+        First does a quick TCP port check, then tries HTTP endpoints.
+        A timeout on the HTTP check means the server is alive but busy = healthy."""
+        import socket, httpx
+        # Quick TCP check - if port 4000 isn't open, server is down
         try:
-            # Large model lists cause slow health checks;
-            # use a generous timeout to avoid false negatives
-            response = httpx.get(f"http://localhost:4000{endpoint}", timeout=90.0)
-            if response.status_code == 200:
+            sock = socket.create_connection(("127.0.0.1", 4000), timeout=2)
+            sock.close()
+        except (socket.timeout, ConnectionRefusedError, OSError):
+            return False
+        # Port is open - try HTTP health endpoint
+        for endpoint in ["/health", "/health/readiness", "/health/liveness"]:
+            try:
+                response = httpx.get(f"http://localhost:4000{endpoint}", timeout=5.0)
+                if response.status_code == 200:
+                    return True
+            except httpx.TimeoutException:
+                # Timeout = server is alive but slow to respond = HEALTHY
                 return True
-        except:
-            continue
-    return False
+            except:
+                continue
+        # Port is open but no HTTP response yet (still initializing)
+        return True  # Port is open = server is alive

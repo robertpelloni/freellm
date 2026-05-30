@@ -14,7 +14,7 @@ DEFAULT_CONFIG_PATH = "config.yaml"
 PROVIDER_MAP = {
     "openrouter": {"prefix": "openrouter", "env_key": "OPENROUTER_API_KEY"},
     "groq":       {"prefix": "groq",       "env_key": "GROQ_API_KEY"},
-    "together":   {"prefix": "together",   "env_key": "TOGETHER_API_KEY"},
+    "together":   {"prefix": "together_ai",   "env_key": "TOGETHER_API_KEY"},
     "deepinfra":  {"prefix": "deepinfra",  "env_key": "DEEPINFRA_API_KEY"},
     "cerebras":   {"prefix": "cerebras",   "env_key": "CEREBRAS_API_KEY"},
     "github":     {"prefix": "openai",     "env_key": "GITHUB_TOKEN",
