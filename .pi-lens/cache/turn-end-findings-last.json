@@ -1,0 +1,6 @@
+{
+  "signature": "process_manager.py::📐 Cascade errors in 1 neighbor file(s) — fix before finishing turn:\n<diagnostics file=\"main.py\" reason=\"fallback\">\n  line 23, col 8 rule=cascade:reportMissingImports: Import \"comparison_ui\" could not be resolved\n  line 24, col 8 rule=cascade:reportMissingImports: Import \"api_server\" could not be resolved\n  line 25, col 8 rule=cascade:reportMissingImports: Import \"savings_ui\" could not be resolved\n  line 26, col 8 rule=cascade:reportMissingImports: Import \"monitoring_ui\" could not be resolved\n  line 1025, col 41 rule=cascade:reportAttributeAccessIssue: Cannot access attribute \"check_health\" for class \"LiteLLMProcess\"\n</diagnostics>",
+  "sessionId": "lens-mpr889ut-c73c34be",
+  "projectSeqStart": 9,
+  "projectSeqEnd": 10
+}
