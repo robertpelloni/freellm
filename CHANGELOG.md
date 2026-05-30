@@ -1,5 +1,10 @@
 # Changelog: LiteLLM Control Panel
 
+## [2.7.1] - 2024-06-23
+### Added
+- Repository Reconciliation: Merged latest features and fixes from the dynamic-hf-and-live-logs branch.
+- Unified Architecture: Finalized convergence of autonomous protocol oversight and real-time monitoring suites.
+
 ## [2.7.0] - 2024-06-22
 ### Added
 - Protocol Execution Dashboard: New visualization for monitoring execution metrics and error rates.
