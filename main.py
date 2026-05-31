@@ -27,6 +27,21 @@ import monitoring_ui
 import protocol_ui
 import execution_dashboard
 
+# Debug: catch unhandled exceptions that might silently kill the process
+import traceback as _tb
+_orig_excepthook = sys.excepthook
+def _debug_excepthook(exc_type, exc_value, exc_tb):
+    print(f"UNHANDLED EXCEPTION: {exc_type.__name__}: {exc_value}", file=sys.stderr, flush=True)
+    _tb.print_exception(exc_type, exc_value, exc_tb, file=sys.stderr)
+    _orig_excepthook(exc_type, exc_value, exc_tb)
+sys.excepthook = _debug_excepthook
+
+def _debug_exit():
+    print("PROCESS EXITING - atexit handler called", flush=True)
+import atexit as _atexit2
+_atexit2.register(_debug_exit)
+
+
 # ── Single-instance enforcement ──────────────────────────────────────────────
 LOCK_FILE = os.path.join(tempfile.gettempdir(), "litellm_control_panel.lock")
 
