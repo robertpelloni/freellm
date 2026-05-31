@@ -39,7 +39,18 @@ SIZE_PATTERN = re.compile(r'(\d+)[bB]')
 
 # Global exclusions -- set by main.py from settings at runtime.
 # Default is deliberately minimal; -preview is NOT excluded by default.
-GLOBAL_EXCLUSIONS = ["-base", "dummy"]
+GLOBAL_EXCLUSIONS = [
+    "-base", "dummy",
+    # Non-chat models (TTS, ASR, image gen, safety, embedding, etc.)
+    "whisper", "orpheus", "flux", "prompt-guard", "compound",
+    "lyria", "dall", "sdxl", "stable-diffusion", "midjourney",
+    "canopylabs", "tts", "asr", "image-gen", "embed",
+    # Cohere models (trial key exhausted)
+    "command-",
+]
+
+# Providers that should never be benchmarked (exhausted/depleted keys)
+DEAD_PROVIDERS = {"huggingface", "cohere"}
 
 # Models known to be decommissioned, nonexistent, or non-chat -- skip entirely
 DEAD_MODELS = {
@@ -842,8 +853,10 @@ class ModelEngine:
             full_id = f"{m['provider']}/{m['id']}"
             if full_id in DEAD_MODELS or m['id'] in DEAD_MODELS:
                 continue
-
-            # Global keyword exclusion check (configurable from settings)
+            # Skip providers with exhausted/depleted API keys
+            if m.get("provider", "") in DEAD_PROVIDERS:
+                continue
+            # Global keyword exclusion check (non-chat, decommissioned, etc.)
             if any(exc in m['id'].lower() for exc in GLOBAL_EXCLUSIONS):
                 continue
 
@@ -881,6 +894,12 @@ class ModelEngine:
             # But our candidate list uses the bare model ID, e.g. "DeepSeek-R1"
             bare_id = litellm_id.split("/", 1)[-1] if "/" in litellm_id else litellm_id
             prov = spec.get("provider", "")
+            # Skip dead providers (exhausted/depleted keys)
+            if prov in DEAD_PROVIDERS:
+                continue
+            # Skip non-chat models by keyword
+            if any(exc in litellm_id.lower() for exc in GLOBAL_EXCLUSIONS):
+                continue
 
             # Skip if already in candidates (check both bare id and full id)
             if bare_id in existing_ids or litellm_id in existing_ids:
