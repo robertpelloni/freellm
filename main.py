@@ -31,10 +31,94 @@ import execution_dashboard
 LOCK_FILE = os.path.join(tempfile.gettempdir(), "litellm_control_panel.lock")
 
 
-def enforce_single_instance():
-    """Kill any existing instance and take over the lock."""
-    import subprocess, signal
+def _is_pid_our_app(pid):
+    """Check if a PID belongs to our main.py app (not a reused PID)."""
+    try:
+        if sys.platform == "win32":
+            import subprocess as sp
+            r = sp.run(
+                ["wmic", "process", "where", f"processid={pid}", "get", "commandline"],
+                capture_output=True, text=True, timeout=3,
+            )
+            return "main.py" in r.stdout
+        else:
+            try:
+                os.kill(pid, 0)
+                return True
+            except ProcessLookupError:
+                return False
+    except Exception:
+        return False
 
+
+def _kill_process_tree(pid):
+    """Kill a process and all its children on any platform."""
+    try:
+        if sys.platform == "win32":
+            import subprocess as sp, ctypes
+            # Use taskkill /F /T to kill the entire tree
+            sp.run(
+                ["taskkill", "/F", "/T", "/PID", str(pid)],
+                capture_output=True, timeout=5,
+            )
+            # Wait for process to fully exit
+            kernel32 = ctypes.windll.kernel32
+            handle = kernel32.OpenProcess(0x100000, False, pid)
+            if handle:
+                kernel32.WaitForSingleObject(handle, 3000)
+                kernel32.CloseHandle(handle)
+        else:
+            import signal
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except ProcessLookupError:
+                return
+            time.sleep(1)
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+    except Exception:
+        pass
+
+
+def _kill_port_4000():
+    """Kill any process listening on port 4000 (orphaned LiteLLM)."""
+    try:
+        if sys.platform == "win32":
+            import subprocess as sp, ctypes
+            r = sp.run(["netstat", "-ano"], capture_output=True, text=True, timeout=5)
+            kernel32 = ctypes.windll.kernel32
+            for line in r.stdout.split(chr(10)):
+                if ":4000" in line and "LISTEN" in line:
+                    parts = line.strip().split()
+                    if parts:
+                        try:
+                            port_pid = int(parts[-1])
+                            handle = kernel32.OpenProcess(1, False, port_pid)
+                            if handle:
+                                kernel32.TerminateProcess(handle, 1)
+                                kernel32.CloseHandle()
+                        except (ValueError, OSError):
+                            pass
+        else:
+            import subprocess as sp
+            sp.run(["fuser", "-k", "4000/tcp"], capture_output=True, timeout=5)
+    except Exception:
+        pass
+
+
+def enforce_single_instance():
+    """Kill any existing instance (and orphaned LiteLLM) and take over the lock.
+
+    On startup, this function:
+    1. Reads the PID from the lock file
+    2. Verifies the PID is actually our app (not a reused PID)
+    3. Kills the old instance with its entire process tree
+    4. Kills any orphaned LiteLLM process on port 4000
+    5. Writes our own PID to the lock file
+    6. Registers cleanup handlers
+    """
     # Read existing PID from lock file
     old_pid = None
     if os.path.exists(LOCK_FILE):
@@ -44,34 +128,25 @@ def enforce_single_instance():
         except (ValueError, OSError):
             pass
 
-    # Kill the old process if it's still running
-    if old_pid:
-        try:
-            if sys.platform == "win32":
-                subprocess.run(
-                    ["taskkill", "/F", "/T", "/PID", str(old_pid)],
-                    capture_output=True,
-                    timeout=5,
-                )
-            else:
-                os.kill(old_pid, signal.SIGTERM)
-                time.sleep(1)
-                try:
-                    os.kill(old_pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-            print(f"Terminated previous instance (PID {old_pid})")
-            time.sleep(2)
-        except (ProcessLookupError, FileNotFoundError, PermissionError, OSError):
-            pass  # Process already dead
+    # Kill the old process if it's still running AND is actually our app
+    if old_pid and _is_pid_our_app(old_pid):
+        print(f"Found previous instance (PID {old_pid}). Terminating...")
+        _kill_process_tree(old_pid)
+        print(f"Terminated previous instance (PID {old_pid})")
+        time.sleep(2)
+    elif old_pid:
+        # PID exists but isn't our app - it was reused. Just take the lock.
+        print(f"Lock file PID {old_pid} is no longer our app. Taking over.")
+
+    # Also kill any orphaned LiteLLM on port 4000
+    _kill_port_4000()
 
     # Write our PID to the lock file
     with open(LOCK_FILE, "w") as f:
         f.write(str(os.getpid()))
 
-    # Register cleanup on exit
+    # Register cleanup on exit (best-effort; won't run on hard kill)
     import atexit
-
     atexit.register(lambda: os.remove(LOCK_FILE) if os.path.exists(LOCK_FILE) else None)
 
 
