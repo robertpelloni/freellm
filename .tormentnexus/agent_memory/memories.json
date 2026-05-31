@@ -1,0 +1,2162 @@
+{
+  "version": 1,
+  "savedAt": "2026-05-31T02:20:02.780Z",
+  "memories": [
+    {
+      "id": "dd91cbaec29aa6e4",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Surgically search and destroy exactly the corrupted httpx library files using os.walk in cache (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Surgically search and destroy exactly the corrupted httpx library files using os.walk in cache",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "a1d481e2-fc18-4428-af5c-aede2d9e1d0f",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/surgical_search_and_destroy.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:d2e0ca1d6df2",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:d2e0ca1d6df2",
+          "name": "Surgically search and destroy exactly the corrupted httpx library files using os.walk in cache",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780191745665.2783,
+          "stoppedAt": 1780193803011,
+          "lastActivityAt": 1780191745665.2783,
+          "logTail": [
+            "Surgically search and destroy exactly the corrupted httpx library files using os.walk in cache"
+          ],
+          "recordedAt": 1780193803034,
+          "contentHash": "session-1463209787"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:16:43.035Z",
+      "accessedAt": "2026-05-31T02:16:43.035Z",
+      "accessCount": 0
+    },
+    {
+      "id": "6709f0745aeb31a3",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Surgically find and remove only the corrupted httpx caches in uv archive folder (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Surgically find and remove only the corrupted httpx caches in uv archive folder",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "cdb0bc87-3bee-4cf6-899b-5e87420d8a3f",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/surgically_purge_cache.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:cc902c05a287",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:cc902c05a287",
+          "name": "Surgically find and remove only the corrupted httpx caches in uv archive folder",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780191681728.196,
+          "stoppedAt": 1780193806978,
+          "lastActivityAt": 1780191681728.196,
+          "logTail": [
+            "Surgically find and remove only the corrupted httpx caches in uv archive folder"
+          ],
+          "recordedAt": 1780193807174,
+          "contentHash": "session-441524979"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:16:47.174Z",
+      "accessedAt": "2026-05-31T02:16:47.174Z",
+      "accessCount": 0
+    },
+    {
+      "id": "1214464bd6123c10",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Force clear uv cache by bypassing read-only attributes on Windows (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Force clear uv cache by bypassing read-only attributes on Windows",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "ff794709-6398-4ea0-9064-4b4fe3b15af6",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/force_clear_uv_cache.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:b95f02a24d79",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:b95f02a24d79",
+          "name": "Force clear uv cache by bypassing read-only attributes on Windows",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780191398184.6396,
+          "stoppedAt": 1780193808563,
+          "lastActivityAt": 1780191398184.6396,
+          "logTail": [
+            "Force clear uv cache by bypassing read-only attributes on Windows"
+          ],
+          "recordedAt": 1780193808589,
+          "contentHash": "session-1144978208"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:16:48.590Z",
+      "accessedAt": "2026-05-31T02:16:48.590Z",
+      "accessCount": 0
+    },
+    {
+      "id": "22dc612077967a1e",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Check for presence of API keys in environment variables (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Check for presence of API keys in environment variables",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "7d96c7f0-8959-45d1-bb8c-392270214158",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/check_env_keys.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:0feb3042830e",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:0feb3042830e",
+          "name": "Check for presence of API keys in environment variables",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780190879278.4465,
+          "stoppedAt": 1780193809925,
+          "lastActivityAt": 1780190879278.4465,
+          "logTail": [
+            "Check for presence of API keys in environment variables"
+          ],
+          "recordedAt": 1780193809942,
+          "contentHash": "session-727453526"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:16:49.942Z",
+      "accessedAt": "2026-05-31T02:16:49.942Z",
+      "accessCount": 0
+    },
+    {
+      "id": "970685e8601dd63d",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Querying published mcp servers and their templates/recipes (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Querying published mcp servers and their templates/recipes",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "5bd2d2e4-6435-4140-babc-a755c9c3c1ed",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/inspect_published_servers.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:eadff7498896",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:eadff7498896",
+          "name": "Querying published mcp servers and their templates/recipes",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780190872925.6367,
+          "stoppedAt": 1780193811210,
+          "lastActivityAt": 1780190872925.6367,
+          "logTail": [
+            "Querying published mcp servers and their templates/recipes"
+          ],
+          "recordedAt": 1780193811230,
+          "contentHash": "session-944310265"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:16:51.230Z",
+      "accessedAt": "2026-05-31T02:16:51.230Z",
+      "accessCount": 0
+    },
+    {
+      "id": "2f2138e329205f07",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Update tormentnexus-supervisor path to point to correct workspace path (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Update tormentnexus-supervisor path to point to correct workspace path",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "a4c96f75-7d9b-49b8-b53b-4289b6d00745",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/update_supervisor_db.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:cad2fb01245f",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:cad2fb01245f",
+          "name": "Update tormentnexus-supervisor path to point to correct workspace path",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780190274263.3,
+          "stoppedAt": 1780193812477,
+          "lastActivityAt": 1780190274263.3,
+          "logTail": [
+            "Update tormentnexus-supervisor path to point to correct workspace path"
+          ],
+          "recordedAt": 1780193812509,
+          "contentHash": "session-953728125"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:16:52.509Z",
+      "accessedAt": "2026-05-31T02:16:52.509Z",
+      "accessCount": 0
+    },
+    {
+      "id": "cd11c005473dffd1",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Update tormentnexus-supervisor path to point to correct workspace path",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "a4c96f75-7d9b-49b8-b53b-4289b6d00745",
+        "sessionId": "imported:antigravity:cad2fb01245f",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/update_supervisor_db.py.metadata.json",
+        "tags": [
+          "antigravity",
+          "memory"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-05-31T02:16:54.239Z",
+      "accessedAt": "2026-05-31T02:16:54.239Z",
+      "accessCount": 0
+    },
+    {
+      "id": "1124355ea1fbe67e",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Querying all extracted tools from tormentnexus.db (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Querying all extracted tools from tormentnexus.db",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "bc375842-3410-44f2-ae43-60a471a5ab13",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/query_tools.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:d0b39a76b09b",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:d0b39a76b09b",
+          "name": "Querying all extracted tools from tormentnexus.db",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780189411438.5913,
+          "stoppedAt": 1780193815603,
+          "lastActivityAt": 1780189411438.5913,
+          "logTail": [
+            "Querying all extracted tools from tormentnexus.db"
+          ],
+          "recordedAt": 1780193815622,
+          "contentHash": "session-2108735291"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:16:55.622Z",
+      "accessedAt": "2026-05-31T02:16:55.622Z",
+      "accessCount": 0
+    },
+    {
+      "id": "8dccc3ac1ffaa031",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Create a scratch script to patch and execute all scrapers and assimilators against tormentnexus.db (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Create a scratch script to patch and execute all scrapers and assimilators against tormentnexus.db",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "d1c7bcdf-bdcd-4946-901d-ad1ccd7e886f",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/run_patched_scrapers.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:760412d01b7a",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:760412d01b7a",
+          "name": "Create a scratch script to patch and execute all scrapers and assimilators against tormentnexus.db",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780184677792.924,
+          "stoppedAt": 1780193817161,
+          "lastActivityAt": 1780184677792.924,
+          "logTail": [
+            "Create a scratch script to patch and execute all scrapers and assimilators against tormentnexus.db"
+          ],
+          "recordedAt": 1780193817180,
+          "contentHash": "session-479175466"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:16:57.180Z",
+      "accessedAt": "2026-05-31T02:16:57.180Z",
+      "accessCount": 0
+    },
+    {
+      "id": "9b659f878dc201ff",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Create a scratch script to inspect tormentnexus.db tables and columns (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Create a scratch script to inspect tormentnexus.db tables and columns",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "9e5d09d7-33bd-498b-a833-8a4aa65b3caa",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/inspect_tormentnexus_db.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:f6370cc4d39a",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:f6370cc4d39a",
+          "name": "Create a scratch script to inspect tormentnexus.db tables and columns",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780184647286.9834,
+          "stoppedAt": 1780193818543,
+          "lastActivityAt": 1780184647286.9834,
+          "logTail": [
+            "Create a scratch script to inspect tormentnexus.db tables and columns"
+          ],
+          "recordedAt": 1780193818586,
+          "contentHash": "session-467621703"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:16:58.586Z",
+      "accessedAt": "2026-05-31T02:16:58.586Z",
+      "accessCount": 0
+    },
+    {
+      "id": "8c115834d262c994",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Create script to delete stale apps/tormentnexus-extension directory and successfully rename apps/hypercode-extension to (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Create script to delete stale apps/tormentnexus-extension directory and successfully rename apps/hypercode-extension to apps/tormentnexus-extension",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "5df91790-e14a-4a10-b45d-f842c82e782d",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/rename_extension_folder.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:6cd177320bbb",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:6cd177320bbb",
+          "name": "Create script to delete stale apps/tormentnexus-extension directory and successfully rename apps/hypercode-extension to",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780176940519.7168,
+          "stoppedAt": 1780193819962,
+          "lastActivityAt": 1780176940519.7168,
+          "logTail": [
+            "Create script to delete stale apps/tormentnexus-extension directory and successfully rename apps/hypercode-extension to apps/tormentnexus-extension"
+          ],
+          "recordedAt": 1780193819992,
+          "contentHash": "session-73872953"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:16:59.993Z",
+      "accessedAt": "2026-05-31T02:16:59.993Z",
+      "accessCount": 0
+    },
+    {
+      "id": "9a13159733fd55a9",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Create script to search for base-build references to locate where the invalid script command is being invoked during ext (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Create script to search for base-build references to locate where the invalid script command is being invoked during extension compilation",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "64dfddfb-69bf-46f6-a0a0-a0e58a01139c",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/search_base_build.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:900b7c2f74d1",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:900b7c2f74d1",
+          "name": "Create script to search for base-build references to locate where the invalid script command is being invoked during ext",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780176920124.6582,
+          "stoppedAt": 1780193821426,
+          "lastActivityAt": 1780176920124.6582,
+          "logTail": [
+            "Create script to search for base-build references to locate where the invalid script command is being invoked during extension compilation"
+          ],
+          "recordedAt": 1780193821450,
+          "contentHash": "session-487812496"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:17:01.450Z",
+      "accessedAt": "2026-05-31T02:17:01.450Z",
+      "accessCount": 0
+    },
+    {
+      "id": "d414f3d06ce8de8b",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Create script to delete the stale development type files in apps/web/.next/dev/types to fix TypeScript typechecking duri (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Create script to delete the stale development type files in apps/web/.next/dev/types to fix TypeScript typechecking during next build",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "2867f7af-8d51-48b2-89fc-14d47140f6bb",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/delete_dev_types.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:d711fed289e3",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:d711fed289e3",
+          "name": "Create script to delete the stale development type files in apps/web/.next/dev/types to fix TypeScript typechecking duri",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780176781116.4531,
+          "stoppedAt": 1780193822905,
+          "lastActivityAt": 1780176781116.4531,
+          "logTail": [
+            "Create script to delete the stale development type files in apps/web/.next/dev/types to fix TypeScript typechecking during next build"
+          ],
+          "recordedAt": 1780193822944,
+          "contentHash": "session-1944787544"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:17:02.944Z",
+      "accessedAt": "2026-05-31T02:17:02.944Z",
+      "accessCount": 0
+    },
+    {
+      "id": "b976b441ef529c75",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Create script to delete the stale development type files in apps/web/.next/dev/types to fix TypeScript typechecking during next build",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "2867f7af-8d51-48b2-89fc-14d47140f6bb",
+        "sessionId": "imported:antigravity:d711fed289e3",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/delete_dev_types.py.metadata.json",
+        "tags": [
+          "antigravity",
+          "memory",
+          "validation",
+          "ui"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-05-31T02:17:04.262Z",
+      "accessedAt": "2026-05-31T02:17:04.262Z",
+      "accessCount": 0
+    },
+    {
+      "id": "354f4103d1a16f8e",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Rewrite delete_next_cache.py to use an advanced onerror handler that clears read-only attributes on Windows files for ro (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Rewrite delete_next_cache.py to use an advanced onerror handler that clears read-only attributes on Windows files for robust deletion",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "941f6ab2-b913-4a4b-977e-50c7459c08b5",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/delete_next_cache.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:e4faa1fcb930",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:e4faa1fcb930",
+          "name": "Rewrite delete_next_cache.py to use an advanced onerror handler that clears read-only attributes on Windows files for ro",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780176602163.9363,
+          "stoppedAt": 1780193825689,
+          "lastActivityAt": 1780176602163.9363,
+          "logTail": [
+            "Rewrite delete_next_cache.py to use an advanced onerror handler that clears read-only attributes on Windows files for robust deletion"
+          ],
+          "recordedAt": 1780193825729,
+          "contentHash": "session-1341470701"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:17:05.729Z",
+      "accessedAt": "2026-05-31T02:17:05.729Z",
+      "accessCount": 0
+    },
+    {
+      "id": "efffa561509374b3",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Rewrite delete_next_cache.py to use an advanced onerror handler that clears read-only attributes on Windows files for robust deletion",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "941f6ab2-b913-4a4b-977e-50c7459c08b5",
+        "sessionId": "imported:antigravity:e4faa1fcb930",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/delete_next_cache.py.metadata.json",
+        "tags": [
+          "antigravity",
+          "instruction"
+        ],
+        "section": "instructions",
+        "memoryKind": "instruction",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-05-31T02:17:49.087Z",
+      "accessedAt": "2026-05-31T02:17:49.087Z",
+      "accessCount": 0
+    },
+    {
+      "id": "3438e28a8b23031d",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Create script to safely restore and correct parent .git/config after a slightly misaligned file replacement (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Create script to safely restore and correct parent .git/config after a slightly misaligned file replacement",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "3a5a1331-f384-4f5a-b30e-264ce2eef644",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/fix_git_config.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:7e190a8df5fc",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:7e190a8df5fc",
+          "name": "Create script to safely restore and correct parent .git/config after a slightly misaligned file replacement",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780163387368.0222,
+          "stoppedAt": 1780193870425,
+          "lastActivityAt": 1780163387368.0222,
+          "logTail": [
+            "Create script to safely restore and correct parent .git/config after a slightly misaligned file replacement"
+          ],
+          "recordedAt": 1780193870447,
+          "contentHash": "session-1615206340"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:17:50.447Z",
+      "accessedAt": "2026-05-31T02:17:50.447Z",
+      "accessCount": 0
+    },
+    {
+      "id": "8c2298b80523c81c",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Create script to safely rename the root workspace directory from borg to TormentNexus (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Create script to safely rename the root workspace directory from borg to TormentNexus",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "56c0a94e-4724-4e49-9d93-59f8215c3c42",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/rename_root_workspace.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:0d436a4573dd",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:0d436a4573dd",
+          "name": "Create script to safely rename the root workspace directory from borg to TormentNexus",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780163317044.6265,
+          "stoppedAt": 1780193871928,
+          "lastActivityAt": 1780163317044.6265,
+          "logTail": [
+            "Create script to safely rename the root workspace directory from borg to TormentNexus"
+          ],
+          "recordedAt": 1780193871952,
+          "contentHash": "session-1096382455"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:17:51.953Z",
+      "accessedAt": "2026-05-31T02:17:51.953Z",
+      "accessCount": 0
+    },
+    {
+      "id": "f375229c3041f5ba",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Task list tracking all completed steps in the TormentNexus rebranding and refactoring task. (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43\nLog tail: Task list tracking all completed steps in the TormentNexus rebranding and refactoring task.",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "c61e1e51-784b-4f96-ae96-43207e3e99b7",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/task.md.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:c6236ad3d5e1",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:c6236ad3d5e1",
+          "name": "Task list tracking all completed steps in the TormentNexus rebranding and refactoring task.",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43",
+          "restartCount": 0,
+          "startedAt": 1780163138539.9944,
+          "stoppedAt": 1780193873252,
+          "lastActivityAt": 1780163138539.9944,
+          "logTail": [
+            "Task list tracking all completed steps in the TormentNexus rebranding and refactoring task."
+          ],
+          "recordedAt": 1780193873277,
+          "contentHash": "session-1933252746"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:17:53.277Z",
+      "accessedAt": "2026-05-31T02:17:53.277Z",
+      "accessCount": 0
+    },
+    {
+      "id": "eb12d1f14df54e0f",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "# Task: TormentNexus Refactoring Execution (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43\nLog tail: # Task: TormentNexus Refactoring Execution | - [x] Write and verify the source code refactoring script `refactor_to_tormentnexus.py` | - [x] Execute `refactor_to_tormentnexus.py` to update text references in all files (excluding `.git`, `node_modules`, `pnpm-lock.yaml`, `.next`) | - [x] Write and execute `migrate_db_to_tormentnexus.py` to update SQLite databases schemas/tables | - [x] Write and execute `rename_directories.py` to rename directories and files containing matching tokens | - [x] Run compiler validation (`tsc --noEmit`) and build tests | - [x] Update walkthrough and handoff summaries",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "974da0f5-f8f0-4e55-aa0c-ee876df6609b",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/task.md",
+        "sessionFormat": "md",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:1c6a555a4444",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:1c6a555a4444",
+          "name": "# Task: TormentNexus Refactoring Execution",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43",
+          "restartCount": 0,
+          "startedAt": 1780163138538.483,
+          "stoppedAt": 1780193874486,
+          "lastActivityAt": 1780163138538.483,
+          "logTail": [
+            "# Task: TormentNexus Refactoring Execution",
+            "- [x] Write and verify the source code refactoring script `refactor_to_tormentnexus.py`",
+            "- [x] Execute `refactor_to_tormentnexus.py` to update text references in all files (excluding `.git`, `node_modules`, `pnpm-lock.yaml`, `.next`)",
+            "- [x] Write and execute `migrate_db_to_tormentnexus.py` to update SQLite databases schemas/tables",
+            "- [x] Write and execute `rename_directories.py` to rename directories and files containing matching tokens",
+            "- [x] Run compiler validation (`tsc --noEmit`) and build tests",
+            "- [x] Update walkthrough and handoff summaries"
+          ],
+          "recordedAt": 1780193874507,
+          "contentHash": "session-208312950"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:17:54.508Z",
+      "accessedAt": "2026-05-31T02:17:54.508Z",
+      "accessCount": 0
+    },
+    {
+      "id": "16101d25db083091",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Walkthrough detailing the successful monorepo refactoring to TormentNexus, case-insensitive matching with case-specific (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43\nLog tail: Walkthrough detailing the successful monorepo refactoring to TormentNexus, case-insensitive matching with case-specific replacements, bottom-up path renaming, database migration, and clean TypeScript verification.",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "4ba72b07-3a66-4b4c-b20e-57260d0b5da7",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/walkthrough.md.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:0f9762a2d60d",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:0f9762a2d60d",
+          "name": "Walkthrough detailing the successful monorepo refactoring to TormentNexus, case-insensitive matching with case-specific",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43",
+          "restartCount": 0,
+          "startedAt": 1780163133169.7163,
+          "stoppedAt": 1780193876084,
+          "lastActivityAt": 1780163133169.7163,
+          "logTail": [
+            "Walkthrough detailing the successful monorepo refactoring to TormentNexus, case-insensitive matching with case-specific replacements, bottom-up path renaming, database migration, and clean TypeScript verification."
+          ],
+          "recordedAt": 1780193876124,
+          "contentHash": "session-1212379854"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:17:56.124Z",
+      "accessedAt": "2026-05-31T02:17:56.124Z",
+      "accessCount": 0
+    },
+    {
+      "id": "9e5815a070952ca9",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Walkthrough detailing the successful monorepo refactoring to TormentNexus, case-insensitive matching with case-specific replacements, bottom-up path renaming, database migration, and clean TypeScript verification.",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "4ba72b07-3a66-4b4c-b20e-57260d0b5da7",
+        "sessionId": "imported:antigravity:0f9762a2d60d",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/walkthrough.md.metadata.json",
+        "tags": [
+          "antigravity",
+          "memory",
+          "database"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-05-31T02:17:57.286Z",
+      "accessedAt": "2026-05-31T02:17:57.286Z",
+      "accessCount": 0
+    },
+    {
+      "id": "49fd3247c3757717",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "# Walkthrough: End-to-End Refactoring & TormentNexus Rebranding (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43\nLog tail: - Walked the entire monorepo bottom-up to systematically rename child files and directories before parent paths. | - Cleaned up duplicate and recursively generated folders, returning the tree to a 100% pristine structure. | ### 4. Database Value Migration | - Safely restored the clean, fully populated database `borg.db` (containing 39 populated tables) to the workspace active folder. | - Renamed the active workspace database file to `tormentnexus.db`. | - Ran a complete cell-by-cell data migration script updating all data properties inside `tormentnexus.db`, successfully updating **4,246 records** to the new naming scheme. | ### 5. Dependency Linking & Zero-Regression Verification | - Executed `pnpm install` successfully to regenerate all workspace linkages for renamed `@tormentnexus/...` package dependencies. | - Verified monorepo type safety using `pnpm -C packages/core exec tsc --noEmit`. | - **Result**: Successfully completed with **zero TypeScript compilation errors**!",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "a94601ef-cade-4aaa-87ca-c6ff14dacaf8",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/walkthrough.md",
+        "sessionFormat": "md",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:e05dd2c36210",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:e05dd2c36210",
+          "name": "# Walkthrough: End-to-End Refactoring & TormentNexus Rebranding",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43",
+          "restartCount": 0,
+          "startedAt": 1780163133167.7168,
+          "stoppedAt": 1780193878661,
+          "lastActivityAt": 1780163133167.7168,
+          "logTail": [
+            "- Walked the entire monorepo bottom-up to systematically rename child files and directories before parent paths.",
+            "- Cleaned up duplicate and recursively generated folders, returning the tree to a 100% pristine structure.",
+            "### 4. Database Value Migration",
+            "- Safely restored the clean, fully populated database `borg.db` (containing 39 populated tables) to the workspace active folder.",
+            "- Renamed the active workspace database file to `tormentnexus.db`.",
+            "- Ran a complete cell-by-cell data migration script updating all data properties inside `tormentnexus.db`, successfully updating **4,246 records** to the new naming scheme.",
+            "### 5. Dependency Linking & Zero-Regression Verification",
+            "- Executed `pnpm install` successfully to regenerate all workspace linkages for renamed `@tormentnexus/...` package dependencies.",
+            "- Verified monorepo type safety using `pnpm -C packages/core exec tsc --noEmit`.",
+            "- **Result**: Successfully completed with **zero TypeScript compilation errors**!"
+          ],
+          "recordedAt": 1780193878745,
+          "contentHash": "session-905676826"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:17:58.745Z",
+      "accessedAt": "2026-05-31T02:17:58.745Z",
+      "accessCount": 0
+    },
+    {
+      "id": "6570835c4e294807",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "We have successfully executed the massive monorepo-wide case-insensitive and case-specific refactoring, systematically renaming every occurrence and path of `borg`, `nexus`, `hypervisor`, `aios`, `metamcp`, `claude-mem`, `prism`, and `hyper",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "a94601ef-cade-4aaa-87ca-c6ff14dacaf8",
+        "sessionId": "imported:antigravity:e05dd2c36210",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/walkthrough.md",
+        "tags": [
+          "antigravity",
+          "memory",
+          "mcp"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-05-31T02:18:00.383Z",
+      "accessedAt": "2026-05-31T02:18:00.383Z",
+      "accessCount": 0
+    },
+    {
+      "id": "ac120c8e62b1ce52",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "- Used an advanced case-insensitive regular expression pattern compiled with longest terms first to handle compound words.",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "a94601ef-cade-4aaa-87ca-c6ff14dacaf8",
+        "sessionId": "imported:antigravity:e05dd2c36210",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/walkthrough.md",
+        "tags": [
+          "antigravity",
+          "memory"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-05-31T02:18:01.683Z",
+      "accessedAt": "2026-05-31T02:18:01.683Z",
+      "accessCount": 0
+    },
+    {
+      "id": "2de8bb8d76955920",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "### 3. Bottom-Up File & Path Renaming",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "a94601ef-cade-4aaa-87ca-c6ff14dacaf8",
+        "sessionId": "imported:antigravity:e05dd2c36210",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/walkthrough.md",
+        "tags": [
+          "antigravity",
+          "memory"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-05-31T02:18:02.932Z",
+      "accessedAt": "2026-05-31T02:18:02.932Z",
+      "accessCount": 0
+    },
+    {
+      "id": "a178fe3f084ebb2b",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "- Walked the entire monorepo bottom-up to systematically rename child files and directories before parent paths.",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "a94601ef-cade-4aaa-87ca-c6ff14dacaf8",
+        "sessionId": "imported:antigravity:e05dd2c36210",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/walkthrough.md",
+        "tags": [
+          "antigravity",
+          "memory"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-05-31T02:18:04.432Z",
+      "accessedAt": "2026-05-31T02:18:04.432Z",
+      "accessCount": 0
+    },
+    {
+      "id": "1ac3c0ebab5301fe",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "- **Result**: Successfully completed with **zero TypeScript compilation errors**!",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "a94601ef-cade-4aaa-87ca-c6ff14dacaf8",
+        "sessionId": "imported:antigravity:e05dd2c36210",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/walkthrough.md",
+        "tags": [
+          "antigravity",
+          "memory"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-05-31T02:18:05.793Z",
+      "accessedAt": "2026-05-31T02:18:05.793Z",
+      "accessCount": 0
+    },
+    {
+      "id": "e225861c7ae5298a",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "# Walkthrough: End-to-End Refactoring & TormentNexus Rebranding We have successfully executed the massive monorepo-wide case-insensitive and case-specific refactoring, systematically renaming every occurrence and path of",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "a94601ef-cade-4aaa-87ca-c6ff14dacaf8",
+        "sessionId": "imported:antigravity:e05dd2c36210",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/walkthrough.md",
+        "tags": [
+          "antigravity",
+          "memory"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-05-31T02:18:07.482Z",
+      "accessedAt": "2026-05-31T02:18:07.482Z",
+      "accessCount": 0
+    },
+    {
+      "id": "04cc539c2b3d5d8e",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Rewrite refactor_package_jsons.py to prune os.walk directories in-place, enabling sub-millisecond traversal and instant (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Rewrite refactor_package_jsons.py to prune os.walk directories in-place, enabling sub-millisecond traversal and instant execution",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "bf60ba02-e34b-48fd-a1ef-012d12f29809",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/refactor_package_jsons.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:3e9bab70dd80",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:3e9bab70dd80",
+          "name": "Rewrite refactor_package_jsons.py to prune os.walk directories in-place, enabling sub-millisecond traversal and instant",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780163064940.0828,
+          "stoppedAt": 1780193888541,
+          "lastActivityAt": 1780163064940.0828,
+          "logTail": [
+            "Rewrite refactor_package_jsons.py to prune os.walk directories in-place, enabling sub-millisecond traversal and instant execution"
+          ],
+          "recordedAt": 1780193888554,
+          "contentHash": "session-959501988"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:18:08.554Z",
+      "accessedAt": "2026-05-31T02:18:08.554Z",
+      "accessCount": 0
+    },
+    {
+      "id": "28e5d918ba217677",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Rewrite refactor_target.py to target the entire packages directory and exclude .lance vector database files successfully (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Rewrite refactor_target.py to target the entire packages directory and exclude .lance vector database files successfully",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "76de2830-80db-4f73-8841-9ef6b980d78d",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/refactor_target.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:db5563a61c8e",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:db5563a61c8e",
+          "name": "Rewrite refactor_target.py to target the entire packages directory and exclude .lance vector database files successfully",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780162931577.588,
+          "stoppedAt": 1780193889677,
+          "lastActivityAt": 1780162931577.588,
+          "logTail": [
+            "Rewrite refactor_target.py to target the entire packages directory and exclude .lance vector database files successfully"
+          ],
+          "recordedAt": 1780193889689,
+          "contentHash": "session-1594432778"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:18:09.689Z",
+      "accessedAt": "2026-05-31T02:18:09.689Z",
+      "accessCount": 0
+    },
+    {
+      "id": "2a0205f2cab6cece",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Debug why packages directory is not being walked by refactor_to_tormentnexus.py (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Debug why packages directory is not being walked by refactor_to_tormentnexus.py",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "467b63fa-4cf1-4c9f-bbfb-d28196f730ac",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/debug_walk.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:79bb89bc6b06",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:79bb89bc6b06",
+          "name": "Debug why packages directory is not being walked by refactor_to_tormentnexus.py",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780162857506.2402,
+          "stoppedAt": 1780193890729,
+          "lastActivityAt": 1780162857506.2402,
+          "logTail": [
+            "Debug why packages directory is not being walked by refactor_to_tormentnexus.py"
+          ],
+          "recordedAt": 1780193890745,
+          "contentHash": "session-189502154"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:18:10.745Z",
+      "accessedAt": "2026-05-31T02:18:10.745Z",
+      "accessCount": 0
+    },
+    {
+      "id": "c153734fd541bee9",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Test reading and refactoring mcp-config-discovery.service.ts specifically to diagnose why it was skipped (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Test reading and refactoring mcp-config-discovery.service.ts specifically to diagnose why it was skipped",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "03bbcb2b-9fba-4d0b-b1bc-fd6beda241ef",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/test_refactor_single.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:b3c812828727",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:b3c812828727",
+          "name": "Test reading and refactoring mcp-config-discovery.service.ts specifically to diagnose why it was skipped",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780162849892.9148,
+          "stoppedAt": 1780193892188,
+          "lastActivityAt": 1780162849892.9148,
+          "logTail": [
+            "Test reading and refactoring mcp-config-discovery.service.ts specifically to diagnose why it was skipped"
+          ],
+          "recordedAt": 1780193892213,
+          "contentHash": "session-478658860"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:18:12.213Z",
+      "accessedAt": "2026-05-31T02:18:12.213Z",
+      "accessCount": 0
+    },
+    {
+      "id": "fb75547ab2358196",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Create database values migration script to update occurrences of target keywords inside tormentnexus.db cells safely usi (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Create database values migration script to update occurrences of target keywords inside tormentnexus.db cells safely using negative lookbehind case-insensitive/case-specific replacements",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "0e6c9c96-3ad7-4239-b204-e13ebfc1627b",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/migrate_db_values.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:e5b2dc0f48f3",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:e5b2dc0f48f3",
+          "name": "Create database values migration script to update occurrences of target keywords inside tormentnexus.db cells safely usi",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780162821219.6064,
+          "stoppedAt": 1780193894209,
+          "lastActivityAt": 1780162821219.6064,
+          "logTail": [
+            "Create database values migration script to update occurrences of target keywords inside tormentnexus.db cells safely using negative lookbehind case-insensitive/case-specific replacements"
+          ],
+          "recordedAt": 1780193894229,
+          "contentHash": "session-807584729"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:18:14.230Z",
+      "accessedAt": "2026-05-31T02:18:14.230Z",
+      "accessCount": 0
+    },
+    {
+      "id": "645c2f72f30d1a3e",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Create script to rename borg.db to tormentnexus.db safely (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Create script to rename borg.db to tormentnexus.db safely",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "df895ce2-d12f-4bce-baea-d7d465816038",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/rename_db_file.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:aac7f433101a",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:aac7f433101a",
+          "name": "Create script to rename borg.db to tormentnexus.db safely",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780162815612.902,
+          "stoppedAt": 1780193895593,
+          "lastActivityAt": 1780162815612.902,
+          "logTail": [
+            "Create script to rename borg.db to tormentnexus.db safely"
+          ],
+          "recordedAt": 1780193895614,
+          "contentHash": "session-341404480"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:18:15.614Z",
+      "accessedAt": "2026-05-31T02:18:15.614Z",
+      "accessCount": 0
+    },
+    {
+      "id": "dd7f861ed3e9d4b3",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Create copy script to restore the populated database backup to the active workspace (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Create copy script to restore the populated database backup to the active workspace",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "f539c780-3d58-4b35-9fba-2f6adaaffeaa",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/restore_db_from_backup.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:476da57d5254",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:476da57d5254",
+          "name": "Create copy script to restore the populated database backup to the active workspace",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780162801358.6077,
+          "stoppedAt": 1780193930259,
+          "lastActivityAt": 1780162801358.6077,
+          "logTail": [
+            "Create copy script to restore the populated database backup to the active workspace"
+          ],
+          "recordedAt": 1780193930275,
+          "contentHash": "session-130869463"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:18:50.276Z",
+      "accessedAt": "2026-05-31T02:18:50.276Z",
+      "accessCount": 0
+    },
+    {
+      "id": "5ecb6b74f7c0b354",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Check if the backup database at C:\\Users\\hyper\\workspace\\borg.db has the tables and data (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Check if the backup database at C:\\Users\\hyper\\workspace\\borg.db has the tables and data",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "bc3879d5-a5d7-40e2-8cd6-159fc9c301ad",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/check_source_db.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:36c70b575cd4",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:36c70b575cd4",
+          "name": "Check if the backup database at C:\\Users\\hyper\\workspace\\borg.db has the tables and data",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780162797185.5066,
+          "stoppedAt": 1780193931655,
+          "lastActivityAt": 1780162797185.5066,
+          "logTail": [
+            "Check if the backup database at C:\\Users\\hyper\\workspace\\borg.db has the tables and data"
+          ],
+          "recordedAt": 1780193931687,
+          "contentHash": "session-421240490"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:18:51.687Z",
+      "accessedAt": "2026-05-31T02:18:51.687Z",
+      "accessCount": 0
+    },
+    {
+      "id": "42672c0bfa17c115",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Check if the backup database at C:\\Users\\hyper\\workspace\\borg.db has the tables and data",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "bc3879d5-a5d7-40e2-8cd6-159fc9c301ad",
+        "sessionId": "imported:antigravity:36c70b575cd4",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/check_source_db.py.metadata.json",
+        "tags": [
+          "antigravity",
+          "memory",
+          "database"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-05-31T02:18:53.046Z",
+      "accessedAt": "2026-05-31T02:18:53.046Z",
+      "accessCount": 0
+    },
+    {
+      "id": "f3f52df39371674f",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Create inspect script to read the tables and columns of the restored borg.db database (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Create inspect script to read the tables and columns of the restored borg.db database",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "d39a4702-87e6-46a8-a9dd-add6a34e2b2b",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/inspect_db.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:edf261b66164",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:edf261b66164",
+          "name": "Create inspect script to read the tables and columns of the restored borg.db database",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780162665020.449,
+          "stoppedAt": 1780193934333,
+          "lastActivityAt": 1780162665020.449,
+          "logTail": [
+            "Create inspect script to read the tables and columns of the restored borg.db database"
+          ],
+          "recordedAt": 1780193934352,
+          "contentHash": "session-429784228"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:18:54.353Z",
+      "accessedAt": "2026-05-31T02:18:54.353Z",
+      "accessCount": 0
+    },
+    {
+      "id": "95b8285d829ece37",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Rewrite rename_directories.py using negative lookbehind to ensure no recursive/double renaming occurs in file/directory (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Rewrite rename_directories.py using negative lookbehind to ensure no recursive/double renaming occurs in file/directory paths on disk",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "3ad3d11f-4304-4af8-9a11-7d6beb428a96",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/rename_directories.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:bfa05b218548",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:bfa05b218548",
+          "name": "Rewrite rename_directories.py using negative lookbehind to ensure no recursive/double renaming occurs in file/directory",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780162654210.2908,
+          "stoppedAt": 1780193935579,
+          "lastActivityAt": 1780162654210.2908,
+          "logTail": [
+            "Rewrite rename_directories.py using negative lookbehind to ensure no recursive/double renaming occurs in file/directory paths on disk"
+          ],
+          "recordedAt": 1780193935612,
+          "contentHash": "session-1491392333"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:18:55.612Z",
+      "accessedAt": "2026-05-31T02:18:55.612Z",
+      "accessCount": 0
+    },
+    {
+      "id": "c6a4c41f6cc61d3a",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Rewrite rename_directories.py using negative lookbehind to ensure no recursive/double renaming occurs in file/directory paths on disk",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "3ad3d11f-4304-4af8-9a11-7d6beb428a96",
+        "sessionId": "imported:antigravity:bfa05b218548",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/rename_directories.py.metadata.json",
+        "tags": [
+          "antigravity",
+          "memory"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-05-31T02:18:57.043Z",
+      "accessedAt": "2026-05-31T02:18:57.043Z",
+      "accessCount": 0
+    },
+    {
+      "id": "3d8a69ccaf8612c9",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Rewrite refactor_to_tormentnexus.py using negative lookbehind to ensure no recursive/double renaming occurs in file cont (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Rewrite refactor_to_tormentnexus.py using negative lookbehind to ensure no recursive/double renaming occurs in file contents",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "6579db15-d910-4925-af83-44395a5c74cc",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/refactor_to_tormentnexus.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:cbbe0c49a17a",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:cbbe0c49a17a",
+          "name": "Rewrite refactor_to_tormentnexus.py using negative lookbehind to ensure no recursive/double renaming occurs in file cont",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780162652392.2964,
+          "stoppedAt": 1780193938248,
+          "lastActivityAt": 1780162652392.2964,
+          "logTail": [
+            "Rewrite refactor_to_tormentnexus.py using negative lookbehind to ensure no recursive/double renaming occurs in file contents"
+          ],
+          "recordedAt": 1780193938278,
+          "contentHash": "session-838472400"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:18:58.278Z",
+      "accessedAt": "2026-05-31T02:18:58.278Z",
+      "accessCount": 0
+    },
+    {
+      "id": "2e30b6b680252984",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Update regex test expectations to correctly check case-specific replacements (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Update regex test expectations to correctly check case-specific replacements",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "40e8ebb9-4c6a-4321-9cc8-a5031209ae32",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/test_regex.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:617d1c26e72e",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:617d1c26e72e",
+          "name": "Update regex test expectations to correctly check case-specific replacements",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780162647770.8086,
+          "stoppedAt": 1780193939460,
+          "lastActivityAt": 1780162647770.8086,
+          "logTail": [
+            "Update regex test expectations to correctly check case-specific replacements"
+          ],
+          "recordedAt": 1780193939480,
+          "contentHash": "session-720957512"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:18:59.480Z",
+      "accessedAt": "2026-05-31T02:18:59.480Z",
+      "accessCount": 0
+    },
+    {
+      "id": "3127655da251ecc5",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Create script to clean up dirty torment-related files from disk before re-running refactoring cleanly (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Create script to clean up dirty torment-related files from disk before re-running refactoring cleanly",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "de348033-8d59-43ec-ab46-f750630069df",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/clean_torment_untracked.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:97c2fce0ae84",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:97c2fce0ae84",
+          "name": "Create script to clean up dirty torment-related files from disk before re-running refactoring cleanly",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780162621609.998,
+          "stoppedAt": 1780193940914,
+          "lastActivityAt": 1780162621609.998,
+          "logTail": [
+            "Create script to clean up dirty torment-related files from disk before re-running refactoring cleanly"
+          ],
+          "recordedAt": 1780193940931,
+          "contentHash": "session-938200112"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:19:00.931Z",
+      "accessedAt": "2026-05-31T02:19:00.931Z",
+      "accessCount": 0
+    },
+    {
+      "id": "d561fb2b8f84a352",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Writing fast database reconstruction script that skips redundant, slow skills/prompts downloads on disk and performs fas (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Writing fast database reconstruction script that skips redundant, slow skills/prompts downloads on disk and performs fast database upserts for MCP servers",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "a20b91fd-928c-4cf0-8187-275059de1367",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/reconstruct_mcp_database_fast.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:268e1c059f93",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:268e1c059f93",
+          "name": "Writing fast database reconstruction script that skips redundant, slow skills/prompts downloads on disk and performs fas",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780162381843.6238,
+          "stoppedAt": 1780193941819,
+          "lastActivityAt": 1780162381843.6238,
+          "logTail": [
+            "Writing fast database reconstruction script that skips redundant, slow skills/prompts downloads on disk and performs fast database upserts for MCP servers"
+          ],
+          "recordedAt": 1780193941845,
+          "contentHash": "session-256354811"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:19:01.845Z",
+      "accessedAt": "2026-05-31T02:19:01.845Z",
+      "accessCount": 0
+    },
+    {
+      "id": "806f2d905561de2c",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Writing script to reconstruct all 28,891 registered MCP servers, prompts, and skills in the healthy restored active data (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Writing script to reconstruct all 28,891 registered MCP servers, prompts, and skills in the healthy restored active database",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "0e7a31ce-f7a5-40de-9f19-9791d1493244",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/reconstruct_mcp_database.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:224591975212",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:224591975212",
+          "name": "Writing script to reconstruct all 28,891 registered MCP servers, prompts, and skills in the healthy restored active data",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780161102904.2717,
+          "stoppedAt": 1780193942842,
+          "lastActivityAt": 1780161102904.2717,
+          "logTail": [
+            "Writing script to reconstruct all 28,891 registered MCP servers, prompts, and skills in the healthy restored active database"
+          ],
+          "recordedAt": 1780193942861,
+          "contentHash": "session-1322737400"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:19:02.861Z",
+      "accessedAt": "2026-05-31T02:19:02.861Z",
+      "accessCount": 0
+    },
+    {
+      "id": "4c2153e591735968",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Writing script to test the health of restored active database in c:\\Users\\hyper\\workspace\\borg\\borg.db (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Writing script to test the health of restored active database in c:\\Users\\hyper\\workspace\\borg\\borg.db",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "a06eb616-b00b-4f6f-a35a-6d9832fee395",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/test_backup_db.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:2dc17ec5c8aa",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:2dc17ec5c8aa",
+          "name": "Writing script to test the health of restored active database in c:\\Users\\hyper\\workspace\\borg\\borg.db",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780161023801.6326,
+          "stoppedAt": 1780193943807,
+          "lastActivityAt": 1780161023801.6326,
+          "logTail": [
+            "Writing script to test the health of restored active database in c:\\Users\\hyper\\workspace\\borg\\borg.db"
+          ],
+          "recordedAt": 1780193943832,
+          "contentHash": "session-78080609"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:19:03.832Z",
+      "accessedAt": "2026-05-31T02:19:03.832Z",
+      "accessCount": 0
+    },
+    {
+      "id": "e4923df04567b6bd",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Writing script to test the health of restored active database in c:\\Users\\hyper\\workspace\\borg\\borg.db",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "a06eb616-b00b-4f6f-a35a-6d9832fee395",
+        "sessionId": "imported:antigravity:2dc17ec5c8aa",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/test_backup_db.py.metadata.json",
+        "tags": [
+          "antigravity",
+          "memory",
+          "database",
+          "validation"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-05-31T02:19:04.806Z",
+      "accessedAt": "2026-05-31T02:19:04.806Z",
+      "accessCount": 0
+    },
+    {
+      "id": "1736a3a456c3ba58",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Writing script to inspect database schemas for TormentNexus references (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Writing script to inspect database schemas for TormentNexus references",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "35d89398-ba7e-4967-a6dc-68587d695855",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/inspect_db_schemas.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:5506cc5768b5",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:5506cc5768b5",
+          "name": "Writing script to inspect database schemas for TormentNexus references",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780160943067.445,
+          "stoppedAt": 1780193945900,
+          "lastActivityAt": 1780160943067.445,
+          "logTail": [
+            "Writing script to inspect database schemas for TormentNexus references"
+          ],
+          "recordedAt": 1780193945919,
+          "contentHash": "session-168274635"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:19:05.919Z",
+      "accessedAt": "2026-05-31T02:19:05.919Z",
+      "accessCount": 0
+    },
+    {
+      "id": "d2dd4a40e4d40e2e",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Implementation plan to safely rename all instances of system names (borg, nexus, hypervisor, aios, metamcp, claude-mem, (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43\nLog tail: Implementation plan to safely rename all instances of system names (borg, nexus, hypervisor, aios, metamcp, claude-mem, prism, hypercode) to TormentNexus across the monorepo.",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "1835743b-91c5-45f7-89f7-2c945564a1ce",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/implementation_plan.md.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:03d1d7f234c8",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:03d1d7f234c8",
+          "name": "Implementation plan to safely rename all instances of system names (borg, nexus, hypervisor, aios, metamcp, claude-mem,",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43",
+          "restartCount": 0,
+          "startedAt": 1780160299231.266,
+          "stoppedAt": 1780193947199,
+          "lastActivityAt": 1780160299231.266,
+          "logTail": [
+            "Implementation plan to safely rename all instances of system names (borg, nexus, hypervisor, aios, metamcp, claude-mem, prism, hypercode) to TormentNexus across the monorepo."
+          ],
+          "recordedAt": 1780193947216,
+          "contentHash": "session-630640494"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:19:07.216Z",
+      "accessedAt": "2026-05-31T02:19:07.216Z",
+      "accessCount": 0
+    },
+    {
+      "id": "2581d2a180a29f11",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "# Implementation Plan: Monorepo Refactoring to TormentNexus (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43\nLog tail: ## Verification Plan | ### Automated Verification | 1. **Type Checks**: Run monorepo type checker to ensure no import compilation paths are broken: | ```bash | pnpm -C packages/core exec tsc --noEmit | ``` | 2. **Build Smoke Tests**: Execute monorepo build pipelines to verify bundle outputs: | pnpm build",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "359b6c88-d753-4a08-b912-223721b2285c",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/implementation_plan.md",
+        "sessionFormat": "md",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:e606cbc04dd4",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:e606cbc04dd4",
+          "name": "# Implementation Plan: Monorepo Refactoring to TormentNexus",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43",
+          "restartCount": 0,
+          "startedAt": 1780160299228.102,
+          "stoppedAt": 1780193948356,
+          "lastActivityAt": 1780160299228.102,
+          "logTail": [
+            "## Verification Plan",
+            "### Automated Verification",
+            "1. **Type Checks**: Run monorepo type checker to ensure no import compilation paths are broken:",
+            "```bash",
+            "pnpm -C packages/core exec tsc --noEmit",
+            "```",
+            "2. **Build Smoke Tests**: Execute monorepo build pipelines to verify bundle outputs:",
+            "pnpm build"
+          ],
+          "recordedAt": 1780193948429,
+          "contentHash": "session-1488946030"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:19:08.429Z",
+      "accessedAt": "2026-05-31T02:19:08.429Z",
+      "accessCount": 0
+    },
+    {
+      "id": "d880bf1c5d7ddc5b",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "> - **Package and Module Imports**: All TypeScript/JavaScript package definitions (`package.json`) and import pathways (`import ... from '@hypercode/...'` -> `import ... from '@tormentnexus/...'`).",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "359b6c88-d753-4a08-b912-223721b2285c",
+        "sessionId": "imported:antigravity:e606cbc04dd4",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/implementation_plan.md",
+        "tags": [
+          "antigravity",
+          "memory",
+          "networking"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-05-31T02:19:09.622Z",
+      "accessedAt": "2026-05-31T02:19:09.622Z",
+      "accessCount": 0
+    },
+    {
+      "id": "73fbd133a399d170",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "> - **Directory Names**: Renaming workspace folders (e.g. `c:\\Users\\hyper\\workspace\\borg` -> `c:\\Users\\hyper\\workspace\\TormentNexus`, packages, TUI systems).",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "359b6c88-d753-4a08-b912-223721b2285c",
+        "sessionId": "imported:antigravity:e606cbc04dd4",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/implementation_plan.md",
+        "tags": [
+          "antigravity",
+          "memory",
+          "ui"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-05-31T02:19:11.046Z",
+      "accessedAt": "2026-05-31T02:19:11.046Z",
+      "accessCount": 0
+    },
+    {
+      "id": "e5aa929a7c7c0764",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "> 2. **Lockfiles & Exclusions**: Should we automatically exclude lockfiles (`pnpm-lock.yaml`), dependencies (`node_modules`), and git repository directories (`.git`) to prevent metadata corruption?",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "359b6c88-d753-4a08-b912-223721b2285c",
+        "sessionId": "imported:antigravity:e606cbc04dd4",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/implementation_plan.md",
+        "tags": [
+          "antigravity",
+          "instruction"
+        ],
+        "section": "instructions",
+        "memoryKind": "instruction",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-05-31T02:19:12.501Z",
+      "accessedAt": "2026-05-31T02:19:12.501Z",
+      "accessCount": 0
+    },
+    {
+      "id": "c01fed5149463a68",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "> 3. **Casing Parity**: Should we maintain the original casing convention for the replacement? (e.g., `hypercode` -> `tormentnexus`, `Hypercode` -> `TormentNexus`, `HYPERCODE` -> `TORMENTNEXUS`)?",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "359b6c88-d753-4a08-b912-223721b2285c",
+        "sessionId": "imported:antigravity:e606cbc04dd4",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/implementation_plan.md",
+        "tags": [
+          "antigravity",
+          "instruction"
+        ],
+        "section": "instructions",
+        "memoryKind": "instruction",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-05-31T02:19:13.792Z",
+      "accessedAt": "2026-05-31T02:19:13.792Z",
+      "accessCount": 0
+    },
+    {
+      "id": "4954beec4374e581",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "#### [NEW] [refactor_to_tormentnexus.py](file:///C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/refactor_to_tormentnexus.py)",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "359b6c88-d753-4a08-b912-223721b2285c",
+        "sessionId": "imported:antigravity:e606cbc04dd4",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/implementation_plan.md",
+        "tags": [
+          "antigravity",
+          "memory"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-05-31T02:19:51.881Z",
+      "accessedAt": "2026-05-31T02:19:51.881Z",
+      "accessCount": 0
+    },
+    {
+      "id": "51fbec128d9e6053",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "#### [NEW] [migrate_db_to_tormentnexus.py](file:///C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/migrate_db_to_tormentnexus.py)",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "359b6c88-d753-4a08-b912-223721b2285c",
+        "sessionId": "imported:antigravity:e606cbc04dd4",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/implementation_plan.md",
+        "tags": [
+          "antigravity",
+          "memory",
+          "database"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-05-31T02:19:53.281Z",
+      "accessedAt": "2026-05-31T02:19:53.281Z",
+      "accessCount": 0
+    },
+    {
+      "id": "40f23c2e22da36e0",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Writing specialized scraper for new directories toolsdk-mcp-registry and mcparmory/registry (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Writing specialized scraper for new directories toolsdk-mcp-registry and mcparmory/registry",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "d357b481-55b9-4a1d-9989-73aaca18fbab",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/scrape_toolsdk_and_mcparmory.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:eb7b3fea8835",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:eb7b3fea8835",
+          "name": "Writing specialized scraper for new directories toolsdk-mcp-registry and mcparmory/registry",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780156716883.4175,
+          "stoppedAt": 1780193994675,
+          "lastActivityAt": 1780156716883.4175,
+          "logTail": [
+            "Writing specialized scraper for new directories toolsdk-mcp-registry and mcparmory/registry"
+          ],
+          "recordedAt": 1780193994698,
+          "contentHash": "session-1666514151"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:19:54.699Z",
+      "accessedAt": "2026-05-31T02:19:54.699Z",
+      "accessCount": 0
+    },
+    {
+      "id": "cd01f3a0b4152580",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Writing script to probe git tree structures of newly discovered directories/registries (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Writing script to probe git tree structures of newly discovered directories/registries",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "c672f0b0-ca93-48fd-80e7-bf0acd3b10f5",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/probe_git_registries.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:62742d8872f8",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:62742d8872f8",
+          "name": "Writing script to probe git tree structures of newly discovered directories/registries",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780156706229.5825,
+          "stoppedAt": 1780193996479,
+          "lastActivityAt": 1780156706229.5825,
+          "logTail": [
+            "Writing script to probe git tree structures of newly discovered directories/registries"
+          ],
+          "recordedAt": 1780193996509,
+          "contentHash": "session-1605570770"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:19:56.509Z",
+      "accessedAt": "2026-05-31T02:19:56.509Z",
+      "accessCount": 0
+    },
+    {
+      "id": "0683b4c8f171554f",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Writing script to probe git tree structures of newly discovered directories/registries",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "c672f0b0-ca93-48fd-80e7-bf0acd3b10f5",
+        "sessionId": "imported:antigravity:62742d8872f8",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/probe_git_registries.py.metadata.json",
+        "tags": [
+          "antigravity",
+          "memory"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-05-31T02:19:57.770Z",
+      "accessedAt": "2026-05-31T02:19:57.770Z",
+      "accessCount": 0
+    },
+    {
+      "id": "752ef6b3dfcbf101",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Writing script to check if specific newly discovered registries are in the registered database (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\nLog tail: Writing script to check if specific newly discovered registries are in the registered database",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "842364f3-4117-4696-a672-76f6e83d3434",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/check_directories_registered.py.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:814fa5be5bab",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:814fa5be5bab",
+          "name": "Writing script to check if specific newly discovered registries are in the registered database",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch",
+          "restartCount": 0,
+          "startedAt": 1780156699180.2915,
+          "stoppedAt": 1780193999680,
+          "lastActivityAt": 1780156699180.2915,
+          "logTail": [
+            "Writing script to check if specific newly discovered registries are in the registered database"
+          ],
+          "recordedAt": 1780193999708,
+          "contentHash": "session-859046762"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-05-31T02:19:59.708Z",
+      "accessedAt": "2026-05-31T02:19:59.708Z",
+      "accessCount": 0
+    },
+    {
+      "id": "49d08a0777a16e3b",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Writing script to check if specific newly discovered registries are in the registered database",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "842364f3-4117-4696-a672-76f6e83d3434",
+        "sessionId": "imported:antigravity:814fa5be5bab",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/check_directories_registered.py.metadata.json",
+        "tags": [
+          "antigravity",
+          "memory",
+          "database"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-05-31T02:20:01.379Z",
+      "accessedAt": "2026-05-31T02:20:01.379Z",
+      "accessCount": 0
+    }
+  ]
+}
