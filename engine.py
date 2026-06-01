@@ -105,6 +105,7 @@ DEAD_MODELS = {
     "0xSero/DeepSeek-V4-Flash-180B",  # variant from HF hub
     "EssentialAI/rnj-1.5-instruct",
     "MiniMaxAI/MiniMax-M2.7",
+    "Qwen/Qwen2.5-72B-Instruct",  # DeepInfra 404
     "Qwen/Qwen3-Coder-Next",
     "XiaomiMiMo/MiMo-V2.5-Pro",
     "deepseek-ai/DeepSeek-V4-Pro",
@@ -902,16 +903,20 @@ class ModelEngine:
 
         for m in candidates:
             # Skip known-dead models (decommissioned, nonexistent) — case-insensitive
+            # Check full_id, bare id, AND id without provider prefix
             full_id = f"{m['provider']}/{m['id']}"
             _dead_lower = {d.lower() for d in DEAD_MODELS}
-            if full_id.lower() in _dead_lower or m['id'].lower() in _dead_lower:
+            _mid = m['id'].lower()
+            # Also strip provider prefix from id (e.g. "groq/compound" → "compound")
+            _bare_mid = _mid.split("/", 1)[-1] if "/" in _mid else _mid
+            if full_id.lower() in _dead_lower or _mid in _dead_lower or _bare_mid in _dead_lower:
                 continue
+
             # Skip providers with exhausted/depleted API keys
             if m.get("provider", "") in DEAD_PROVIDERS:
                 continue
             # Global keyword exclusion check (non-chat, decommissioned, etc.)
-            _excl_match = any(exc in m['id'].lower() for exc in GLOBAL_EXCLUSIONS)
-            if _excl_match:
+            if any(exc in m['id'].lower() for exc in GLOBAL_EXCLUSIONS):
                 continue
 
             status = db_status.get(m['id'])
@@ -1003,7 +1008,13 @@ class ModelEngine:
                 await asyncio.sleep(0.5)
                 return await self.measure_latency(m_id, prov)
 
+        # Final dead-model filter before benchmarking
+        _dl = {d.lower() for d in DEAD_MODELS}
         for m in valid_candidates:
+            _mid = m['id'].lower()
+            _bare = _mid.split("/", 1)[-1] if "/" in _mid else _mid
+            if _mid in _dl or _bare in _dl:
+                continue
             is_local = m['provider'] in ['ollama', 'lm_studio']
             status = db_status.get(m['id'])
 
@@ -1018,6 +1029,7 @@ class ModelEngine:
 
             tasks.append(sem_measure(m['id'], m['provider']))
             benchmarking_models.append(m)
+
 
         self._log(f"Benchmarking {len(tasks)} models ({len(cached_results)} cached)...")
         latencies = await asyncio.gather(*tasks)
