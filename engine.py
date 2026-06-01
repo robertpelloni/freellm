@@ -46,11 +46,15 @@ GLOBAL_EXCLUSIONS = [
     "lyria", "dall", "sdxl", "stable-diffusion", "midjourney",
     "canopylabs", "tts", "asr", "image-gen", "embed",
     # Cohere models (trial key exhausted)
-    "command-",
+    # "command-" removed - Cohere command-a/command-r are valid chat models
 ]
 
 # Providers that should never be benchmarked (exhausted/depleted keys)
-DEAD_PROVIDERS = {"huggingface", "cohere"}
+DEAD_PROVIDERS = {
+    "together",  # No API key
+    "gemini",    # No API key
+    "nebius",    # No API key
+}
 
 # Models known to be decommissioned, nonexistent, or non-chat -- skip entirely
 DEAD_MODELS = {
@@ -93,8 +97,56 @@ DEAD_MODELS = {
     "qwen/qwen3.5-397b-a17b", "writer/palmyra-creative-122b",
     "writer/palmyra-fin-70b-32k", "writer/palmyra-med-70b",
     "writer/palmyra-med-70b-32k", "z-ai/glm-5.1", "zyphra/zamba2-7b-instruct",
-    "deepseek-ai/deepseek-r1", "deepseek-ai/deepseek-v3",
+    "deepseek-ai/deepseek-r1",
+    "deepseek-ai/deepseek-v3",
     "meta/llama-3.1-405b-instruct",
+    # HuggingFace hub models with no inference endpoint (DNS failures)
+    "0xSero/DeepSeek-V4-Flash-162B",
+    "0xSero/DeepSeek-V4-Flash-180B",  # variant from HF hub
+    "EssentialAI/rnj-1.5-instruct",
+    "MiniMaxAI/MiniMax-M2.7",
+    "Qwen/Qwen3-Coder-Next",
+    "XiaomiMiMo/MiMo-V2.5-Pro",
+    "deepseek-ai/DeepSeek-V4-Pro",
+    "dphn/Dolphin-X1-Trinity-Nano",
+    "meta-llama/Llama-3.1-405B-Instruct",
+    "meta-llama/Llama-3.1-70B-Instruct",
+    "meta-llama/Meta-Llama-3.1-405B-Instruct",  # HuggingFace/Groq uses capital M
+    "meta-llama/Meta-Llama-3.1-70B-Instruct",   # HuggingFace/Groq uses capital M
+    "Meta-Llama-3.1-405B-Instruct",  # Groq bare ID variant
+    "Meta-Llama-3.1-70B-Instruct",   # Groq bare ID variant
+    "openai/gpt-oss-120b",
+    "poolside/Laguna-XS.2",
+    "stepfun-ai/Step-3.5-Flash",
+    "stepfun-ai/Step-3.7-Flash",
+    "tencent/Hy3-preview",
+    "zai-org/GLM-5.1",
+    "qwen/qwen3.5-122b-a10b",
+    # DeepInfra restricted on free tier (code 40301)
+    "deepseek-ai/DeepSeek-V3-0324",
+    "deepseek-ai/DeepSeek-R1-0528",
+    "Qwen/Qwen3-Coder-480B-A35B-Instruct",
+    # Fireworks models not actually deployed (404 on chat completions)
+    "accounts/fireworks/models/kimi-k2p6",
+    "accounts/fireworks/models/kimi-k2p5",
+    "accounts/fireworks/models/gpt-oss-120b",
+    "accounts/fireworks/models/glm-5p1",
+    "accounts/fireworks/models/flux-kontext-pro",
+    "accounts/fireworks/models/flux-kontext-max",
+    "accounts/fireworks/models/flux-1-schnell-fp8",
+    "accounts/fireworks/models/flux-1-dev-fp8",
+    "accounts/fireworks/models/deepseek-v4-pro",
+    # Groq decommissioned (2025-06)
+    "compound",
+    "compound-mini",
+    "llama-prompt-guard-2-86m",
+    "llama-prompt-guard-2-22m",
+    # OpenRouter 402 (payment required)
+    "google/lyria-3-pro-preview",
+    "google/lyria-3-clip-preview",
+    "MiniMax-M2.7",
+    # OpenCode Zen free promotion ended
+    "qwen3.6-plus-free",
 }
 
 
@@ -849,15 +901,17 @@ class ModelEngine:
         now = database.datetime.datetime.now()
 
         for m in candidates:
-            # Skip known-dead models (decommissioned, nonexistent)
+            # Skip known-dead models (decommissioned, nonexistent) — case-insensitive
             full_id = f"{m['provider']}/{m['id']}"
-            if full_id in DEAD_MODELS or m['id'] in DEAD_MODELS:
+            _dead_lower = {d.lower() for d in DEAD_MODELS}
+            if full_id.lower() in _dead_lower or m['id'].lower() in _dead_lower:
                 continue
             # Skip providers with exhausted/depleted API keys
             if m.get("provider", "") in DEAD_PROVIDERS:
                 continue
             # Global keyword exclusion check (non-chat, decommissioned, etc.)
-            if any(exc in m['id'].lower() for exc in GLOBAL_EXCLUSIONS):
+            _excl_match = any(exc in m['id'].lower() for exc in GLOBAL_EXCLUSIONS)
+            if _excl_match:
                 continue
 
             status = db_status.get(m['id'])

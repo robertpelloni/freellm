@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "savedAt": "2026-05-31T22:27:37.974Z",
+  "savedAt": "2026-06-01T14:30:14.527Z",
   "memories": [
     {
       "id": "dd91cbaec29aa6e4",
@@ -35419,6 +35419,707 @@
       },
       "createdAt": "2026-05-31T22:27:35.714Z",
       "accessedAt": "2026-05-31T22:27:35.714Z",
+      "accessCount": 0
+    },
+    {
+      "id": "9bb39bc6ac62d899",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "{ (tormentnexus) ended with status imported.\nWorking directory: C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs\nLog tail: \"user\": 0, | \"agent\": 0, | \"project\": 1214, | \"discovery\": 0, | \"decision\": 0, | \"progress\": 0, | \"warning\": 0, | \"fix\": 0 | }, | \"recentContext\": [], | \"notes\": \"Automatic background handoff\" | }",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "f5f80591-5132-4120-b20e-aa626dae38ab",
+        "sourcePath": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs/handoff_1780323331508.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "tormentnexus",
+          "imported"
+        ],
+        "sessionId": "imported:tormentnexus:57a174be37ac",
+        "structuredSessionSummary": {
+          "sessionId": "imported:tormentnexus:57a174be37ac",
+          "name": "{",
+          "cliType": "tormentnexus",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs",
+          "restartCount": 0,
+          "startedAt": 1780323331508.473,
+          "stoppedAt": 1780324133780,
+          "lastActivityAt": 1780323331508.473,
+          "logTail": [
+            "\"user\": 0,",
+            "\"agent\": 0,",
+            "\"project\": 1214,",
+            "\"discovery\": 0,",
+            "\"decision\": 0,",
+            "\"progress\": 0,",
+            "\"warning\": 0,",
+            "\"fix\": 0",
+            "},",
+            "\"recentContext\": [],",
+            "\"notes\": \"Automatic background handoff\"",
+            "}"
+          ],
+          "recordedAt": 1780324133799,
+          "contentHash": "session-340687266"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-01T14:28:53.801Z",
+      "accessedAt": "2026-06-01T14:28:53.801Z",
+      "accessCount": 0
+    },
+    {
+      "id": "d06252517a1d747b",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "{ (tormentnexus) ended with status imported.\nWorking directory: C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs\nLog tail: \"user\": 0, | \"agent\": 0, | \"project\": 1214, | \"discovery\": 0, | \"decision\": 0, | \"progress\": 0, | \"warning\": 0, | \"fix\": 0 | }, | \"recentContext\": [], | \"notes\": \"Automatic background handoff\" | }",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "c82bd8df-a3b5-4d0a-9c98-ec390ae978b2",
+        "sourcePath": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs/handoff_1780323031506.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "tormentnexus",
+          "imported"
+        ],
+        "sessionId": "imported:tormentnexus:8edc4e7e4c38",
+        "structuredSessionSummary": {
+          "sessionId": "imported:tormentnexus:8edc4e7e4c38",
+          "name": "{",
+          "cliType": "tormentnexus",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs",
+          "restartCount": 0,
+          "startedAt": 1780323031507.1472,
+          "stoppedAt": 1780324136641,
+          "lastActivityAt": 1780323031507.1472,
+          "logTail": [
+            "\"user\": 0,",
+            "\"agent\": 0,",
+            "\"project\": 1214,",
+            "\"discovery\": 0,",
+            "\"decision\": 0,",
+            "\"progress\": 0,",
+            "\"warning\": 0,",
+            "\"fix\": 0",
+            "},",
+            "\"recentContext\": [],",
+            "\"notes\": \"Automatic background handoff\"",
+            "}"
+          ],
+          "recordedAt": 1780324136656,
+          "contentHash": "session-834107240"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-01T14:28:56.657Z",
+      "accessedAt": "2026-06-01T14:28:56.657Z",
+      "accessCount": 0
+    },
+    {
+      "id": "eb823ac68147d317",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "{ (tormentnexus) ended with status imported.\nWorking directory: C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs\nLog tail: \"user\": 0, | \"agent\": 0, | \"project\": 1214, | \"discovery\": 0, | \"decision\": 0, | \"progress\": 0, | \"warning\": 0, | \"fix\": 0 | }, | \"recentContext\": [], | \"notes\": \"Automatic background handoff\" | }",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "4579c9bf-c975-42b0-9b5a-ab986e219f1d",
+        "sourcePath": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs/handoff_1780322731494.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "tormentnexus",
+          "imported"
+        ],
+        "sessionId": "imported:tormentnexus:ca1c0ec739bb",
+        "structuredSessionSummary": {
+          "sessionId": "imported:tormentnexus:ca1c0ec739bb",
+          "name": "{",
+          "cliType": "tormentnexus",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs",
+          "restartCount": 0,
+          "startedAt": 1780322731494.766,
+          "stoppedAt": 1780324137750,
+          "lastActivityAt": 1780322731494.766,
+          "logTail": [
+            "\"user\": 0,",
+            "\"agent\": 0,",
+            "\"project\": 1214,",
+            "\"discovery\": 0,",
+            "\"decision\": 0,",
+            "\"progress\": 0,",
+            "\"warning\": 0,",
+            "\"fix\": 0",
+            "},",
+            "\"recentContext\": [],",
+            "\"notes\": \"Automatic background handoff\"",
+            "}"
+          ],
+          "recordedAt": 1780324138007,
+          "contentHash": "session-17538582"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-01T14:28:58.008Z",
+      "accessedAt": "2026-06-01T14:28:58.008Z",
+      "accessCount": 0
+    },
+    {
+      "id": "63072f85a3445360",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "{ (tormentnexus) ended with status imported.\nWorking directory: C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs\nLog tail: \"user\": 0, | \"agent\": 0, | \"project\": 1214, | \"discovery\": 0, | \"decision\": 0, | \"progress\": 0, | \"warning\": 0, | \"fix\": 0 | }, | \"recentContext\": [], | \"notes\": \"Automatic background handoff\" | }",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "a597687b-571b-458b-acf7-9962413d1f19",
+        "sourcePath": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs/handoff_1780322431486.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "tormentnexus",
+          "imported"
+        ],
+        "sessionId": "imported:tormentnexus:6518464385b7",
+        "structuredSessionSummary": {
+          "sessionId": "imported:tormentnexus:6518464385b7",
+          "name": "{",
+          "cliType": "tormentnexus",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs",
+          "restartCount": 0,
+          "startedAt": 1780322431487.8767,
+          "stoppedAt": 1780324139067,
+          "lastActivityAt": 1780322431487.8767,
+          "logTail": [
+            "\"user\": 0,",
+            "\"agent\": 0,",
+            "\"project\": 1214,",
+            "\"discovery\": 0,",
+            "\"decision\": 0,",
+            "\"progress\": 0,",
+            "\"warning\": 0,",
+            "\"fix\": 0",
+            "},",
+            "\"recentContext\": [],",
+            "\"notes\": \"Automatic background handoff\"",
+            "}"
+          ],
+          "recordedAt": 1780324139080,
+          "contentHash": "session-383773255"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-01T14:28:59.081Z",
+      "accessedAt": "2026-06-01T14:28:59.081Z",
+      "accessCount": 0
+    },
+    {
+      "id": "0abf3327f7ee9841",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "{ (tormentnexus) ended with status imported.\nWorking directory: C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs\nLog tail: \"user\": 0, | \"agent\": 0, | \"project\": 1214, | \"discovery\": 0, | \"decision\": 0, | \"progress\": 0, | \"warning\": 0, | \"fix\": 0 | }, | \"recentContext\": [], | \"notes\": \"Automatic background handoff\" | }",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "e28b1c9c-11fe-4bc1-94a1-113768bbdfe6",
+        "sourcePath": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs/handoff_1780322131485.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "tormentnexus",
+          "imported"
+        ],
+        "sessionId": "imported:tormentnexus:7d3637121be2",
+        "structuredSessionSummary": {
+          "sessionId": "imported:tormentnexus:7d3637121be2",
+          "name": "{",
+          "cliType": "tormentnexus",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs",
+          "restartCount": 0,
+          "startedAt": 1780322131486.326,
+          "stoppedAt": 1780324140256,
+          "lastActivityAt": 1780322131486.326,
+          "logTail": [
+            "\"user\": 0,",
+            "\"agent\": 0,",
+            "\"project\": 1214,",
+            "\"discovery\": 0,",
+            "\"decision\": 0,",
+            "\"progress\": 0,",
+            "\"warning\": 0,",
+            "\"fix\": 0",
+            "},",
+            "\"recentContext\": [],",
+            "\"notes\": \"Automatic background handoff\"",
+            "}"
+          ],
+          "recordedAt": 1780324140272,
+          "contentHash": "session-364084533"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-01T14:29:00.274Z",
+      "accessedAt": "2026-06-01T14:29:00.274Z",
+      "accessCount": 0
+    },
+    {
+      "id": "a967dcb65ef41ef7",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "{ (tormentnexus) ended with status imported.\nWorking directory: C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs\nLog tail: \"user\": 0, | \"agent\": 0, | \"project\": 1214, | \"discovery\": 0, | \"decision\": 0, | \"progress\": 0, | \"warning\": 0, | \"fix\": 0 | }, | \"recentContext\": [], | \"notes\": \"Automatic background handoff\" | }",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "2da6c834-defb-47b3-91b4-83213ec3ab7c",
+        "sourcePath": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs/handoff_1780321831476.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "tormentnexus",
+          "imported"
+        ],
+        "sessionId": "imported:tormentnexus:ef560e3b1e44",
+        "structuredSessionSummary": {
+          "sessionId": "imported:tormentnexus:ef560e3b1e44",
+          "name": "{",
+          "cliType": "tormentnexus",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs",
+          "restartCount": 0,
+          "startedAt": 1780321831476.6187,
+          "stoppedAt": 1780324141488,
+          "lastActivityAt": 1780321831476.6187,
+          "logTail": [
+            "\"user\": 0,",
+            "\"agent\": 0,",
+            "\"project\": 1214,",
+            "\"discovery\": 0,",
+            "\"decision\": 0,",
+            "\"progress\": 0,",
+            "\"warning\": 0,",
+            "\"fix\": 0",
+            "},",
+            "\"recentContext\": [],",
+            "\"notes\": \"Automatic background handoff\"",
+            "}"
+          ],
+          "recordedAt": 1780324141505,
+          "contentHash": "session-881135428"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-01T14:29:01.505Z",
+      "accessedAt": "2026-06-01T14:29:01.505Z",
+      "accessCount": 0
+    },
+    {
+      "id": "1f8d89dab90738df",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "{ (tormentnexus) ended with status imported.\nWorking directory: C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs\nLog tail: \"user\": 0, | \"agent\": 0, | \"project\": 1214, | \"discovery\": 0, | \"decision\": 0, | \"progress\": 0, | \"warning\": 0, | \"fix\": 0 | }, | \"recentContext\": [], | \"notes\": \"Automatic background handoff\" | }",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "ed5d0c97-34e5-4293-a2b1-03bc5117a6e1",
+        "sourcePath": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs/handoff_1780321531476.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "tormentnexus",
+          "imported"
+        ],
+        "sessionId": "imported:tormentnexus:e8d10c404526",
+        "structuredSessionSummary": {
+          "sessionId": "imported:tormentnexus:e8d10c404526",
+          "name": "{",
+          "cliType": "tormentnexus",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs",
+          "restartCount": 0,
+          "startedAt": 1780321531477.7148,
+          "stoppedAt": 1780324142627,
+          "lastActivityAt": 1780321531477.7148,
+          "logTail": [
+            "\"user\": 0,",
+            "\"agent\": 0,",
+            "\"project\": 1214,",
+            "\"discovery\": 0,",
+            "\"decision\": 0,",
+            "\"progress\": 0,",
+            "\"warning\": 0,",
+            "\"fix\": 0",
+            "},",
+            "\"recentContext\": [],",
+            "\"notes\": \"Automatic background handoff\"",
+            "}"
+          ],
+          "recordedAt": 1780324142641,
+          "contentHash": "session-192399248"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-01T14:29:02.642Z",
+      "accessedAt": "2026-06-01T14:29:02.642Z",
+      "accessCount": 0
+    },
+    {
+      "id": "021ce953884dbf13",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "{ (tormentnexus) ended with status imported.\nWorking directory: C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs\nLog tail: \"user\": 0, | \"agent\": 0, | \"project\": 1214, | \"discovery\": 0, | \"decision\": 0, | \"progress\": 0, | \"warning\": 0, | \"fix\": 0 | }, | \"recentContext\": [], | \"notes\": \"Automatic background handoff\" | }",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "fbd55aef-7e7e-46f5-b09b-88c99a604de7",
+        "sourcePath": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs/handoff_1780321231462.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "tormentnexus",
+          "imported"
+        ],
+        "sessionId": "imported:tormentnexus:38164bcf436a",
+        "structuredSessionSummary": {
+          "sessionId": "imported:tormentnexus:38164bcf436a",
+          "name": "{",
+          "cliType": "tormentnexus",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs",
+          "restartCount": 0,
+          "startedAt": 1780321231462.8198,
+          "stoppedAt": 1780324144326,
+          "lastActivityAt": 1780321231462.8198,
+          "logTail": [
+            "\"user\": 0,",
+            "\"agent\": 0,",
+            "\"project\": 1214,",
+            "\"discovery\": 0,",
+            "\"decision\": 0,",
+            "\"progress\": 0,",
+            "\"warning\": 0,",
+            "\"fix\": 0",
+            "},",
+            "\"recentContext\": [],",
+            "\"notes\": \"Automatic background handoff\"",
+            "}"
+          ],
+          "recordedAt": 1780324144343,
+          "contentHash": "session-1633389977"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-01T14:29:04.343Z",
+      "accessedAt": "2026-06-01T14:29:04.343Z",
+      "accessCount": 0
+    },
+    {
+      "id": "9578e3df61eff23e",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "{ (tormentnexus) ended with status imported.\nWorking directory: C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs\nLog tail: \"user\": 0, | \"agent\": 0, | \"project\": 1214, | \"discovery\": 0, | \"decision\": 0, | \"progress\": 0, | \"warning\": 0, | \"fix\": 0 | }, | \"recentContext\": [], | \"notes\": \"Automatic background handoff\" | }",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "bd69cb5b-3e97-4211-a64e-9adfceb7329e",
+        "sourcePath": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs/handoff_1780320931458.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "tormentnexus",
+          "imported"
+        ],
+        "sessionId": "imported:tormentnexus:f885cf79fbe5",
+        "structuredSessionSummary": {
+          "sessionId": "imported:tormentnexus:f885cf79fbe5",
+          "name": "{",
+          "cliType": "tormentnexus",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs",
+          "restartCount": 0,
+          "startedAt": 1780320931459.2202,
+          "stoppedAt": 1780324146000,
+          "lastActivityAt": 1780320931459.2202,
+          "logTail": [
+            "\"user\": 0,",
+            "\"agent\": 0,",
+            "\"project\": 1214,",
+            "\"discovery\": 0,",
+            "\"decision\": 0,",
+            "\"progress\": 0,",
+            "\"warning\": 0,",
+            "\"fix\": 0",
+            "},",
+            "\"recentContext\": [],",
+            "\"notes\": \"Automatic background handoff\"",
+            "}"
+          ],
+          "recordedAt": 1780324146022,
+          "contentHash": "session-215819979"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-01T14:29:06.024Z",
+      "accessedAt": "2026-06-01T14:29:06.024Z",
+      "accessCount": 0
+    },
+    {
+      "id": "df69b0f6744e012c",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "{ (tormentnexus) ended with status imported.\nWorking directory: C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs\nLog tail: \"user\": 0, | \"agent\": 0, | \"project\": 1214, | \"discovery\": 0, | \"decision\": 0, | \"progress\": 0, | \"warning\": 0, | \"fix\": 0 | }, | \"recentContext\": [], | \"notes\": \"Automatic background handoff\" | }",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "51ccf8ab-a46c-4202-b911-a8f38333a35a",
+        "sourcePath": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs/handoff_1780320631444.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "tormentnexus",
+          "imported"
+        ],
+        "sessionId": "imported:tormentnexus:8b3bfb7477dc",
+        "structuredSessionSummary": {
+          "sessionId": "imported:tormentnexus:8b3bfb7477dc",
+          "name": "{",
+          "cliType": "tormentnexus",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs",
+          "restartCount": 0,
+          "startedAt": 1780320631444.6316,
+          "stoppedAt": 1780324147338,
+          "lastActivityAt": 1780320631444.6316,
+          "logTail": [
+            "\"user\": 0,",
+            "\"agent\": 0,",
+            "\"project\": 1214,",
+            "\"discovery\": 0,",
+            "\"decision\": 0,",
+            "\"progress\": 0,",
+            "\"warning\": 0,",
+            "\"fix\": 0",
+            "},",
+            "\"recentContext\": [],",
+            "\"notes\": \"Automatic background handoff\"",
+            "}"
+          ],
+          "recordedAt": 1780324147353,
+          "contentHash": "session-1855521579"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-01T14:29:07.354Z",
+      "accessedAt": "2026-06-01T14:29:07.354Z",
+      "accessCount": 0
+    },
+    {
+      "id": "e63104d1abe7bd53",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "{ (tormentnexus) ended with status imported.\nWorking directory: C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/agent_memory\nLog tail: ], | \"recordedAt\": 1780324147353, | \"contentHash\": \"session-1855521579\" | }, | \"memoryKind\": \"session_summary\" | \"createdAt\": \"2026-06-01T14:29:07.354Z\", | \"accessedAt\": \"2026-06-01T14:29:07.354Z\", | \"accessCount\": 0 | } | ]",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "08ec6b04-576e-456f-b540-1613bd8697df",
+        "sourcePath": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/agent_memory/memories.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "tormentnexus",
+          "imported"
+        ],
+        "sessionId": "imported:tormentnexus:f501c89df729",
+        "structuredSessionSummary": {
+          "sessionId": "imported:tormentnexus:f501c89df729",
+          "name": "{",
+          "cliType": "tormentnexus",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/agent_memory",
+          "restartCount": 0,
+          "startedAt": 1780266458000.8682,
+          "stoppedAt": 1780324202941,
+          "lastActivityAt": 1780266458000.8682,
+          "logTail": [
+            "],",
+            "\"recordedAt\": 1780324147353,",
+            "\"contentHash\": \"session-1855521579\"",
+            "},",
+            "\"memoryKind\": \"session_summary\"",
+            "\"createdAt\": \"2026-06-01T14:29:07.354Z\",",
+            "\"accessedAt\": \"2026-06-01T14:29:07.354Z\",",
+            "\"accessCount\": 0",
+            "}",
+            "]"
+          ],
+          "recordedAt": 1780324203294,
+          "contentHash": "session-200784896"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-01T14:30:03.295Z",
+      "accessedAt": "2026-06-01T14:30:03.295Z",
+      "accessCount": 0
+    },
+    {
+      "id": "4ebc142fb5e8770b",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "\"content\": \"Surgically search and destroy exactly the corrupted httpx library files using os.walk in cache (antigravity) ended with status imported.\\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f337",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "08ec6b04-576e-456f-b540-1613bd8697df",
+        "sessionId": "imported:tormentnexus:f501c89df729",
+        "path": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/agent_memory/memories.json",
+        "tags": [
+          "tormentnexus",
+          "memory",
+          "networking"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-01T14:30:04.686Z",
+      "accessedAt": "2026-06-01T14:30:04.686Z",
+      "accessCount": 0
+    },
+    {
+      "id": "7bb0d89c13a67404",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "\"source\": \"session_import\",",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "08ec6b04-576e-456f-b540-1613bd8697df",
+        "sessionId": "imported:tormentnexus:f501c89df729",
+        "path": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/agent_memory/memories.json",
+        "tags": [
+          "tormentnexus",
+          "memory",
+          "networking"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-01T14:30:06.191Z",
+      "accessedAt": "2026-06-01T14:30:06.191Z",
+      "accessCount": 0
+    },
+    {
+      "id": "49c0114b4e729ee9",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "\"importedSessionId\": \"a1d481e2-fc18-4428-af5c-aede2d9e1d0f\",",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "08ec6b04-576e-456f-b540-1613bd8697df",
+        "sessionId": "imported:tormentnexus:f501c89df729",
+        "path": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/agent_memory/memories.json",
+        "tags": [
+          "tormentnexus",
+          "memory",
+          "networking"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-01T14:30:07.698Z",
+      "accessedAt": "2026-06-01T14:30:07.698Z",
+      "accessCount": 0
+    },
+    {
+      "id": "28f1e0db0fe106c7",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "\"sourcePath\": \"C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/surgical_search_and_destroy.py.metadata.json\",",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "08ec6b04-576e-456f-b540-1613bd8697df",
+        "sessionId": "imported:tormentnexus:f501c89df729",
+        "path": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/agent_memory/memories.json",
+        "tags": [
+          "tormentnexus",
+          "memory"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-01T14:30:09.527Z",
+      "accessedAt": "2026-06-01T14:30:09.527Z",
+      "accessCount": 0
+    },
+    {
+      "id": "f49ae1d23a3ca7d9",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "\"sessionId\": \"imported:antigravity:d2e0ca1d6df2\",",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "08ec6b04-576e-456f-b540-1613bd8697df",
+        "sessionId": "imported:tormentnexus:f501c89df729",
+        "path": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/agent_memory/memories.json",
+        "tags": [
+          "tormentnexus",
+          "memory",
+          "networking"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-01T14:30:10.893Z",
+      "accessedAt": "2026-06-01T14:30:10.893Z",
+      "accessCount": 0
+    },
+    {
+      "id": "29ce87d6b5ef57f8",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "\"workingDirectory\": \"C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\",",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "08ec6b04-576e-456f-b540-1613bd8697df",
+        "sessionId": "imported:tormentnexus:f501c89df729",
+        "path": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/agent_memory/memories.json",
+        "tags": [
+          "tormentnexus",
+          "memory"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-01T14:30:12.554Z",
+      "accessedAt": "2026-06-01T14:30:12.554Z",
       "accessCount": 0
     }
   ]

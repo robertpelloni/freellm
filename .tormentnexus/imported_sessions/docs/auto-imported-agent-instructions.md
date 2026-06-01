@@ -1,6 +1,6 @@
 # Auto-imported Agent Instructions
 
-Generated at: 2026-05-31T22:27:36.913Z
+Generated at: 2026-06-01T14:30:15.303Z
 
 These instructions were derived automatically from imported sessions across supported tools.
 

@@ -53,7 +53,7 @@ PROVIDER_MAP = {
 
 
 # Providers with exhausted/depleted API keys that should never be included
-DEAD_PROVIDERS = {"huggingface", "cohere"}
+DEAD_PROVIDERS = {"together", "gemini", "nebius"}  # Providers with no API key
 
 # Keywords that identify non-chat models (TTS, ASR, image gen, safety, embedding, etc.)
 NON_CHAT_KEYWORDS = {
@@ -316,6 +316,19 @@ def apply_ranked_models(
             f"  {m['provider']}/{m['id']}  {lat:.1f}s score={score:.1f} ({ctx} ctx)"
         )
 
+    # Filter out models that are effectively unusable
+    MAX_LATENCY = 30.0  # seconds — models slower than this just time out
+    DEAD_CFG_PROVIDERS = {"together", "gemini", "nebius"}  # no API keys
+    before_count = len(ranked_models)
+    ranked_models = [
+        m for m in ranked_models
+        if m.get("latency", 0) <= MAX_LATENCY
+        and m.get("provider", "") not in DEAD_CFG_PROVIDERS
+    ]
+    filtered_count = before_count - len(ranked_models)
+    if filtered_count:
+        comment_lines.append(f"  (filtered {filtered_count} dead/high-latency models)")
+
     # Cap primary_count to available models
     effective_primary = min(primary_count, len(ranked_models))
     if effective_primary < 1 and len(ranked_models) > 0:
@@ -390,11 +403,18 @@ def apply_ranked_models(
     preserved_count = 0
     for litellm_model, entry in existing_entries.items():
         if litellm_model not in ranked_model_ids:
-            # Skip dead providers
-            if any(f"{p}/" in litellm_model for p in DEAD_PROVIDERS):
+            # Skip dead providers (also catches variant prefixes like together_ai/)
+            if any(p in litellm_model for p in DEAD_PROVIDERS):
                 continue
             # Skip non-chat models
             if any(kw in litellm_model.lower() for kw in NON_CHAT_KEYWORDS):
+                continue
+            # Skip models with extreme latency (effectively dead)
+            mi = entry.get("model_info", {})
+            if mi and mi.get("latency", 0) > 30.0:
+                continue
+            # Skip models that were never benchmarked (score=0, latency=0)
+            if mi and mi.get("score", 0) == 0 and mi.get("latency", 0) == 0:
                 continue
             entry["model_name"] = fallback_group
             model_list.append(entry)
@@ -412,37 +432,47 @@ def apply_ranked_models(
         if lp:
             current_models_in_config.add(lp.get("model", ""))
     injected_count = 0
+    MAX_FORCE_INJECT = 10  # Don't bloat the fallback group
     for litellm_id, spec in known_models.all_models().items():
+        if injected_count >= MAX_FORCE_INJECT:
+            break
         prov = spec.get("provider", "")
         if prov in DEAD_PROVIDERS:
+            continue
+        # Also skip if the litellm_model string contains a dead provider
+        info = PROVIDER_MAP.get(prov, {"prefix": prov})
+        prefix = info.get("prefix", prov)
+        if any(p in prefix for p in DEAD_PROVIDERS):
             continue
         # Skip non-chat models (TTS, ASR, image gen, etc.)
         if any(kw in litellm_id.lower() for kw in NON_CHAT_KEYWORDS):
             continue
+        # Skip tiny models (< 7B params)
+        params = spec.get("params", 0)
+        if params > 0 and params < 7:
+            continue
+        # Skip models with no context info
+        if not spec.get("ctx", 0):
+            continue
         info = PROVIDER_MAP.get(prov, {"prefix": prov})
         prefix = info.get("prefix", prov)
-
         # Calculate the actual litellm_model string that will be generated
         base_id = litellm_id.split("/", 1)[-1] if "/" in litellm_id else litellm_id
         target_model_name = (
-            f"{prefix}/{base_id}" if not base_id.startswith(prefix + "/") else base_id
+            f"{prefix}/{base_id}"
+            if not base_id.startswith(prefix + "/")
+            else base_id
         )
-
         if target_model_name in current_models_in_config:
             continue
-
-        # Only inject if we have the provider's API key in the config already
-        # (i.e. the provider is configured)
+        # Only inject if we have the provider's API key mapped
         env_key = info.get("env_key", "")
         if not env_key:
             continue  # Local providers like ollama - skip auto-injection
-
         # Build entry from known model spec
         known_ctx = spec.get("ctx", 0)
         new_entry = _build_model_entry(
-            base_id,
-            prov,
-            fallback_group,
+            base_id, prov, fallback_group,
             timeout=30,
             context_length=known_ctx,
         )
