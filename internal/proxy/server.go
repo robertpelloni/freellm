@@ -32,6 +32,7 @@ type Gateway struct {
 	Cache        map[string][]byte
 	cacheMu      sync.RWMutex
 	Redis        *redis.Client
+	Client       *http.Client // Injectable for testing
 }
 
 type RequestJob struct {
@@ -58,6 +59,7 @@ func NewGateway(maxActive int, database *sql.DB) *Gateway {
 		DB:           database,
 		PrimaryCount: 5,
 		Cache:        make(map[string][]byte),
+		Client:       &http.Client{Timeout: 60 * time.Second},
 	}
 	go g.workerLoop()
 	return g
@@ -234,6 +236,9 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (g *Gateway) workerLoop() {
+	if g.MaxActive <= 0 {
+		return
+	}
 	semaphore := make(chan struct{}, g.MaxActive)
 	for {
 		var job *RequestJob
@@ -278,7 +283,10 @@ func (g *Gateway) processJob(job *RequestJob) {
 		return
 	}
 
-	client := &http.Client{Timeout: 60 * time.Second}
+	client := g.Client
+	if client == nil {
+		client = &http.Client{Timeout: 60 * time.Second}
+	}
 
 	// Read body once so we can retry if needed
 	body, err := io.ReadAll(job.Request.Body)
