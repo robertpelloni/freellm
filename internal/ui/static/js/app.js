@@ -59,6 +59,30 @@ async function doAction(url) {
     }
 }
 
+async function loadConfig() {
+    try {
+        const resp = await fetch('/api/config');
+        const data = await resp.text();
+        document.getElementById('config-editor').value = data;
+    } catch (e) {
+        console.error('Error loading config:', e);
+    }
+}
+
+async function saveConfig() {
+    const data = document.getElementById('config-editor').value;
+    try {
+        const resp = await fetch('/api/config', {
+            method: 'POST',
+            body: data
+        });
+        if (resp.ok) alert('Config saved and reloaded');
+        else alert('Failed to save config: ' + await resp.text());
+    } catch (e) {
+        alert('Error saving config: ' + e);
+    }
+}
+
 async function refresh() {
     try {
         const sresp = await fetch('/api/savings');
@@ -139,6 +163,7 @@ async function refresh() {
 
 setInterval(refresh, 5000);
 refresh();
+loadConfig();
 
 const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 const ws = new WebSocket(wsProtocol + '//' + window.location.host + '/ws/logs');

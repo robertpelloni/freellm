@@ -4,9 +4,11 @@ import (
 	"database/sql"
 	"embed"
 	"encoding/json"
+	"io"
 	"io/fs"
 	"log"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -54,6 +56,7 @@ func (s *UIServer) Start(addr string) error {
 	http.HandleFunc("/ws/logs", s.handleLogWS)
 	http.HandleFunc("/api/savings", s.handleSavings)
 	http.HandleFunc("/api/proxy/", s.handleProxy)
+	http.HandleFunc("/api/config", s.handleConfig)
 	http.HandleFunc("/api/maintenance/clear-skips", s.handleClearSkips)
 	http.HandleFunc("/api/maintenance/clear-blacklist", s.handleClearBlacklist)
 	http.HandleFunc("/api/maintenance/reset-stats", s.handleResetStats)
@@ -150,6 +153,22 @@ func (s *UIServer) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(metrics)
+}
+
+func (s *UIServer) handleConfig(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "GET" {
+		data, err := os.ReadFile("litellm-config.yaml")
+		if err != nil { http.Error(w, err.Error(), 500); return }
+		w.Header().Set("Content-Type", "text/yaml")
+		w.Write(data)
+	} else if r.Method == "POST" {
+		body, _ := io.ReadAll(r.Body)
+		if err := os.WriteFile("litellm-config.yaml", body, 0644); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		w.WriteHeader(200)
+	}
 }
 
 func (s *UIServer) handleRankings(w http.ResponseWriter, r *http.Request) {
