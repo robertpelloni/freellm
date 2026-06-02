@@ -14,8 +14,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pkoukk/tiktoken-go"
 	"github.com/redis/go-redis/v9"
+	"github.com/xeipuuv/gojsonschema"
 	"github.com/robertpelloni/litellm_control_panel/internal/db"
 	"github.com/robertpelloni/litellm_control_panel/internal/engine"
 )
@@ -102,6 +102,22 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Buffer body to persist if needed
 	body, _ := io.ReadAll(r.Body)
 	r.Body = io.NopCloser(bytes.NewBuffer(body))
+
+	// JSON Schema Validation
+	schemaLoader := gojsonschema.NewStringLoader(`{
+		"type": "object",
+		"properties": {
+			"model": {"type": "string"},
+			"messages": {"type": "array"}
+		},
+		"required": ["model", "messages"]
+	}`)
+	documentLoader := gojsonschema.NewBytesLoader(body)
+	result, err := gojsonschema.Validate(schemaLoader, documentLoader)
+	if err == nil && !result.Valid() {
+		http.Error(w, "Invalid OpenAI Request Schema", 400)
+		return
+	}
 
 	// 2. Cache Lookup
 	cacheKey := string(body)
@@ -412,60 +428,31 @@ func (g *Gateway) getProviderURL(modelID, provider string) string {
 	return ""
 }
 
-func countTokens(text string) int {
-	tke, err := tiktoken.GetEncoding("cl100k_base")
-	if err != nil { return len(text) / 4 }
-	token := tke.Encode(text, nil, nil)
-	return len(token)
-}
-
 func (g *Gateway) logUsage(modelID string, requestBody, responseBody []byte) {
 	if g.DB == nil {
 		return
 	}
 
-	promptTokens := 0
-	completionTokens := 0
+	// Basic token estimation
+	promptTokens := len(requestBody) / 4
+	completionTokens := len(responseBody) / 4
 
-	// 1. Try to get accurate count from request
-	if requestBody != nil {
-		var req struct {
-			Messages []struct {
-				Content string `json:"content"`
-			} `json:"messages"`
-		}
-		if err := json.Unmarshal(requestBody, &req); err == nil {
-			for _, m := range req.Messages {
-				promptTokens += countTokens(m.Content)
-			}
-		} else {
-			promptTokens = len(requestBody) / 4
-		}
-	}
-
-	// 2. Try to get accurate count from response
 	if responseBody != nil {
+		// In a real app, parse actual token counts from response JSON
 		var resp struct {
 			Usage struct {
 				PromptTokens     int `json:"prompt_tokens"`
 				CompletionTokens int `json:"completion_tokens"`
 			} `json:"usage"`
-			Choices []struct {
-				Message struct {
-					Content string `json:"content"`
-				} `json:"message"`
-			} `json:"choices"`
 		}
-		if err := json.Unmarshal(responseBody, &resp); err == nil {
-			if resp.Usage.PromptTokens > 0 {
-				promptTokens = resp.Usage.PromptTokens
-				completionTokens = resp.Usage.CompletionTokens
-			} else if len(resp.Choices) > 0 {
-				completionTokens = countTokens(resp.Choices[0].Message.Content)
-			}
-		} else {
-			completionTokens = len(responseBody) / 4
+		if err := json.Unmarshal(responseBody, &resp); err == nil && resp.Usage.PromptTokens > 0 {
+			promptTokens = resp.Usage.PromptTokens
+			completionTokens = resp.Usage.CompletionTokens
 		}
+	} else if requestBody == nil && responseBody == nil {
+		// Token tracking for stream - simplified
+		promptTokens = 0
+		completionTokens = 0
 	}
 
 	db.LogUsage(g.DB, modelID, promptTokens, completionTokens)

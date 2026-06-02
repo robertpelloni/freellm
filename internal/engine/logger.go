@@ -1,9 +1,12 @@
 package engine
 
 import (
+	"database/sql"
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/robertpelloni/litellm_control_panel/internal/db"
 )
 
 type LogEntry struct {
@@ -15,12 +18,14 @@ type EventLogger struct {
 	mu     sync.Mutex
 	Logs   []LogEntry
 	MaxLen int
+	DB     *sql.DB
 }
 
-func NewEventLogger(maxLen int) *EventLogger {
+func NewEventLogger(maxLen int, database *sql.DB) *EventLogger {
 	return &EventLogger{
 		MaxLen: maxLen,
 		Logs:   make([]LogEntry, 0),
+		DB:     database,
 	}
 }
 
@@ -36,6 +41,11 @@ func (l *EventLogger) Log(message string) {
 	if len(l.Logs) > l.MaxLen {
 		l.Logs = l.Logs[1:]
 	}
+
+	if l.DB != nil {
+		db.LogPersistent(l.DB, message)
+	}
+
 	fmt.Printf("[%s] %s\n", entry.Timestamp.Format("15:04:05"), message)
 }
 

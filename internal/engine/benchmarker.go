@@ -75,12 +75,6 @@ func (b *Benchmarker) ExtractParameters(modelID, name, description string) int {
 	return 0
 }
 
-func (b *Benchmarker) SetWeights(size, context, latency float64) {
-	b.Weights["size"] = size
-	b.Weights["context"] = context
-	b.Weights["latency"] = latency
-}
-
 func (b *Benchmarker) CalculateScore(params int, latency float64, contextLength int) float64 {
 	sizeScore := (float64(min(params, 405)) / 100.0) * b.Weights["size"]
 	contextScore := (float64(min(contextLength, 128000)) / 128000.0) * b.Weights["context"]
