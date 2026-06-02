@@ -195,6 +195,21 @@ def _build_model_entry(
         metadata["context"] = context_length
     entry["model_info"] = metadata
 
+    # Mark providers that don't support function/tool calling
+    # This prevents LiteLLM from routing tool-call requests to them
+    no_tool_providers = {"nvidia_nim", "nvidia", "cerebras", "cloudflare", "deepinfra"}
+    if provider in no_tool_providers:
+        metadata["supports_function_calling"] = False
+
+    # For nvidia_nim/nvidia: also set supported_params to exclude tools/tool_choice
+    # so LiteLLM strips them before forwarding
+    if provider in ("nvidia_nim", "nvidia"):
+        lp["supported_params"] = [
+            "max_tokens", "temperature", "top_p", "frequency_penalty",
+            "presence_penalty", "stop", "n", "stream",
+            "response_format", "seed", "logprobs", "top_logprobs",
+        ]
+
     return entry
 
 
