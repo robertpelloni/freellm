@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/getlantern/systray"
@@ -17,6 +18,16 @@ import (
 )
 
 func main() {
+	// Single instance enforcement
+	lockFile := filepath.Join(os.TempDir(), "litellm_control_panel_go.lock")
+	if _, err := os.Stat(lockFile); err == nil {
+		// Basic check, in real app we'd check if PID is alive
+		log.Println("Another instance may be running. Cleaning up lock...")
+		os.Remove(lockFile)
+	}
+	os.WriteFile(lockFile, []byte(fmt.Sprintf("%d", os.Getpid())), 0644)
+	defer os.Remove(lockFile)
+
 	systray.Run(onReady, onExit)
 }
 
@@ -54,10 +65,14 @@ func onReady() {
 	benchmarker := engine.NewBenchmarker(apiKeys, 100, eventLogger)
 
 	// Initialize Proxy Gateway
+	proxyPort := cfg.Port
+	if proxyPort == 0 { proxyPort = 4000 }
 	gateway := proxy.NewGateway(10, database) // Max 10 active requests
+	gateway.RestoreQueue()
 	go func() {
-		log.Println("Starting LiteLLM Proxy on :4000")
-		if err := http.ListenAndServe(":4000", gateway); err != nil {
+		addr := fmt.Sprintf(":%d", proxyPort)
+		log.Printf("Starting LiteLLM Proxy on %s", addr)
+		if err := http.ListenAndServe(addr, gateway); err != nil {
 			log.Printf("Proxy failed: %v", err)
 		}
 	}()

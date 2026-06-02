@@ -7,8 +7,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -30,6 +32,7 @@ type RequestJob struct {
 	Request  *http.Request
 	Response chan *ProxyResponse
 	Ctx      context.Context
+	DBID     int64
 }
 
 type ProxyResponse struct {
@@ -37,6 +40,7 @@ type ProxyResponse struct {
 	Body   []byte
 	Header http.Header
 	Err    error
+	Stream io.ReadCloser
 }
 
 func NewGateway(maxActive int, database *sql.DB) *Gateway {
@@ -62,17 +66,30 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Buffer body to persist if needed
+	body, _ := io.ReadAll(r.Body)
+	r.Body = io.NopCloser(bytes.NewBuffer(body))
+
+	dbID := int64(0)
+	if g.DB != nil {
+		var headers strings.Builder
+		for k, v := range r.Header {
+			fmt.Fprintf(&headers, "%s: %s\n", k, strings.Join(v, ","))
+		}
+		dbID, _ = db.EnqueueRequest(g.DB, r.Method, r.URL.String(), headers.String(), body)
+	}
+
 	job := &RequestJob{
 		Request:  r,
 		Response: make(chan *ProxyResponse, 1),
 		Ctx:      r.Context(),
+		DBID:     dbID,
 	}
 
-	// Highly Stable Network: Queue the request instead of rejecting if busy
 	select {
 	case g.Queue <- job:
-		// Wait for worker to process
 	case <-r.Context().Done():
+		if dbID > 0 { db.DequeueRequest(g.DB, dbID) }
 		return
 	}
 
@@ -86,7 +103,28 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header()[k] = v
 	}
 	w.WriteHeader(resp.Status)
-	w.Write(resp.Body)
+
+	if resp.Stream != nil {
+		defer resp.Stream.Close()
+		flusher, ok := w.(http.Flusher)
+		if ok {
+			buf := make([]byte, 4096)
+			for {
+				n, err := resp.Stream.Read(buf)
+				if n > 0 {
+					w.Write(buf[:n])
+					flusher.Flush()
+				}
+				if err != nil {
+					break
+				}
+			}
+		} else {
+			io.Copy(w, resp.Stream)
+		}
+	} else {
+		w.Write(resp.Body)
+	}
 }
 
 func (g *Gateway) workerLoop() {
@@ -132,6 +170,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 		proxyResp := g.forwardRequest(client, job.Request, model, body)
 
 		if proxyResp.Err == nil && proxyResp.Status < 400 {
+			if job.DBID > 0 { db.DequeueRequest(g.DB, job.DBID) }
 			g.logUsage(model.ID, body, proxyResp.Body)
 			job.Response <- proxyResp
 			return
@@ -160,18 +199,16 @@ func (g *Gateway) processJob(job *RequestJob) {
 		}
 	}
 
+	if job.DBID > 0 { db.DequeueRequest(g.DB, job.DBID) }
 	job.Response <- &ProxyResponse{Err: fmt.Errorf("all primary and fallback retries failed, last error: %v", lastErr)}
 }
 
 func (g *Gateway) forwardRequest(client *http.Client, r *http.Request, model engine.ModelCandidate, body []byte) *ProxyResponse {
-	// Re-encode body with the selected model
 	var payload map[string]interface{}
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return &ProxyResponse{Err: fmt.Errorf("failed to unmarshal request body: %v", err)}
 	}
 	payload["model"] = model.ID
-
-	// Handle streaming flag parity
 	stream, _ := payload["stream"].(bool)
 
 	newBody, _ := json.Marshal(payload)
@@ -186,25 +223,27 @@ func (g *Gateway) forwardRequest(client *http.Client, r *http.Request, model eng
 		return &ProxyResponse{Err: err}
 	}
 
-	// Provider-specific transformations
 	g.transformRequest(req, model.Provider)
 
 	resp, err := client.Do(req)
 	if err != nil {
 		return &ProxyResponse{Err: err}
 	}
+
+	if stream && resp.StatusCode == http.StatusOK {
+		return &ProxyResponse{
+			Status: resp.StatusCode,
+			Header: resp.Header,
+			Stream: resp.Body,
+		}
+	}
 	defer resp.Body.Close()
 
-	// If streaming, we should ideally pipe it, but for simplicity in the queue
-	// we'll buffer and return. (Full streaming pipe support in next phase)
 	respBody, _ := io.ReadAll(resp.Body)
-
-	// Parity: Ensure usage metadata is present or estimated
 	if !stream && resp.StatusCode == 200 {
 		var respData map[string]interface{}
 		if err := json.Unmarshal(respBody, &respData); err == nil {
 			if _, ok := respData["usage"]; !ok {
-				// Inject estimated usage if missing
 				respData["usage"] = map[string]int{
 					"prompt_tokens":     len(body) / 4,
 					"completion_tokens": len(respBody) / 4,
@@ -236,6 +275,14 @@ func (g *Gateway) getProviderURL(modelID, provider string) string {
 		return "https://api.cerebras.ai/v1/chat/completions"
 	case "nvidia", "nvidia_nim":
 		return "https://integrate.api.nvidia.com/v1/chat/completions"
+	case "gemini":
+		return "https://generativelanguage.googleapis.com/v1beta/models/" + modelID + ":streamGenerateContent"
+	case "anthropic":
+		return "https://api.anthropic.com/v1/messages"
+	case "opencode_zen":
+		return "https://opencode.ai/zen/v1/chat/completions"
+	case "mistral":
+		return "https://api.mistral.ai/v1/chat/completions"
 	case "huggingface":
 		// Hugging Face uses per-model endpoints
 		return "https://api-inference.huggingface.co/models/" + modelID + "/v1/chat/completions"
@@ -284,6 +331,31 @@ func (g *Gateway) transformRequest(req *http.Request, provider string) {
 	}
 }
 
+func (g *Gateway) RestoreQueue() {
+	if g.DB == nil { return }
+	pending, err := db.GetPendingRequests(g.DB)
+	if err != nil || len(pending) == 0 { return }
+
+	log.Printf("Restoring %d pending requests from disk...", len(pending))
+	for _, p := range pending {
+		req, _ := http.NewRequest(p.Method, p.URL, bytes.NewBuffer(p.Body))
+		// (Simplified header restore)
+
+		job := &RequestJob{
+			Request:  req,
+			Response: make(chan *ProxyResponse, 1),
+			Ctx:      context.Background(),
+			DBID:     p.ID,
+		}
+
+		// Drop on floor if queue full, but worker loop will process
+		select {
+		case g.Queue <- job:
+		default:
+		}
+	}
+}
+
 func (g *Gateway) getAPIKey(provider string) string {
 	switch provider {
 	case "openrouter":
@@ -300,6 +372,12 @@ func (g *Gateway) getAPIKey(provider string) string {
 		return os.Getenv("HUGGINGFACE_API_KEY")
 	case "nvidia", "nvidia_nim":
 		return os.Getenv("NVIDIA_NIM_API_KEY")
+	case "gemini":
+		return os.Getenv("GEMINI_API_KEY")
+	case "anthropic":
+		return os.Getenv("ANTHROPIC_API_KEY")
+	case "mistral":
+		return os.Getenv("MISTRAL_API_KEY")
 	}
 	return ""
 }

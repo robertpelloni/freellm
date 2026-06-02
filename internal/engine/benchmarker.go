@@ -86,7 +86,7 @@ func (b *Benchmarker) FetchModels(ctx context.Context) []ModelCandidate {
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 
-	providers := []string{"openrouter", "groq", "deepinfra", "cerebras", "github", "huggingface", "nvidia", "ollama", "lm_studio"}
+	providers := []string{"openrouter", "groq", "deepinfra", "cerebras", "github", "huggingface", "nvidia", "ollama", "lm_studio", "gemini", "mistral", "anthropic", "opencode_zen"}
 
 	for _, p := range providers {
 		wg.Add(1)
@@ -276,6 +276,13 @@ func (b *Benchmarker) getModelsURL(provider string) string {
 	case "nvidia":
 		if base == "" { return "https://integrate.api.nvidia.com/v1/models" }
 		return base + "/models"
+	case "mistral":
+		if base == "" { return "https://api.mistral.ai/v1/models" }
+		return base + "/models"
+	case "anthropic":
+		return "https://api.anthropic.com/v1/models"
+	case "opencode_zen":
+		return "https://opencode.ai/zen/v1/models"
 	case "lm_studio":
 		if base == "" { return "http://localhost:1234/v1/models" }
 		return base + "/v1/models"
@@ -303,6 +310,16 @@ func (b *Benchmarker) getCompletionsURL(provider string) string {
 		return base + "/chat/completions"
 	case "nvidia":
 		if base == "" { return "https://integrate.api.nvidia.com/v1/chat/completions" }
+		return base + "/chat/completions"
+	case "gemini":
+		if base == "" { return "https://generativelanguage.googleapis.com/v1beta/models" }
+		return base
+	case "anthropic":
+		return "https://api.anthropic.com/v1/messages"
+	case "opencode_zen":
+		return "https://opencode.ai/zen/v1/chat/completions"
+	case "mistral":
+		if base == "" { return "https://api.mistral.ai/v1/chat/completions" }
 		return base + "/chat/completions"
 	case "huggingface":
 		// Hugging Face uses per-model endpoints
