@@ -89,6 +89,28 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Health Checks
+	if r.URL.Path == "/health" || r.URL.Path == "/health/liveness" {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+		return
+	}
+
+	if r.URL.Path == "/health/readiness" {
+		g.mu.RLock()
+		modelCount := len(g.RankedModels)
+		g.mu.RUnlock()
+
+		if modelCount > 0 {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("READY"))
+		} else {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			w.Write([]byte("NOT READY - No models available"))
+		}
+		return
+	}
+
 	if r.URL.Path == "/v1/models" {
 		g.handleModels(w, r)
 		return

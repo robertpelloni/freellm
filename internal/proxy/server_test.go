@@ -42,3 +42,35 @@ func TestGatewayQueueing(t *testing.T) {
 		t.Errorf("Job did not reach the queue in time")
 	}
 }
+
+func TestHealthChecks(t *testing.T) {
+	g := &Gateway{
+		RankedModels: engine.RankedModels{}, // No models initially
+	}
+
+	// Test Liveness
+	req := httptest.NewRequest("GET", "/health/liveness", nil)
+	w := httptest.NewRecorder()
+	g.ServeHTTP(w, req)
+	if w.Code != 200 {
+		t.Errorf("Liveness check failed, got status %d", w.Code)
+	}
+
+	// Test Readiness (should fail because no models)
+	req = httptest.NewRequest("GET", "/health/readiness", nil)
+	w = httptest.NewRecorder()
+	g.ServeHTTP(w, req)
+	if w.Code != 503 {
+		t.Errorf("Readiness check should fail with 503 when no models, got %d", w.Code)
+	}
+
+	// Add a model and test readiness again
+	g.UpdateModels(engine.RankedModels{
+		{ID: "test-model", Provider: "test-provider"},
+	})
+	w = httptest.NewRecorder()
+	g.ServeHTTP(w, req)
+	if w.Code != 200 {
+		t.Errorf("Readiness check should pass with 200 when models available, got %d", w.Code)
+	}
+}
