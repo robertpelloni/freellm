@@ -101,7 +101,7 @@ func onReady() {
 	}()
 
 	// Initialize Web Dashboard
-	uiServer := ui.NewUIServer(database, eventLogger, gateway)
+	uiServer := ui.NewUIServer(database, eventLogger, gateway, benchmarker)
 	go func() {
 		log.Println("Starting Web Dashboard on :8080")
 		if err := uiServer.Start(":8080"); err != nil {
