@@ -6,6 +6,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"gopkg.in/yaml.v3"
+	"github.com/robertpelloni/litellm_control_panel/internal/engine"
 )
 
 type Config struct {
@@ -80,4 +81,93 @@ func WatchConfig(path string, onReload func(*Config)) error {
 	}()
 
 	return watcher.Add(path)
+}
+
+// ApplyRankedModels generates a LiteLLM config with primary + fallback groups.
+func ApplyRankedModels(ranked []engine.ModelCandidate, cfgPath string, primaryCount int) error {
+	cfg := &Config{
+		Port: 4000,
+		RouterSettings: map[string]interface{}{
+			"routing_strategy":          "simple-shuffle",
+			"cooldown_time":             30,
+			"allowed_fails":             2,
+			"num_retries":               2,
+			"timeout":                   30,
+			"enable_pre_call_checks":    false,
+			"ignore_cooldown_on_fallbacks": true,
+		},
+		LiteLLMSettings: map[string]interface{}{
+			"drop_params":      true,
+			"num_retries":      2,
+			"request_timeout":  60,
+			"stream_timeout":   300,
+			"allowed_fails":    2,
+			"cooldown_time":    30,
+			"fallbacks": []map[string]interface{}{
+				{"free-llm": []string{"free-llm-fallback"}},
+			},
+		},
+	}
+
+	primaryGroup := "free-llm"
+	fallbackGroup := "free-llm-fallback"
+
+	for i, m := range ranked {
+		group := fallbackGroup
+		if i < primaryCount {
+			group = primaryGroup
+		}
+
+		timeout := 30
+		if m.Latency > 4.0 { timeout = 60 }
+
+		litellmModel := m.Provider + "/" + m.ID
+		// Some providers use different prefix conventions
+		switch m.Provider {
+		case "nvidia_nim":
+			litellmModel = "nvidia_nim/" + m.ID
+		case "github":
+			litellmModel = "openai/" + m.ID // GitHub uses OpenAI-compatible API
+		case "codestral":
+			litellmModel = "codestral/" + m.ID
+		}
+
+		entry := ModelEntry{
+			ModelName: group,
+			LiteLLMParams: map[string]interface{}{
+				"model":   litellmModel,
+				"timeout": timeout,
+			},
+		}
+
+		// Add streaming timeout for slow providers
+		if engine.NeedsStreamTimeout(m.Provider) || timeout > 45 {
+			entry.LiteLLMParams["stream_timeout"] = max(timeout*5, 300)
+		}
+
+		// Add max_tokens based on context length
+		maxOut := 16384
+		if m.ContextLength > 0 {
+			maxOut = m.ContextLength - 256
+			if maxOut > 16384 { maxOut = 16384 }
+		}
+		entry.LiteLLMParams["max_tokens"] = maxOut
+
+		// Add model info
+		entry.ModelInfo = map[string]interface{}{
+			"score":   m.Score,
+			"latency": m.Latency,
+			"params":  m.Parameters,
+			"context": m.ContextLength,
+		}
+
+		cfg.ModelList = append(cfg.ModelList, entry)
+	}
+
+	return SaveConfig(cfgPath, cfg)
+}
+
+func max(a, b int) int {
+	if a > b { return a }
+	return b
 }

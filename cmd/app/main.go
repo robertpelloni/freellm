@@ -116,41 +116,59 @@ func onReady() {
 		}
 	}()
 
-	// Background worker for benchmarking
+	// Background worker: Two-tier benchmarking cadence
+	// Tier 1: Quick pulse every 10 min (top 5 models only)
+	// Tier 2: Full refresh every 60 min (all candidates)
 	refreshTrigger := make(chan bool, 1)
+	fullRefreshInterval := 60 * time.Minute
+	pulseInterval := 10 * time.Minute
+	lastFullRefresh := time.Time{} // Zero time forces first cycle to be full refresh
+
 	go func() {
 		for {
-			log.Println("Continuous Model Discovery & Benchmarking...")
 			ctx := context.Background()
-
-			notify("LiteLLM Sync", "Continuous model discovery started...")
-
-			candidates := benchmarker.FetchModels(ctx, database)
-			log.Printf("Discovered %d model candidates", len(candidates))
-
-			ranked := benchmarker.RunBenchmark(ctx, candidates)
-			gateway.UpdateModels(ranked)
-			uiServer.UpdateModels(ranked)
-
-			// 3. Update Pricing
-			for _, m := range ranked {
-				db.UpdateModelPricing(database, m.ID, m.Provider, m.PromptPrice, m.CompletionPrice)
+			now := time.Now()
+			timeSinceFull := now.Sub(lastFullRefresh)
+			if timeSinceFull >= fullRefreshInterval || lastFullRefresh.IsZero() {
+				// Full refresh: benchmark all candidates
+				log.Println("Full refresh: benchmarking all candidates...")
+				notify("LiteLLM Sync", "Full model discovery started...")
+				candidates := benchmarker.FetchModels(ctx, database)
+				log.Printf("Discovered %d model candidates", len(candidates))
+				ranked := benchmarker.RunBenchmark(ctx, candidates)
+				gateway.UpdateModels(ranked)
+				uiServer.UpdateModels(ranked)
+				for _, m := range ranked {
+					db.UpdateModelPricing(database, m.ID, m.Provider, m.PromptPrice, m.CompletionPrice)
+				}
+				topModel := "none"
+				if len(ranked) > 0 {
+					topModel = ranked[0].ID
+					notify("Sync Complete", fmt.Sprintf("Top Model: %s (%.2fs)", topModel, ranked[0].Latency))
+				}
+				db.LogActivity(database, "Sync Complete", topModel, fmt.Sprintf("Ranked %d models", len(ranked)))
+				lastFullRefresh = time.Now()
+			} else {
+				// Quick pulse: re-check only top models
+				currentModels := gateway.GetModels()
+				if len(currentModels) > 0 {
+					ranked, changed := benchmarker.QuickPulse(ctx, currentModels, 5, database)
+					if changed {
+						gateway.UpdateModels(ranked)
+						uiServer.UpdateModels(ranked)
+						log.Println("Quick pulse: rankings changed, config updated")
+					} else {
+						log.Println("Quick pulse: no changes")
+					}
+				}
 			}
-
-			topModel := "none"
-			if len(ranked) > 0 {
-				topModel = ranked[0].ID
-				notify("Sync Complete", fmt.Sprintf("Top Model: %s (%.2fs)", topModel, ranked[0].Latency))
-			}
-
-			db.LogActivity(database, "Sync Complete", topModel, fmt.Sprintf("Ranked %d models", len(ranked)))
-
 			select {
 			case <-refreshTrigger:
-			case <-time.After(1 * time.Hour):
+			case <-time.After(pulseInterval):
 			}
 		}
 	}()
+
 
 	// Operational Stability Ticker
 	go func() {
@@ -176,9 +194,10 @@ func onReady() {
 		}
 	}()
 
-	// Proactive Health Monitor
+	// Proactive Health Monitor with startup grace period
 	go func() {
 		failCount := 0
+		startupGrace := time.Now().Add(30 * time.Second)
 		for {
 			time.Sleep(1 * time.Minute)
 			models := gateway.GetModels()
@@ -192,6 +211,7 @@ func onReady() {
 			cancel()
 
 			if err != nil {
+				if time.Now().Before(startupGrace) { continue }
 				failCount++
 				log.Printf("Health check failed for %s (%d/3): %v", top.ID, failCount, err)
 				db.LogActivity(database, "Health Check Failure", top.ID, fmt.Sprintf("Attempt %d/3 failed", failCount))
