@@ -44,7 +44,7 @@ func onReady() {
 	benchmarker := engine.NewBenchmarker(apiKeys, 100)
 
 	// Initialize Proxy Gateway
-	gateway := proxy.NewGateway(10) // Max 10 active requests
+	gateway := proxy.NewGateway(10, database) // Max 10 active requests
 	go func() {
 		log.Println("Starting LiteLLM Proxy on :4000")
 		if err := http.ListenAndServe(":4000", gateway); err != nil {
@@ -55,15 +55,23 @@ func onReady() {
 	// Background worker for benchmarking
 	go func() {
 		for {
-			log.Println("Running background benchmarking...")
-			// In a real app, fetch candidates from providers/DB
-			candidates := []engine.ModelCandidate{
-				{ID: "meta-llama/llama-3.1-405b", Provider: "openrouter", Parameters: 405, ContextLength: 128000},
-			}
-			ranked := benchmarker.RunBenchmark(context.Background(), candidates)
+			log.Println("Continuous Model Discovery & Benchmarking...")
+			ctx := context.Background()
+
+			// 1. Discover candidates from all enabled providers
+			candidates := benchmarker.FetchModels(ctx)
+			log.Printf("Discovered %d model candidates", len(candidates))
+
+			// 2. Run TTFT benchmarks and rank
+			ranked := benchmarker.RunBenchmark(ctx, candidates)
 			gateway.UpdateModels(ranked)
 
-			db.LogActivity(database, "Sync Complete", "none", fmt.Sprintf("Ranked %d models", len(ranked)))
+			topModel := "none"
+			if len(ranked) > 0 {
+				topModel = ranked[0].ID
+			}
+
+			db.LogActivity(database, "Sync Complete", topModel, fmt.Sprintf("Ranked %d models", len(ranked)))
 
 			time.Sleep(1 * time.Hour)
 		}

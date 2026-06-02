@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -34,14 +35,14 @@ type Benchmarker struct {
 
 func NewBenchmarker(apiKeys map[string]string, minParams int) *Benchmarker {
 	return &Benchmarker{
-		APIKeys:   apiKeys,
-		BaseURLs:  make(map[string]string),
-		MinParams: minParams,
+		APIKeys:  apiKeys,
+		BaseURLs: make(map[string]string),
 		Weights: map[string]float64{
 			"size":    0.6,
 			"context": 0.2,
 			"latency": 0.2,
 		},
+		MinParams: minParams,
 		Client: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -66,19 +67,103 @@ func (b *Benchmarker) CalculateScore(params int, latency float64, contextLength 
 	return sizeScore + contextScore - latencyPenalty
 }
 
+func (b *Benchmarker) FetchModels(ctx context.Context) []ModelCandidate {
+	var candidates []ModelCandidate
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	providers := []string{"openrouter", "groq", "deepinfra", "cerebras", "github", "huggingface", "nvidia"}
+
+	for _, p := range providers {
+		wg.Add(1)
+		go func(provider string) {
+			defer wg.Done()
+			models := b.fetchProviderModels(ctx, provider)
+			mu.Lock()
+			candidates = append(candidates, models...)
+			mu.Unlock()
+		}(p)
+	}
+
+	wg.Wait()
+	return candidates
+}
+
+func (b *Benchmarker) fetchProviderModels(ctx context.Context, provider string) []ModelCandidate {
+	url := b.getModelsURL(provider)
+	if url == "" {
+		return nil
+	}
+
+	req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if apiKey := b.APIKeys[provider]; apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	}
+
+	resp, err := b.Client.Do(req)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil
+	}
+
+	var data struct {
+		Data []map[string]interface{} `json:"data"`
+	}
+	json.NewDecoder(resp.Body).Decode(&data)
+
+	var models []ModelCandidate
+	for _, m := range data.Data {
+		id, _ := m["id"].(string)
+		if id == "" {
+			continue
+		}
+
+		params := b.ExtractParameters(id, "", "")
+		if params < b.MinParams && params != 0 {
+			continue
+		}
+
+		if IsExcluded(id) {
+			continue
+		}
+
+		ctxLength := 4096
+		if spec, ok := LookupKnownModel(id); ok {
+			params = spec.Params
+			ctxLength = spec.Ctx
+		}
+
+		models = append(models, ModelCandidate{
+			ID:            id,
+			Provider:      provider,
+			Parameters:    params,
+			ContextLength: ctxLength,
+		})
+	}
+	return models
+}
+
 func (b *Benchmarker) MeasureLatency(ctx context.Context, modelID, provider string) (float64, error) {
-	url := b.getCompletionsURL(modelID, provider)
+	url := b.getCompletionsURL(provider)
 	if url == "" {
 		return 0, fmt.Errorf("unsupported provider: %s", provider)
 	}
 
 	apiKey := b.APIKeys[provider]
+	// NVIDIA uses same key
+	if provider == "nvidia" && apiKey == "" {
+		apiKey = b.APIKeys["nvidia_nim"]
+	}
 
 	payload := map[string]interface{}{
-		"model":      modelID,
-		"messages":   []map[string]string{{"role": "user", "content": "hi"}},
+		"model":    modelID,
+		"messages": []map[string]string{{"role": "user", "content": "hi"}},
 		"max_tokens": 1,
-		"stream":     true,
+		"stream":   true,
 	}
 
 	body, _ := json.Marshal(payload)
@@ -116,19 +201,55 @@ func (b *Benchmarker) MeasureLatency(ctx context.Context, modelID, provider stri
 	return ttft, nil
 }
 
-func (b *Benchmarker) getCompletionsURL(modelID, provider string) string {
+func (b *Benchmarker) getModelsURL(provider string) string {
 	base := b.BaseURLs[provider]
 	switch provider {
 	case "openrouter":
-		if base == "" { base = "https://openrouter.ai/api/v1" }
+		if base == "" { return "https://openrouter.ai/api/v1/models" }
+		return base + "/models"
+	case "groq":
+		if base == "" { return "https://api.groq.com/openai/v1/models" }
+		return base + "/models"
+	case "deepinfra":
+		if base == "" { return "https://api.deepinfra.com/v1/openai/models" }
+		return base + "/openai/models"
+	case "cerebras":
+		if base == "" { return "https://api.cerebras.ai/v1/models" }
+		return base + "/models"
+	case "github":
+		if base == "" { return "https://models.inference.ai.azure.com/models" }
+		return base
+	case "nvidia":
+		if base == "" { return "https://integrate.api.nvidia.com/v1/models" }
+		return base + "/models"
+	}
+	return ""
+}
+
+func (b *Benchmarker) getCompletionsURL(provider string) string {
+	base := b.BaseURLs[provider]
+	switch provider {
+	case "openrouter":
+		if base == "" { return "https://openrouter.ai/api/v1/chat/completions" }
 		return base + "/chat/completions"
 	case "groq":
-		if base == "" { base = "https://api.groq.com/openai/v1" }
+		if base == "" { return "https://api.groq.com/openai/v1/chat/completions" }
+		return base + "/chat/completions"
+	case "deepinfra":
+		if base == "" { return "https://api.deepinfra.com/v1/openai/chat/completions" }
+		return base + "/openai/chat/completions"
+	case "cerebras":
+		if base == "" { return "https://api.cerebras.ai/v1/chat/completions" }
 		return base + "/chat/completions"
 	case "github":
-		if base == "" { base = "https://models.inference.ai.azure.com" }
+		if base == "" { return "https://models.inference.ai.azure.com/chat/completions" }
 		return base + "/chat/completions"
-	// Add more providers as needed
+	case "nvidia":
+		if base == "" { return "https://integrate.api.nvidia.com/v1/chat/completions" }
+		return base + "/chat/completions"
+	case "huggingface":
+		// Hugging Face uses per-model endpoints
+		return "https://api-inference.huggingface.co/models/"
 	}
 	return ""
 }
@@ -178,6 +299,9 @@ func (b *Benchmarker) RunBenchmark(ctx context.Context, candidates []ModelCandid
 		ranked = append(ranked, r)
 	}
 
-	// Sort by score descending (implement sort interface or use slices.SortFunc)
+	sort.Slice(ranked, func(i, j int) bool {
+		return ranked[i].Score > ranked[j].Score
+	})
+
 	return ranked
 }
