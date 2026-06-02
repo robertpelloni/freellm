@@ -279,9 +279,32 @@ func GetPendingRequests(db *sql.DB) ([]QueuedRequest, error) {
 }
 
 func LogUsage(db *sql.DB, modelID string, promptTokens, completionTokens int) error {
+	var promptPrice, completionPrice float64
+	db.QueryRow("SELECT prompt_price, completion_price FROM model_pricing WHERE model_id = ?", modelID).Scan(&promptPrice, &completionPrice)
+
+	costSaved := (float64(promptTokens) * promptPrice) + (float64(completionTokens) * completionPrice)
+
 	_, err := db.Exec(
-		"INSERT INTO usage (model_id, timestamp, prompt_tokens, completion_tokens) VALUES (?, ?, ?, ?)",
-		modelID, time.Now(), promptTokens, completionTokens,
+		"INSERT INTO usage (model_id, timestamp, prompt_tokens, completion_tokens, cost_saved) VALUES (?, ?, ?, ?, ?)",
+		modelID, time.Now(), promptTokens, completionTokens, costSaved,
 	)
 	return err
+}
+
+func UpdateModelPricing(db *sql.DB, modelID, provider string, promptPrice, completionPrice float64) error {
+	_, err := db.Exec(`
+        INSERT INTO model_pricing (model_id, provider, prompt_price, completion_price, last_updated)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(model_id) DO UPDATE SET
+            prompt_price = EXCLUDED.prompt_price,
+            completion_price = EXCLUDED.completion_price,
+            last_updated = EXCLUDED.last_updated`,
+		modelID, provider, promptPrice, completionPrice, time.Now())
+	return err
+}
+
+func GetTotalSavings(db *sql.DB) (float64, error) {
+	var total float64
+	err := db.QueryRow("SELECT SUM(cost_saved) FROM usage").Scan(&total)
+	return total, err
 }

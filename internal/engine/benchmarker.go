@@ -18,13 +18,15 @@ import (
 var SizePattern = regexp.MustCompile(`(\d+)[bB]`)
 
 type ModelCandidate struct {
-	ID            string    `json:"id"`
-	Provider      string    `json:"provider"`
-	Parameters    int       `json:"parameters"`
-	ContextLength int       `json:"context_length"`
-	Latency       float64   `json:"latency"`
-	Score         float64   `json:"score"`
-	LastBenchmark time.Time `json:"last_benchmark"`
+	ID              string    `json:"id"`
+	Provider        string    `json:"provider"`
+	Parameters      int       `json:"parameters"`
+	ContextLength   int       `json:"context_length"`
+	Latency         float64   `json:"latency"`
+	Score           float64   `json:"score"`
+	LastBenchmark   time.Time `json:"last_benchmark"`
+	PromptPrice     float64   `json:"prompt_price"`
+	CompletionPrice float64   `json:"completion_price"`
 }
 
 type Benchmarker struct {
@@ -158,11 +160,20 @@ func (b *Benchmarker) fetchProviderModels(ctx context.Context, provider string) 
 			ctxLength = spec.Ctx
 		}
 
+		promptPrice, _ := m["prompt_price"].(float64)
+		completionPrice, _ := m["completion_price"].(float64)
+		if pricing, ok := m["pricing"].(map[string]interface{}); ok {
+			promptPrice, _ = pricing["prompt"].(float64)
+			completionPrice, _ = pricing["completion"].(float64)
+		}
+
 		models = append(models, ModelCandidate{
-			ID:            id,
-			Provider:      provider,
-			Parameters:    params,
-			ContextLength: ctxLength,
+			ID:              id,
+			Provider:        provider,
+			Parameters:      params,
+			ContextLength:   ctxLength,
+			PromptPrice:     promptPrice,
+			CompletionPrice: completionPrice,
 		})
 	}
 	return models
