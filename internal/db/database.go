@@ -278,6 +278,31 @@ func GetPendingRequests(db *sql.DB) ([]QueuedRequest, error) {
 	return requests, nil
 }
 
+func GetCircuitBreakerList(db *sql.DB) (map[string]bool, error) {
+	rows, err := db.Query("SELECT model_id FROM model_history WHERE failure_count >= 3 AND (retry_after IS NULL OR retry_after > ?)", time.Now())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	blocked := make(map[string]bool)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err == nil {
+			blocked[id] = true
+		}
+	}
+	return blocked, nil
+}
+
+func LogStabilityMetric(db *sql.DB, qpm, tps float64) error {
+	_, err := db.Exec(
+		"INSERT INTO stability_metrics (timestamp, qpm, tps) VALUES (?, ?, ?)",
+		time.Now(), qpm, tps,
+	)
+	return err
+}
+
 func LogUsage(db *sql.DB, modelID string, promptTokens, completionTokens int) error {
 	var promptPrice, completionPrice float64
 	db.QueryRow("SELECT prompt_price, completion_price FROM model_pricing WHERE model_id = ?", modelID).Scan(&promptPrice, &completionPrice)

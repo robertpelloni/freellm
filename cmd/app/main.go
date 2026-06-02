@@ -43,11 +43,19 @@ func onReady() {
 	mQuit := systray.AddMenuItem("Quit", "Quit the application")
 
 	// Initialize Configuration
-	cfg, err := config.LoadConfig("litellm-config.yaml")
+	cfgPath := "litellm-config.yaml"
+	cfg, err := config.LoadConfig(cfgPath)
 	if err != nil {
 		log.Printf("Warning: litellm-config.yaml not found, using defaults: %v", err)
 		cfg = &config.Config{Port: 4000}
 	}
+
+	// Hot-Reloading
+	config.WatchConfig(cfgPath, func(newCfg *config.Config) {
+		log.Println("Applying new configuration...")
+		cfg = newCfg
+		// In real app, update proxyPort etc if needed
+	})
 
 	// Initialize Database
 	database, err := db.InitDB()
@@ -115,6 +123,21 @@ func onReady() {
 			select {
 			case <-refreshTrigger:
 			case <-time.After(1 * time.Hour):
+			}
+		}
+	}()
+
+	// Operational Stability Ticker
+	go func() {
+		ticker := time.NewTicker(60 * time.Second)
+		for range ticker.C {
+			var qpm int
+			var totalTokens int
+			oneMinAgo := time.Now().Add(-1 * time.Minute)
+			err := database.QueryRow("SELECT COUNT(*), SUM(prompt_tokens + completion_tokens) FROM usage WHERE timestamp > ?", oneMinAgo).Scan(&qpm, &totalTokens)
+			if err == nil {
+				tps := float64(totalTokens) / 60.0
+				db.LogStabilityMetric(database, float64(qpm), tps)
 			}
 		}
 	}()

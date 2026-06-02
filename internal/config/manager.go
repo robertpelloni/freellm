@@ -1,8 +1,10 @@
 package config
 
 import (
+	"log"
 	"os"
 
+	"github.com/fsnotify/fsnotify"
 	"gopkg.in/yaml.v3"
 )
 
@@ -40,4 +42,35 @@ func SaveConfig(path string, cfg *Config) error {
 	}
 
 	return os.WriteFile(path, data, 0644)
+}
+
+func WatchConfig(path string, onReload func(*Config)) error {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return err
+	}
+
+	go func() {
+		defer watcher.Close()
+		for {
+			select {
+			case event, ok := <-watcher.Events:
+				if !ok { return }
+				if event.Op&fsnotify.Write == fsnotify.Write {
+					log.Printf("Config file changed: %s, reloading...", event.Name)
+					cfg, err := LoadConfig(path)
+					if err == nil {
+						onReload(cfg)
+					} else {
+						log.Printf("Reload failed: %v", err)
+					}
+				}
+			case err, ok := <-watcher.Errors:
+				if !ok { return }
+				log.Printf("Watcher error: %v", err)
+			}
+		}
+	}()
+
+	return watcher.Add(path)
 }
