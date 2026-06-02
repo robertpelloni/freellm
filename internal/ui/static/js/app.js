@@ -128,6 +128,22 @@ async function sendQuickQuery() {
     }
 }
 
+function filterRankings() {
+    const q = document.getElementById('ranking-search').value.toLowerCase();
+    const rows = document.querySelectorAll('#rankings tbody tr');
+    rows.forEach(row => {
+        row.style.display = row.innerText.toLowerCase().includes(q) ? '' : 'none';
+    });
+}
+
+function filterLogs() {
+    const q = document.getElementById('log-search').value.toLowerCase();
+    const logs = document.querySelectorAll('#logs div');
+    logs.forEach(log => {
+        log.style.display = log.innerText.toLowerCase().includes(q) ? '' : 'none';
+    });
+}
+
 async function refresh() {
     try {
         const sresp = await fetch('/api/savings');

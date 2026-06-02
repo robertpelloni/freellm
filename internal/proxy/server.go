@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/redis/go-redis/v9"
 	"github.com/robertpelloni/litellm_control_panel/internal/db"
 	"github.com/robertpelloni/litellm_control_panel/internal/engine"
 )
@@ -22,12 +23,14 @@ type Gateway struct {
 	RankedModels engine.RankedModels
 	mu           sync.RWMutex
 	Queue        chan *RequestJob
+	HighPriQueue chan *RequestJob
 	ActiveJobs   int
 	MaxActive    int
 	DB           *sql.DB
 	PrimaryCount int
 	Cache        map[string][]byte
 	cacheMu      sync.RWMutex
+	Redis        *redis.Client
 }
 
 type RequestJob struct {
@@ -48,7 +51,8 @@ type ProxyResponse struct {
 
 func NewGateway(maxActive int, database *sql.DB) *Gateway {
 	g := &Gateway{
-		Queue:        make(chan *RequestJob, 1000), // Buffer 1000 requests
+		Queue:        make(chan *RequestJob, 1000),
+		HighPriQueue: make(chan *RequestJob, 100),
 		MaxActive:    maxActive,
 		DB:           database,
 		PrimaryCount: 5,
@@ -71,6 +75,9 @@ func (g *Gateway) GetModels() engine.RankedModels {
 }
 
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	priority := r.Header.Get("X-LiteLLM-Priority") == "high"
+
 	// 1. Simple Proxy Auth (Virtual Keys)
 	authKey := os.Getenv("LITELLM_MASTER_KEY")
 	if authKey != "" {
@@ -97,14 +104,24 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// 2. Cache Lookup
 	cacheKey := string(body)
-	g.cacheMu.RLock()
-	cached, ok := g.Cache[cacheKey]
-	g.cacheMu.RUnlock()
-	if ok {
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("X-LiteLLM-Cache", "HIT")
-		w.Write(cached)
-		return
+	if g.Redis != nil {
+		val, err := g.Redis.Get(ctx, cacheKey).Bytes()
+		if err == nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("X-LiteLLM-Cache", "HIT (Redis)")
+			w.Write(val)
+			return
+		}
+	} else {
+		g.cacheMu.RLock()
+		cached, ok := g.Cache[cacheKey]
+		g.cacheMu.RUnlock()
+		if ok {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("X-LiteLLM-Cache", "HIT")
+			w.Write(cached)
+			return
+		}
 	}
 
 	dbID := int64(0)
@@ -123,8 +140,11 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		DBID:     dbID,
 	}
 
+	queue := g.Queue
+	if priority { queue = g.HighPriQueue }
+
 	select {
-	case g.Queue <- job:
+	case queue <- job:
 	case <-r.Context().Done():
 		if dbID > 0 { db.DequeueRequest(g.DB, dbID) }
 		return
@@ -176,7 +196,17 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (g *Gateway) workerLoop() {
 	semaphore := make(chan struct{}, g.MaxActive)
-	for job := range g.Queue {
+	for {
+		var job *RequestJob
+		select {
+		case job = <-g.HighPriQueue:
+		default:
+			select {
+			case job = <-g.HighPriQueue:
+			case job = <-g.Queue:
+			}
+		}
+
 		semaphore <- struct{}{}
 		go func(j *RequestJob) {
 			defer func() { <-semaphore }()
@@ -236,9 +266,13 @@ func (g *Gateway) processJob(job *RequestJob) {
 
 			// Store in Cache if not streaming
 			if proxyResp.Stream == nil {
-				g.cacheMu.Lock()
-				g.Cache[string(body)] = proxyResp.Body
-				g.cacheMu.Unlock()
+				if g.Redis != nil {
+					g.Redis.Set(job.Ctx, string(body), proxyResp.Body, 1*time.Hour)
+				} else {
+					g.cacheMu.Lock()
+					g.Cache[string(body)] = proxyResp.Body
+					g.cacheMu.Unlock()
+				}
 			}
 
 			job.Response <- proxyResp
@@ -357,6 +391,10 @@ func (g *Gateway) getProviderURL(modelID, provider string) string {
 		return "https://api.anthropic.com/v1/messages"
 	case "opencode_zen":
 		return "https://opencode.ai/zen/v1/chat/completions"
+	case "bedrock":
+		return "https://bedrock-runtime.us-east-1.amazonaws.com/model/" + modelID + "/invoke-with-response-stream"
+	case "vertex_ai":
+		return "https://us-central1-aiplatform.googleapis.com/v1/projects/PROJECT_ID/locations/us-central1/publishers/google/models/" + modelID + ":streamGenerateContent"
 	case "mistral":
 		return "https://api.mistral.ai/v1/chat/completions"
 	case "huggingface":
@@ -490,6 +528,10 @@ func (g *Gateway) getAPIKey(provider string) string {
 		return os.Getenv("GEMINI_API_KEY")
 	case "anthropic":
 		return os.Getenv("ANTHROPIC_API_KEY")
+	case "bedrock":
+		return os.Getenv("AWS_SECRET_ACCESS_KEY")
+	case "vertex_ai":
+		return os.Getenv("VERTEX_AI_KEY")
 	case "mistral":
 		return os.Getenv("MISTRAL_API_KEY")
 	}

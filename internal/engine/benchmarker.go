@@ -88,7 +88,7 @@ func (b *Benchmarker) FetchModels(ctx context.Context) []ModelCandidate {
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 
-	providers := []string{"openrouter", "groq", "deepinfra", "cerebras", "github", "huggingface", "nvidia", "ollama", "lm_studio", "gemini", "mistral", "anthropic", "opencode_zen"}
+	providers := []string{"openrouter", "groq", "deepinfra", "cerebras", "github", "huggingface", "nvidia", "ollama", "lm_studio", "gemini", "mistral", "anthropic", "opencode_zen", "bedrock", "vertex_ai"}
 
 	for _, p := range providers {
 		wg.Add(1)
@@ -324,6 +324,10 @@ func (b *Benchmarker) getModelsURL(provider string) string {
 		return "https://api.anthropic.com/v1/models"
 	case "opencode_zen":
 		return "https://opencode.ai/zen/v1/models"
+	case "bedrock":
+		return "https://bedrock-runtime.us-east-1.amazonaws.com/model/list" // Simplified
+	case "vertex_ai":
+		return "https://us-central1-aiplatform.googleapis.com/v1/models"
 	case "lm_studio":
 		if base == "" { return "http://localhost:1234/v1/models" }
 		return base + "/v1/models"
@@ -359,6 +363,10 @@ func (b *Benchmarker) getCompletionsURL(provider string) string {
 		return "https://api.anthropic.com/v1/messages"
 	case "opencode_zen":
 		return "https://opencode.ai/zen/v1/chat/completions"
+	case "bedrock":
+		return "https://bedrock-runtime.us-east-1.amazonaws.com/model/"
+	case "vertex_ai":
+		return "https://us-central1-aiplatform.googleapis.com/v1/projects/PROJECT_ID/locations/us-central1/publishers/google/models/"
 	case "mistral":
 		if base == "" { return "https://api.mistral.ai/v1/chat/completions" }
 		return base + "/chat/completions"
