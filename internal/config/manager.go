@@ -112,9 +112,20 @@ func ApplyRankedModels(ranked []engine.ModelCandidate, cfgPath string, primaryCo
 	primaryGroup := "free-llm"
 	fallbackGroup := "free-llm-fallback"
 
+	// Build primary group with provider diversity (max 2 per provider)
+	maxPerProvider := 2
+	primarySet := map[int]bool{}
+	providerCount := map[string]int{}
+	for i, m := range ranked {
+		if providerCount[m.Provider] < maxPerProvider && len(primarySet) < primaryCount {
+			primarySet[i] = true
+			providerCount[m.Provider]++
+		}
+	}
+
 	for i, m := range ranked {
 		group := fallbackGroup
-		if i < primaryCount {
+		if primarySet[i] {
 			group = primaryGroup
 		}
 
@@ -154,11 +165,27 @@ func ApplyRankedModels(ranked []engine.ModelCandidate, cfgPath string, primaryCo
 		entry.LiteLLMParams["max_tokens"] = maxOut
 
 		// Add model info
+		noToolProviders := map[string]bool{
+			"nvidia_nim": true, "nvidia": true, "cerebras": true,
+			"cloudflare": true, "deepinfra": true,
+		}
 		entry.ModelInfo = map[string]interface{}{
-			"score":   m.Score,
+			"score": m.Score,
 			"latency": m.Latency,
-			"params":  m.Parameters,
+			"params": m.Parameters,
 			"context": m.ContextLength,
+		}
+		if noToolProviders[m.Provider] {
+			entry.ModelInfo["supports_function_calling"] = false
+		}
+
+		// For nvidia_nim/nvidia: set supported_params to exclude tools
+		if m.Provider == "nvidia_nim" || m.Provider == "nvidia" {
+			entry.LiteLLMParams["supported_params"] = []string{
+				"max_tokens", "temperature", "top_p", "frequency_penalty",
+				"presence_penalty", "stop", "n", "stream",
+				"response_format", "seed", "logprobs", "top_logprobs",
+			}
 		}
 
 		cfg.ModelList = append(cfg.ModelList, entry)
