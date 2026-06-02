@@ -1186,6 +1186,21 @@ class ModelEngine:
                 continue
         return False
 
+    async def preflight_check(self, url: str, timeout: float = 2.0) -> bool:
+        """Quick DNS+TCP check. Returns True if provider is reachable."""
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(url)
+            host = parsed.hostname
+            port = parsed.port or (443 if parsed.scheme == "https" else 80)
+            _, _ = await asyncio.wait_for(
+                asyncio.get_event_loop().getaddrinfo(host, port),
+                timeout=timeout
+            )
+            return True
+        except (asyncio.TimeoutError, OSError, Exception):
+            return False
+
     async def measure_latency(self, model_id: str, provider: str) -> Optional[float]:
         """Measures Time-To-First-Token (TTFT) for a given model."""
         base = self.base_urls.get(provider)
@@ -1268,6 +1283,11 @@ class ModelEngine:
         elif provider == "opencode_zen":
             url = (base or "https://opencode.ai/zen/v1") + "/chat/completions"
         else:
+            return None
+
+        # Pre-flight connectivity check - skip if provider is unreachable
+        if url and not await self.preflight_check(url):
+            self._log(f"[PREFLIGHT] {model_id} ({provider}): provider unreachable")
             return None
 
         headers = {}
