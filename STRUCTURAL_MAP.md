@@ -1,30 +1,24 @@
-# Structural Map: LiteLLM Control Panel
+# Structural Map: LiteLLM Control Panel (Go Edition)
 
 ## Core Logic
-- `main.py`: Entry point, system tray management, background worker orchestration.
-- `engine.py`: Async benchmarking engine, model discovery, TTFT measurement.
-- `database.py`: SQLite data layer, persistence for rankings, history, and usage.
-- `config_manager.py`: YAML configuration orchestration for LiteLLM (Hermes-compatible).
-- `process_manager.py`: Child process lifecycle management for LiteLLM proxy.
+- `cmd/app/main.go`: Entry point, system tray management, background worker orchestration, and single-instance enforcement.
+- `internal/engine/`: Concurrent benchmarking engine, TTFT measurement, and weighted scoring logic.
+- `internal/proxy/`: OpenAI-compatible stable gateway with request queueing (in-memory & disk-backed), routing, and multi-model rotation.
+- `internal/db/`: SQLite data layer for rankings, usage logging, stability metrics, and queue persistence.
+- `internal/config/`: YAML configuration management (hot-reloading) and Windows-specific registry integration.
 
-## UI Components
-- `dashboard_ui.py`: Main ranking oversight and usage summary.
-- `settings_ui.py`: Comprehensive configuration GUI for providers and scoring weights.
-- `query_ui.py`: Minimalist streaming chat window for active model testing.
-- `log_viewer.py`: Real-time searchable log stream for LiteLLM.
-- `status_window.py`: Centralized status hub for health monitoring.
+## UI Components (Embedded Web Server)
+- `internal/ui/server.go`: HTTP/WebSocket server for API and dashboard assets.
+- `internal/ui/static/`: Embedded HTML, CSS, and JavaScript for the monitoring dashboard.
+- `internal/ui/static/js/app.js`: Frontend logic for real-time charts, WebSocket logs, and interactive testing.
 
-## Utilities
-- `startup.py`: Windows registry integration for "Start with Windows".
-- `build_exe.py`: PyInstaller packaging script.
-- `setup.bat`: Dependency installation script.
-- `start.bat`: Silent background execution entry point.
-- `tests.py`: Unit test suite.
-
-## Metadata
-- `VERSION.md`: Current global version string (v2.1.0).
-- `CHANGELOG.md`: Version-by-version adjustment logs.
-- `VISION.md`: Ultimate project goal and foundational concepts.
-- `MEMORY.md`: Internal architectural observations and design preferences.
+## Documentation & Governance
+- `VISION.md`: Project goals and connection stability philosophy.
+- `MEMORY.md`: Architectural traits and design decisions.
 - `ROADMAP.md`: Long-term structural milestones.
-- `TODO.md`: Immediate short-term tasks.
+- `TODO.md`: Immediate tasks and completed features.
+- `VERSION.md`: Current version (v4.1.0).
+- `CHANGELOG.md`: Detailed feature and fix history.
+
+## Submodules
+- `litellm_repo/`: Official LiteLLM repository for parity reference and integration.

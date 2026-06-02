@@ -350,7 +350,14 @@ func (g *Gateway) forwardRequest(client *http.Client, r *http.Request, model eng
 	defer resp.Body.Close()
 
 	respBody, _ := io.ReadAll(resp.Body)
+
+	// Map response back to OpenAI format
 	if !stream && resp.StatusCode == 200 {
+		mappedBody, err := TransformResponseBody(model.Provider, respBody)
+		if err == nil {
+			respBody = mappedBody
+		}
+
 		var respData map[string]interface{}
 		if err := json.Unmarshal(respBody, &respData); err == nil {
 			if _, ok := respData["usage"]; !ok {

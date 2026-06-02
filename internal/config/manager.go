@@ -13,6 +13,13 @@ type Config struct {
 	RouterSettings   map[string]interface{} `yaml:"router_settings"`
 	LiteLLMSettings  map[string]interface{} `yaml:"litellm_settings"`
 	Port             int                    `yaml:"port"`
+	Providers        map[string]ProviderCfg `yaml:"providers"`
+}
+
+type ProviderCfg struct {
+	BaseURL     string `yaml:"api_base"`
+	ModelsURL   string `yaml:"models_url"`
+	Completions string `yaml:"completions_url"`
 }
 
 type ModelEntry struct {

@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"encoding/json"
+	"time"
 )
 
 func TransformRequestBody(provider string, openaiBody []byte) ([]byte, error) {
@@ -61,6 +62,90 @@ func transformToAnthropic(body []byte) ([]byte, error) {
 		"messages":   input.Messages,
 		"stream":     input.Stream,
 		"max_tokens": input.MaxTokens,
+	}
+	return json.Marshal(output)
+}
+
+func TransformResponseBody(provider string, providerBody []byte) ([]byte, error) {
+	switch provider {
+	case "anthropic":
+		return transformFromAnthropic(providerBody)
+	case "gemini":
+		return transformFromGemini(providerBody)
+	default:
+		return providerBody, nil
+	}
+}
+
+func transformFromAnthropic(body []byte) ([]byte, error) {
+	var input struct {
+		Content []struct {
+			Text string `json:"text"`
+		} `json:"content"`
+		Model string `json:"model"`
+		ID    string `json:"id"`
+	}
+	if err := json.Unmarshal(body, &input); err != nil {
+		return body, nil
+	}
+
+	text := ""
+	if len(input.Content) > 0 {
+		text = input.Content[0].Text
+	}
+
+	output := map[string]interface{}{
+		"id":      input.ID,
+		"object":  "chat.completion",
+		"created": time.Now().Unix(),
+		"model":   input.Model,
+		"choices": []map[string]interface{}{
+			{
+				"index": 0,
+				"message": map[string]string{
+					"role":    "assistant",
+					"content": text,
+				},
+				"finish_reason": "stop",
+			},
+		},
+	}
+	return json.Marshal(output)
+}
+
+func transformFromGemini(body []byte) ([]byte, error) {
+	var input struct {
+		Candidates []struct {
+			Content struct {
+				Parts []struct {
+					Text string `json:"text"`
+				} `json:"parts"`
+			} `json:"content"`
+		} `json:"candidates"`
+	}
+	if err := json.Unmarshal(body, &input); err != nil {
+		return body, nil
+	}
+
+	text := ""
+	if len(input.Candidates) > 0 && len(input.Candidates[0].Content.Parts) > 0 {
+		text = input.Candidates[0].Content.Parts[0].Text
+	}
+
+	output := map[string]interface{}{
+		"id":      "gemini-resp",
+		"object":  "chat.completion",
+		"created": time.Now().Unix(),
+		"choices": []map[string]interface{}{
+			{
+				"index": 0,
+				"message": map[string]string{
+					"role":    "assistant",
+					"content": text,
+				},
+				"finish_reason": "stop",
+			},
+		},
 	}
 	return json.Marshal(output)
 }
