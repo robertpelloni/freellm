@@ -26,6 +26,8 @@ type Gateway struct {
 	MaxActive    int
 	DB           *sql.DB
 	PrimaryCount int
+	Cache        map[string][]byte
+	cacheMu      sync.RWMutex
 }
 
 type RequestJob struct {
@@ -49,6 +51,7 @@ func NewGateway(maxActive int, database *sql.DB) *Gateway {
 		MaxActive:    maxActive,
 		DB:           database,
 		PrimaryCount: 5,
+		Cache:        make(map[string][]byte),
 	}
 	go g.workerLoop()
 	return g
@@ -67,6 +70,16 @@ func (g *Gateway) GetModels() engine.RankedModels {
 }
 
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// 1. Simple Proxy Auth (Virtual Keys)
+	authKey := os.Getenv("LITELLM_MASTER_KEY")
+	if authKey != "" {
+		token := r.Header.Get("Authorization")
+		if token != "Bearer "+authKey {
+			http.Error(w, "Unauthorized", 401)
+			return
+		}
+	}
+
 	if r.URL.Path == "/v1/models" {
 		g.handleModels(w, r)
 		return
@@ -80,6 +93,18 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Buffer body to persist if needed
 	body, _ := io.ReadAll(r.Body)
 	r.Body = io.NopCloser(bytes.NewBuffer(body))
+
+	// 2. Cache Lookup
+	cacheKey := string(body)
+	g.cacheMu.RLock()
+	cached, ok := g.Cache[cacheKey]
+	g.cacheMu.RUnlock()
+	if ok {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-LiteLLM-Cache", "HIT")
+		w.Write(cached)
+		return
+	}
 
 	dbID := int64(0)
 	if g.DB != nil {
@@ -183,6 +208,14 @@ func (g *Gateway) processJob(job *RequestJob) {
 		if proxyResp.Err == nil && proxyResp.Status < 400 {
 			if job.DBID > 0 { db.DequeueRequest(g.DB, job.DBID) }
 			g.logUsage(model.ID, body, proxyResp.Body)
+
+			// Store in Cache if not streaming
+			if proxyResp.Stream == nil {
+				g.cacheMu.Lock()
+				g.Cache[string(body)] = proxyResp.Body
+				g.cacheMu.Unlock()
+			}
+
 			job.Response <- proxyResp
 			return
 		}
