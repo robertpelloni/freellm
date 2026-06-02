@@ -134,6 +134,14 @@ func InitDB() (*sql.DB, error) {
             qpm REAL,
             tps REAL
         )`,
+		`CREATE TABLE IF NOT EXISTS pending_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TIMESTAMP NOT NULL,
+            method TEXT,
+            url TEXT,
+            headers TEXT,
+            body BLOB
+        )`,
 		`CREATE INDEX IF NOT EXISTS idx_probe_model ON probe_history(model_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_probe_time ON probe_history(timestamp)`,
 		`CREATE INDEX IF NOT EXISTS idx_probe_success ON probe_history(success)`,
@@ -188,6 +196,28 @@ func LogActivity(db *sql.DB, eventType, modelID, details string) error {
 	return err
 }
 
+func ClearSkips(db *sql.DB) error {
+	_, err := db.Exec("UPDATE model_history SET manually_skipped = 0, skip_expiry = NULL")
+	return err
+}
+
+func ClearBlacklist(db *sql.DB) error {
+	_, err := db.Exec("UPDATE model_history SET is_blacklisted = 0")
+	return err
+}
+
+func ResetStats(db *sql.DB) error {
+	_, err := db.Exec("UPDATE providers SET consecutive_empty_cycles = 0, is_free_provider = 1")
+	if err != nil { return err }
+	_, err = db.Exec(`UPDATE model_history SET
+        failure_count = 0, retry_after = NULL,
+        avg_latency = 0, min_latency = 999, max_latency = 0, p50_latency = 0,
+        total_probes = 0, total_successes = 0, total_failures = 0,
+        consecutive_successes = 0, consecutive_failures = 0, uptime_pct = 0,
+        score_avg = 0, score_best = 0`)
+	return err
+}
+
 func GetStabilityMetrics(db *sql.DB, limit int) ([]StabilityMetric, error) {
 	rows, err := db.Query("SELECT timestamp, qpm, tps FROM stability_metrics ORDER BY timestamp DESC LIMIT ?", limit)
 	if err != nil {
@@ -204,6 +234,48 @@ func GetStabilityMetrics(db *sql.DB, limit int) ([]StabilityMetric, error) {
 		metrics = append(metrics, m)
 	}
 	return metrics, nil
+}
+
+type QueuedRequest struct {
+	ID      int64
+	Method  string
+	URL     string
+	Headers string
+	Body    []byte
+}
+
+func EnqueueRequest(db *sql.DB, method, url, headers string, body []byte) (int64, error) {
+	res, err := db.Exec(
+		"INSERT INTO pending_requests (timestamp, method, url, headers, body) VALUES (?, ?, ?, ?, ?)",
+		time.Now(), method, url, headers, body,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
+func DequeueRequest(db *sql.DB, id int64) error {
+	_, err := db.Exec("DELETE FROM pending_requests WHERE id = ?", id)
+	return err
+}
+
+func GetPendingRequests(db *sql.DB) ([]QueuedRequest, error) {
+	rows, err := db.Query("SELECT id, method, url, headers, body FROM pending_requests ORDER BY timestamp ASC")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var requests []QueuedRequest
+	for rows.Next() {
+		var r QueuedRequest
+		if err := rows.Scan(&r.ID, &r.Method, &r.URL, &r.Headers, &r.Body); err != nil {
+			return nil, err
+		}
+		requests = append(requests, r)
+	}
+	return requests, nil
 }
 
 func LogUsage(db *sql.DB, modelID string, promptTokens, completionTokens int) error {
