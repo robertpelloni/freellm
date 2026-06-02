@@ -1,0 +1,154 @@
+let stabilityChart = null;
+let lastRanked = [];
+
+async function compareModels() {
+    const prompt = document.getElementById('prompt').value;
+    if (!prompt || lastRanked.length === 0) return;
+
+    for (let i = 0; i < 3 && i < lastRanked.length; i++) {
+        const m = lastRanked[i];
+        const outDiv = document.getElementById('m' + (i+1) + '-output');
+        document.getElementById('m' + (i+1) + '-name').innerText = m.id;
+        outDiv.innerText = 'Streaming...';
+
+        fetch('/api/proxy/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: m.id,
+                messages: [{ role: 'user', content: prompt }],
+                stream: true
+            })
+        }).then(async resp => {
+            const reader = resp.body.getReader();
+            outDiv.innerText = '';
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                const chunk = new TextDecoder().decode(value);
+                const lines = chunk.split('\n');
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const data = JSON.parse(line.slice(6));
+                            const content = data.choices[0].delta.content;
+                            if (content) outDiv.innerText += content;
+                        } catch (e) {}
+                    }
+                }
+            }
+        });
+    }
+}
+
+function showTab(id) {
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    event.target.classList.add('active');
+}
+
+async function doAction(url) {
+    if (!confirm('Are you sure?')) return;
+    try {
+        const resp = await fetch(url, { method: 'POST' });
+        if (resp.ok) alert('Action successful');
+        else alert('Action failed: ' + await resp.text());
+    } catch (e) {
+        alert('Error: ' + e);
+    }
+}
+
+async function refresh() {
+    try {
+        const sresp = await fetch('/api/savings');
+        const sdata = await sresp.json();
+        document.getElementById('total-savings').innerText = '$' + sdata.total.toFixed(2);
+    } catch (e) {}
+
+    try {
+        const resp = await fetch('/api/rankings');
+        const data = await resp.json();
+        const tbody = document.querySelector('#rankings tbody');
+        tbody.innerHTML = '';
+        lastRanked = data;
+        data.forEach((m, i) => {
+            const row = document.createElement('tr');
+            row.innerHTML = "<td>" + (i === 0 ? '★ ' : '') + m.id + "</td>" +
+                           "<td>" + m.provider + "</td>" +
+                           "<td class='score'>" + Math.round(m.score) + "</td>" +
+                           "<td class='latency'>" + m.latency.toFixed(3) + "s</td>";
+            tbody.appendChild(row);
+        });
+        document.getElementById('status').innerText = 'Last updated: ' + new Date().toLocaleTimeString();
+    } catch (e) {
+        document.getElementById('status').innerText = 'Error loading rankings: ' + e;
+    }
+
+    try {
+        const resp = await fetch('/api/metrics');
+        const data = await resp.json();
+        const tbody = document.querySelector('#metrics tbody');
+        tbody.innerHTML = '';
+        if (data && data.length > 0) {
+            const labels = data.map(m => new Date(m.timestamp).toLocaleTimeString()).reverse();
+            const qpmData = data.map(m => m.qpm).reverse();
+            const tpsData = data.map(m => m.tps).reverse();
+
+            if (!stabilityChart) {
+                const ctx = document.getElementById('stabilityChart').getContext('2d');
+                stabilityChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'QPM',
+                            data: qpmData,
+                            borderColor: '#4caf50',
+                            tension: 0.1
+                        }, {
+                            label: 'TPS',
+                            data: tpsData,
+                            borderColor: '#2196f3',
+                            tension: 0.1
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false }
+                });
+            } else {
+                stabilityChart.data.labels = labels;
+                stabilityChart.data.datasets[0].data = qpmData;
+                stabilityChart.data.datasets[1].data = tpsData;
+                stabilityChart.update('none');
+            }
+
+            data.forEach(m => {
+                const row = document.createElement('tr');
+                row.innerHTML = "<td>" + new Date(m.timestamp).toLocaleTimeString() + "</td>" +
+                               "<td>" + m.qpm.toFixed(1) + "</td>" +
+                               "<td>" + m.tps.toFixed(1) + "</td>";
+                tbody.appendChild(row);
+            });
+        } else {
+            tbody.innerHTML = '<tr><td colspan="3">No metrics yet</td></tr>';
+        }
+    } catch (e) {
+        console.error('Error loading metrics:', e);
+    }
+}
+
+setInterval(refresh, 5000);
+refresh();
+
+const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+const ws = new WebSocket(wsProtocol + '//' + window.location.host + '/ws/logs');
+ws.onmessage = (event) => {
+    const l = JSON.parse(event.data);
+    const logDiv = document.getElementById('logs');
+    const entry = document.createElement('div');
+    entry.innerText = "[" + new Date(l.timestamp).toLocaleTimeString() + "] " + l.message;
+    logDiv.appendChild(entry);
+    logDiv.scrollTop = logDiv.scrollHeight;
+    if (logDiv.childNodes.length > 200) logDiv.removeChild(logDiv.firstChild);
+};
+ws.onerror = (e) => console.error('WS Error:', e);

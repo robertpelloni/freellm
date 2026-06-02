@@ -109,6 +109,9 @@ func (b *Benchmarker) fetchProviderModels(ctx context.Context, provider string) 
 	if provider == "ollama" {
 		return b.fetchOllamaModels(ctx)
 	}
+	if provider == "huggingface" {
+		return b.fetchHuggingFaceModels(ctx)
+	}
 
 	url := b.getModelsURL(provider)
 	if url == "" {
@@ -231,6 +234,33 @@ func (b *Benchmarker) MeasureLatency(ctx context.Context, modelID, provider stri
 
 	ttft := time.Since(startTime).Seconds()
 	return ttft, nil
+}
+
+func (b *Benchmarker) fetchHuggingFaceModels(ctx context.Context) []ModelCandidate {
+	url := "https://huggingface.co/api/models?filter=text-generation&sort=trendingScore&limit=50"
+	resp, err := b.Client.Get(url)
+	if err != nil { return nil }
+	defer resp.Body.Close()
+
+	var data []map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&data)
+
+	var candidates []ModelCandidate
+	for _, m := range data {
+		id, _ := m["id"].(string)
+		if id == "" { continue }
+
+		params := b.ExtractParameters(id, "", "")
+		if params < b.MinParams && params != 0 { continue }
+		if IsExcluded(id) { continue }
+
+		candidates = append(candidates, ModelCandidate{
+			ID:         id,
+			Provider:   "huggingface",
+			Parameters: params,
+		})
+	}
+	return candidates
 }
 
 func (b *Benchmarker) fetchOllamaModels(ctx context.Context) []ModelCandidate {

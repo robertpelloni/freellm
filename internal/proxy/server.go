@@ -224,6 +224,12 @@ func (g *Gateway) forwardRequest(client *http.Client, r *http.Request, model eng
 
 	newBody, _ := json.Marshal(payload)
 
+	// Robust Mapping Layer
+	mappedBody, err := TransformRequestBody(model.Provider, newBody)
+	if err == nil {
+		newBody = mappedBody
+	}
+
 	targetURL := g.getProviderURL(model.ID, model.Provider)
 	if targetURL == "" {
 		return &ProxyResponse{Err: fmt.Errorf("unsupported provider: %s", model.Provider)}
