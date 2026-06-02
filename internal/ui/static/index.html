@@ -22,6 +22,7 @@
 
     <div id="rankings-tab" class="tab-content active">
         <h2>Model Rankings</h2>
+        <input type="text" id="ranking-search" style="width: 100%; margin-bottom: 10px; background: #222; color: #eee; border: 1px solid #444; padding: 10px; border-radius: 4px;" placeholder="Search models..." onkeyup="filterRankings()">
         <table id="rankings">
         <thead>
             <tr>
@@ -55,6 +56,7 @@
 
     <div id="logs-tab" class="tab-content">
         <h2>Engine Logs</h2>
+        <input type="text" id="log-search" style="width: 100%; margin-bottom: 10px; background: #222; color: #eee; border: 1px solid #444; padding: 10px; border-radius: 4px;" placeholder="Filter logs..." onkeyup="filterLogs()">
         <div id="logs"></div>
     </div>
 
