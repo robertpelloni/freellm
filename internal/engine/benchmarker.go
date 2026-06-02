@@ -3,6 +3,7 @@ package engine
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -82,7 +83,7 @@ func (b *Benchmarker) CalculateScore(params int, latency float64, contextLength 
 	return sizeScore + contextScore - latencyPenalty
 }
 
-func (b *Benchmarker) FetchModels(ctx context.Context) []ModelCandidate {
+func (b *Benchmarker) FetchModels(ctx context.Context, database *sql.DB) []ModelCandidate {
 	b.log("Starting model discovery...")
 	var candidates []ModelCandidate
 	var mu sync.Mutex
@@ -91,6 +92,13 @@ func (b *Benchmarker) FetchModels(ctx context.Context) []ModelCandidate {
 	providers := []string{"openrouter", "groq", "deepinfra", "cerebras", "github", "huggingface", "nvidia", "ollama", "lm_studio", "gemini", "mistral", "anthropic", "opencode_zen", "bedrock", "vertex_ai"}
 
 	for _, p := range providers {
+		// Check if provider enabled in DB
+		if database != nil {
+			var enabled int
+			database.QueryRow("SELECT is_free_provider FROM providers WHERE provider_name = ?", p).Scan(&enabled)
+			if enabled == 0 { continue }
+		}
+
 		wg.Add(1)
 		go func(provider string) {
 			defer wg.Done()

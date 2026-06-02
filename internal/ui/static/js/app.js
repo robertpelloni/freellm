@@ -144,7 +144,61 @@ function filterLogs() {
     });
 }
 
+async function toggleProvider(name, enabled) {
+    try {
+        const resp = await fetch('/api/providers/toggle?name=' + encodeURIComponent(name) + '&enabled=' + enabled, { method: 'POST' });
+        if (resp.ok) refresh();
+    } catch (e) { console.error(e); }
+}
+
 async function refresh() {
+    try {
+        const presp = await fetch('/api/providers/health');
+        const pdata = await presp.json();
+        const ptbody = document.querySelector('#providers tbody');
+        ptbody.innerHTML = '';
+        if (pdata && pdata.length > 0) {
+            const labels = pdata.map(p => p.name);
+            const latData = pdata.map(p => p.avg_latency);
+            const srData = pdata.map(p => p.success_rate);
+
+            if (!providerChart) {
+                const ctx = document.getElementById('providerChart').getContext('2d');
+                providerChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Avg Latency (s)',
+                            data: latData,
+                            backgroundColor: '#2196f3'
+                        }, {
+                            label: 'Success Rate (%)',
+                            data: srData,
+                            backgroundColor: '#4caf50'
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false }
+                });
+            } else {
+                providerChart.data.labels = labels;
+                providerChart.data.datasets[0].data = latData;
+                providerChart.data.datasets[1].data = srData;
+                providerChart.update('none');
+            }
+
+            pdata.forEach(p => {
+                const row = document.createElement('tr');
+                const btn = "<button class='inline-action' style='background: " + (p.enabled ? "#f44336" : "#4caf50") + "' onclick=\"toggleProvider('" + p.name + "', " + !p.enabled + ")\">" + (p.enabled ? "Disable" : "Enable") + "</button>";
+                row.innerHTML = "<td>" + p.name + "</td>" +
+                               "<td>" + p.avg_latency.toFixed(3) + "s</td>" +
+                               "<td>" + p.success_rate.toFixed(1) + "%</td>" +
+                               "<td>" + btn + "</td>";
+                ptbody.appendChild(row);
+            });
+        }
+    } catch (e) {}
+
     try {
         const sresp = await fetch('/api/savings');
         const sdata = await sresp.json();

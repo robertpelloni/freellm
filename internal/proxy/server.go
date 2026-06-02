@@ -279,6 +279,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 
 		if proxyResp.Err == nil && proxyResp.Status < 400 {
 			if job.DBID > 0 { db.DequeueRequest(g.DB, job.DBID) }
+			if g.DB != nil { db.RecordSuccess(g.DB, model.ID) }
 			g.logUsage(model.ID, body, proxyResp.Body)
 
 			// Store in Cache if not streaming
@@ -295,6 +296,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 			job.Response <- proxyResp
 			return
 		}
+		if g.DB != nil { db.RecordFailure(g.DB, model.ID) }
 		lastErr = proxyResp.Err
 		if proxyResp.Err == nil { lastErr = fmt.Errorf("primary status %d", proxyResp.Status) }
 		if i < len(primaryGroup)-1 { time.Sleep(500 * time.Millisecond) }
@@ -313,6 +315,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 				job.Response <- proxyResp
 				return
 			}
+			if g.DB != nil { db.RecordFailure(g.DB, model.ID) }
 			lastErr = proxyResp.Err
 			if proxyResp.Err == nil { lastErr = fmt.Errorf("fallback status %d", proxyResp.Status) }
 			time.Sleep(1 * time.Second)
