@@ -1147,7 +1147,7 @@ class LiteLLMControlPanel:
                 cursor.execute("""
                     SELECT COUNT(*), SUM(prompt_tokens + completion_tokens)
                     FROM usage WHERE timestamp > ?
-                """, (one_min_ago,))
+                """, (one_min_ago.isoformat(),))
                 counts = cursor.fetchone()
                 qpm = counts[0] or 0
                 tps = (counts[1] or 0) / 60.0
