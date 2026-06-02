@@ -1203,25 +1203,55 @@ class LiteLLMControlPanel:
                     await asyncio.sleep(60)
 
     async def background_worker(self):
-        """Background loop for periodic model benchmarking."""
+        """Background loop for periodic model benchmarking.
+
+        Two-tier cadence:
+          - Quick pulse every 10 min: re-checks top 5 models for latency drift
+          - Full refresh every 60 min: complete re-rank of all models
+        """
         asyncio.create_task(self.monitor_active_model())
+        full_refresh_interval = 3600  # 1 hour between full refreshes
+        pulse_interval = 600  # 10 minutes between quick pulses
+        last_full_refresh = 0  # Force first cycle to be a full refresh
 
         while self.running:
+            now = time.time()
+            time_since_full = now - last_full_refresh
+
             try:
-                success = await self.refresh_logic(auto_pilot=self.auto_pilot)
-                if success:
-                    print("Rankings updated successfully.")
-                    interval = 3600  # 1 hour
+                if time_since_full >= full_refresh_interval or not self.ranked_models:
+                    # Full refresh: benchmark all candidates and re-rank
+                    success = await self.refresh_logic(auto_pilot=self.auto_pilot)
+                    if success:
+                        print("Rankings updated successfully (full refresh).")
+                        last_full_refresh = now
+                    else:
+                        print("Refresh failed (likely connectivity). Retrying soon.")
                 else:
-                    print(
-                        "Refresh failed (likely connectivity). Retrying in 5 minutes."
-                    )
-                    interval = 300  # 5 minutes
+                    # Quick pulse: re-check only top models
+                    if self.ranked_models and self.routing_enabled:
+                        self.ranked_models, changed = await self.engine.quick_pulse(
+                            self.ranked_models, top_n=5
+                        )
+                        # Only rewrite config if rankings actually changed
+                        if changed and self.ranked_models:
+                            config_manager.apply_ranked_models(
+                                self.ranked_models, self.config_path,
+                                primary_count=self.primary_count,
+                            )
+                            if self.icon:
+                                self.icon.menu = self.build_menu()
+                            self.update_tray_status()
+                            print(f"Quick pulse: rankings changed, config updated. Next check in {pulse_interval // 60} min.")
+                        else:
+                            print(f"Quick pulse: no changes. Next check in {pulse_interval // 60} min.")
+                    else:
+                        print("No models to pulse. Skipping.")
             except Exception as e:
                 print(f"Error in background worker: {e}")
-                interval = 600  # 10 minutes
 
-            for _ in range(interval):
+            # Sleep until next pulse interval
+            for _ in range(pulse_interval):
                 if not self.running:
                     break
                 await asyncio.sleep(1)
