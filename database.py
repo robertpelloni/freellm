@@ -936,7 +936,7 @@ def cleanup_old_probes(days=90):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     cutoff = datetime.datetime.now() - datetime.timedelta(days=days)
-    cursor.execute("DELETE FROM probe_history WHERE timestamp < ?", (cutoff,))
+    cursor.execute("DELETE FROM probe_history WHERE timestamp < ?", (cutoff.isoformat(),))
     deleted = cursor.rowcount
     conn.commit()
     conn.close()
