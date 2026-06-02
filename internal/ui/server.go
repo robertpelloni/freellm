@@ -34,10 +34,11 @@ type UIServer struct {
 	DB           *sql.DB
 	Logger       *engine.EventLogger
 	Proxy        ProxyHandler
+	Benchmarker  *engine.Benchmarker
 }
 
-func NewUIServer(database *sql.DB, logger *engine.EventLogger, proxy ProxyHandler) *UIServer {
-	return &UIServer{DB: database, Logger: logger, Proxy: proxy}
+func NewUIServer(database *sql.DB, logger *engine.EventLogger, proxy ProxyHandler, benchmarker *engine.Benchmarker) *UIServer {
+	return &UIServer{DB: database, Logger: logger, Proxy: proxy, Benchmarker: benchmarker}
 }
 
 func (s *UIServer) UpdateModels(models engine.RankedModels) {
@@ -55,8 +56,10 @@ func (s *UIServer) Start(addr string) error {
 	http.HandleFunc("/api/logs", s.handleLogs)
 	http.HandleFunc("/ws/logs", s.handleLogWS)
 	http.HandleFunc("/api/savings", s.handleSavings)
+	http.HandleFunc("/api/providers/health", s.handleProviderHealth)
 	http.HandleFunc("/api/proxy/", s.handleProxy)
 	http.HandleFunc("/api/config", s.handleConfig)
+	http.HandleFunc("/api/config/weights", s.handleWeights)
 	http.HandleFunc("/api/maintenance/clear-skips", s.handleClearSkips)
 	http.HandleFunc("/api/maintenance/clear-blacklist", s.handleClearBlacklist)
 	http.HandleFunc("/api/maintenance/reset-stats", s.handleResetStats)
@@ -89,6 +92,14 @@ func (s *UIServer) handleSavings(w http.ResponseWriter, r *http.Request) {
 	total, _ := db.GetTotalSavings(s.DB)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]float64{"total": total})
+}
+
+func (s *UIServer) handleProviderHealth(w http.ResponseWriter, r *http.Request) {
+	if s.DB == nil { http.Error(w, "DB not connected", 500); return }
+	health, err := db.GetProviderHealth(s.DB)
+	if err != nil { http.Error(w, err.Error(), 500); return }
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(health)
 }
 
 func (s *UIServer) handleClearSkips(w http.ResponseWriter, r *http.Request) {
@@ -169,6 +180,23 @@ func (s *UIServer) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(metrics)
+}
+
+func (s *UIServer) handleWeights(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" { http.Error(w, "Method not allowed", 405); return }
+	var input struct {
+		Size    float64 `json:"size"`
+		Context float64 `json:"context"`
+		Latency float64 `json:"latency"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+	if s.Benchmarker != nil {
+		s.Benchmarker.SetWeights(input.Size, input.Context, input.Latency)
+	}
+	w.WriteHeader(200)
 }
 
 func (s *UIServer) handleConfig(w http.ResponseWriter, r *http.Request) {

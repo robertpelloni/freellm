@@ -1,4 +1,5 @@
 let stabilityChart = null;
+let providerChart = null;
 let lastRanked = [];
 
 async function compareModels() {
@@ -83,6 +84,24 @@ async function saveConfig() {
     }
 }
 
+async function saveWeights() {
+    const size = parseFloat(document.getElementById('w-size').value);
+    const context = parseFloat(document.getElementById('w-ctx').value);
+    const latency = parseFloat(document.getElementById('w-lat').value);
+
+    try {
+        const resp = await fetch('/api/config/weights', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ size, context, latency })
+        });
+        if (resp.ok) alert('Weights updated successfully');
+        else alert('Failed to update weights');
+    } catch (e) {
+        alert('Error: ' + e);
+    }
+}
+
 async function sendQuickQuery() {
     const input = document.getElementById('chat-input');
     const out = document.getElementById('chat-output');
@@ -145,6 +164,51 @@ function filterLogs() {
 }
 
 async function refresh() {
+    try {
+        const presp = await fetch('/api/providers/health');
+        const pdata = await presp.json();
+        const ptbody = document.querySelector('#providers tbody');
+        ptbody.innerHTML = '';
+        if (pdata && pdata.length > 0) {
+            const labels = pdata.map(p => p.name);
+            const latData = pdata.map(p => p.avg_latency);
+            const srData = pdata.map(p => p.success_rate);
+
+            if (!providerChart) {
+                const ctx = document.getElementById('providerChart').getContext('2d');
+                providerChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Avg Latency (s)',
+                            data: latData,
+                            backgroundColor: '#2196f3'
+                        }, {
+                            label: 'Success Rate (%)',
+                            data: srData,
+                            backgroundColor: '#4caf50'
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false }
+                });
+            } else {
+                providerChart.data.labels = labels;
+                providerChart.data.datasets[0].data = latData;
+                providerChart.data.datasets[1].data = srData;
+                providerChart.update('none');
+            }
+
+            pdata.forEach(p => {
+                const row = document.createElement('tr');
+                row.innerHTML = "<td>" + p.name + "</td>" +
+                               "<td>" + p.avg_latency.toFixed(3) + "s</td>" +
+                               "<td>" + p.success_rate.toFixed(1) + "%</td>";
+                ptbody.appendChild(row);
+            });
+        }
+    } catch (e) {}
+
     try {
         const sresp = await fetch('/api/savings');
         const sdata = await sresp.json();

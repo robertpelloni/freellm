@@ -306,6 +306,34 @@ func GetCircuitBreakerList(db *sql.DB) (map[string]bool, error) {
 	return blocked, nil
 }
 
+type ProviderHealth struct {
+	Name        string  `json:"name"`
+	AvgLatency  float64 `json:"avg_latency"`
+	SuccessRate float64 `json:"success_rate"`
+}
+
+func GetProviderHealth(db *sql.DB) ([]ProviderHealth, error) {
+	rows, err := db.Query(`
+        SELECT provider_name, AVG(latency), SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*)
+        FROM probe_history
+        WHERE timestamp > ?
+        GROUP BY provider_name`, time.Now().Add(-24*time.Hour))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var health []ProviderHealth
+	for rows.Next() {
+		var h ProviderHealth
+		if err := rows.Scan(&h.Name, &h.AvgLatency, &h.SuccessRate); err != nil {
+			return nil, err
+		}
+		health = append(health, h)
+	}
+	return health, nil
+}
+
 func LogStabilityMetric(db *sql.DB, qpm, tps float64) error {
 	_, err := db.Exec(
 		"INSERT INTO stability_metrics (timestamp, qpm, tps) VALUES (?, ?, ?)",
