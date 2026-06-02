@@ -49,6 +49,28 @@ func onReady() {
 	systray.AddSeparator()
 	mQuit := systray.AddMenuItem("Quit", "Quit the application")
 
+	// Initialize Database
+	database, err := db.InitDB()
+	if err != nil {
+		log.Fatalf("Failed to init DB: %v", err)
+	}
+
+	// Initialize Engine & Logger
+	eventLogger := engine.NewEventLogger(100, database)
+	apiKeys := map[string]string{
+		"openrouter": os.Getenv("OPENROUTER_API_KEY"),
+		"groq":       os.Getenv("GROQ_API_KEY"),
+		"github":     os.Getenv("GITHUB_TOKEN"),
+		"deepinfra":  os.Getenv("DEEPINFRA_API_KEY"),
+		"cerebras":   os.Getenv("CEREBRAS_API_KEY"),
+		"huggingface": os.Getenv("HUGGINGFACE_API_KEY"),
+		"nvidia":     os.Getenv("NVIDIA_NIM_API_KEY"),
+		"gemini":     os.Getenv("GEMINI_API_KEY"),
+		"anthropic":  os.Getenv("ANTHROPIC_API_KEY"),
+		"mistral":    os.Getenv("MISTRAL_API_KEY"),
+	}
+	benchmarker := engine.NewBenchmarker(apiKeys, 100, eventLogger)
+
 	// Initialize Configuration
 	cfgPath := "litellm-config.yaml"
 	cfg, err := config.LoadConfig(cfgPath)
@@ -71,21 +93,6 @@ func onReady() {
 			}
 		}
 	})
-
-	// Initialize Database
-	database, err := db.InitDB()
-	if err != nil {
-		log.Fatalf("Failed to init DB: %v", err)
-	}
-
-	// Initialize Engine & Logger
-	eventLogger := engine.NewEventLogger(100, database)
-	apiKeys := map[string]string{
-		"openrouter": os.Getenv("OPENROUTER_API_KEY"),
-		"groq":       os.Getenv("GROQ_API_KEY"),
-		"github":     os.Getenv("GITHUB_TOKEN"),
-	}
-	benchmarker := engine.NewBenchmarker(apiKeys, 100, eventLogger)
 
 	// Initialize Proxy Gateway
 	proxyPort := cfg.Port

@@ -54,6 +54,7 @@ func (s *UIServer) Start(addr string) error {
 	http.HandleFunc("/api/metrics", s.handleMetrics)
 	http.HandleFunc("/api/logs", s.handleLogs)
 	http.HandleFunc("/ws/logs", s.handleLogWS)
+	http.HandleFunc("/api/providers/health", s.handleProviderHealth)
 	http.HandleFunc("/api/savings", s.handleSavings)
 	http.HandleFunc("/api/proxy/", s.handleProxy)
 	http.HandleFunc("/api/config", s.handleConfig)
@@ -204,4 +205,50 @@ func (s *UIServer) handleRankings(w http.ResponseWriter, r *http.Request) {
 	defer s.mu.RUnlock()
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(s.RankedModels)
+}
+
+func (s *UIServer) handleProviderHealth(w http.ResponseWriter, r *http.Request) {
+	if s.DB == nil {
+		http.Error(w, "DB not connected", 500)
+		return
+	}
+
+	// Fetch health stats for all providers from DB
+	rows, err := s.DB.Query(`
+		SELECT provider,
+		       SUM(CASE WHEN status < 400 THEN 1 ELSE 0 END) as successes,
+		       SUM(CASE WHEN status >= 400 THEN 1 ELSE 0 END) as failures
+		FROM activity_log
+		WHERE event = 'Proxy Request' AND timestamp > ?
+		GROUP BY provider
+	`, time.Now().Add(-24*time.Hour))
+
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	defer rows.Close()
+
+	results := make(map[string]interface{})
+	for rows.Next() {
+		var provider string
+		var successes, failures int
+		if err := rows.Scan(&provider, &successes, &failures); err == nil {
+			status := "healthy"
+			if failures > successes && failures > 0 {
+				status = "unstable"
+			}
+			if successes == 0 && failures > 0 {
+				status = "offline"
+			}
+			results[provider] = map[string]interface{}{
+				"status":    status,
+				"successes": successes,
+				"failures":  failures,
+			}
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(results)
 }
