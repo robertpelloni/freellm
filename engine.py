@@ -1186,7 +1186,7 @@ class ModelEngine:
                 continue
         return False
 
-    async def preflight_check(self, url: str, timeout: float = 2.0) -> bool:
+    async def preflight_check(self, url: str, timeout: float = 5.0) -> bool:
         """Quick DNS+TCP check. Returns True if provider is reachable."""
         try:
             from urllib.parse import urlparse
@@ -1285,10 +1285,9 @@ class ModelEngine:
         else:
             return None
 
-        # Pre-flight connectivity check - skip if provider is unreachable
+        # Pre-flight connectivity check - warn but don't block
         if url and not await self.preflight_check(url):
-            self._log(f"[PREFLIGHT] {model_id} ({provider}): provider unreachable")
-            return None
+            self._log(f"[PREFLIGHT-WARN] {model_id} ({provider}): DNS check failed, attempting anyway")
 
         headers = {}
         if provider != "gemini" and api_key:
