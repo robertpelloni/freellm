@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"sort"
 	"strconv"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -343,6 +344,22 @@ func (b *Benchmarker) getModelsURL(provider string) string {
 		return "https://api.anthropic.com/v1/models"
 	case "opencode_zen":
 		return "https://opencode.ai/zen/v1/models"
+	case "codestral":
+		if base == "" { return "https://codestral.mistral.ai/v1/models" }
+		return base + "/models"
+	case "cohere":
+		return "https://api.cohere.ai/v1/models"
+	case "sambanova":
+		if base == "" { return "https://api.sambanova.ai/v1/models" }
+		return base + "/models"
+	case "fireworks":
+		if base == "" { return "https://api.fireworks.ai/inference/v1/models" }
+		return base + "/models"
+	case "hyperbolic":
+		if base == "" { return "https://api.hyperbolic.xyz/v1/models" }
+		return base + "/models"
+	case "cloudflare":
+		return "https://api.cloudflare.com/client/v4/accounts/" + os.Getenv("CLOUDFLARE_ACCOUNT_ID") + "/ai/v1/models"
 	case "bedrock":
 		return "https://bedrock-runtime.us-east-1.amazonaws.com/model/list" // Simplified
 	case "vertex_ai":
@@ -385,6 +402,18 @@ func (b *Benchmarker) getCompletionsURL(provider string) string {
 		return "https://api.anthropic.com/v1/messages"
 	case "opencode_zen":
 		return "https://opencode.ai/zen/v1/chat/completions"
+	case "codestral":
+		return "https://codestral.mistral.ai/v1/chat/completions"
+	case "cohere":
+		return "https://api.cohere.ai/v2/chat"
+	case "sambanova":
+		return "https://api.sambanova.ai/v1/chat/completions"
+	case "fireworks":
+		return "https://api.fireworks.ai/inference/v1/chat/completions"
+	case "hyperbolic":
+		return "https://api.hyperbolic.xyz/v1/chat/completions"
+	case "cloudflare":
+		return "https://api.cloudflare.com/client/v4/accounts/" + os.Getenv("CLOUDFLARE_ACCOUNT_ID") + "/ai/v1/chat/completions"
 	case "bedrock":
 		return "https://bedrock-runtime.us-east-1.amazonaws.com/model/"
 	case "vertex_ai":
