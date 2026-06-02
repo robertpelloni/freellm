@@ -17,23 +17,31 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"github.com/xeipuuv/gojsonschema"
+
 	"github.com/robertpelloni/litellm_control_panel/internal/db"
 	"github.com/robertpelloni/litellm_control_panel/internal/engine"
 )
 
 type Gateway struct {
-	RankedModels engine.RankedModels
-	mu           sync.RWMutex
-	Queue        chan *RequestJob
-	HighPriQueue chan *RequestJob
-	ActiveJobs   int
-	MaxActive    int
-	DB           *sql.DB
-	PrimaryCount int
-	Cache        map[string][]byte
-	cacheMu      sync.RWMutex
-	Redis        *redis.Client
-	Client       *http.Client // Injectable for testing
+	RankedModels  engine.RankedModels
+	mu            sync.RWMutex
+	Queue         chan *RequestJob
+	HighPriQueue  chan *RequestJob
+	MaxActive     int
+	DB            *sql.DB
+	PrimaryCount  int
+	Cache         map[string][]byte
+	cacheMu       sync.RWMutex
+	Redis         *redis.Client
+	Client        *http.Client
+	preflightCache   map[string]preflightEntry
+	preflightCacheMu sync.RWMutex
+	cbRecoveryMu     sync.Mutex
+}
+
+type preflightEntry struct {
+	ok        bool
+	checkedAt time.Time
 }
 
 type RequestJob struct {
@@ -54,13 +62,14 @@ type ProxyResponse struct {
 
 func NewGateway(maxActive int, database *sql.DB) *Gateway {
 	g := &Gateway{
-		Queue:        make(chan *RequestJob, 1000),
-		HighPriQueue: make(chan *RequestJob, 100),
-		MaxActive:    maxActive,
-		DB:           database,
-		PrimaryCount: 5,
-		Cache:        make(map[string][]byte),
-		Client:       &http.Client{Timeout: 60 * time.Second},
+		Queue:          make(chan *RequestJob, 1000),
+		HighPriQueue:   make(chan *RequestJob, 100),
+		MaxActive:      maxActive,
+		DB:             database,
+		PrimaryCount:   10,
+		Cache:          make(map[string][]byte),
+		Client:         &http.Client{Timeout: 120 * time.Second},
+		preflightCache: make(map[string]preflightEntry),
 	}
 	go g.workerLoop()
 	return g
@@ -79,10 +88,6 @@ func (g *Gateway) GetModels() engine.RankedModels {
 }
 
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	priority := r.Header.Get("X-LiteLLM-Priority") == "high"
-
-	// 1. Simple Proxy Auth (Virtual Keys)
 	authKey := os.Getenv("LITELLM_MASTER_KEY")
 	if authKey != "" {
 		token := r.Header.Get("Authorization")
@@ -91,64 +96,47 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-
-	// Health Checks
 	if r.URL.Path == "/health" || r.URL.Path == "/health/liveness" {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
 		return
 	}
-
 	if r.URL.Path == "/health/readiness" {
 		g.mu.RLock()
-		modelCount := len(g.RankedModels)
+		count := len(g.RankedModels)
 		g.mu.RUnlock()
-
-		if modelCount > 0 {
+		if count > 0 {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("READY"))
 		} else {
 			w.WriteHeader(http.StatusServiceUnavailable)
-			w.Write([]byte("NOT READY - No models available"))
+			w.Write([]byte("NOT READY"))
 		}
 		return
 	}
-
 	if r.URL.Path == "/v1/models" {
 		g.handleModels(w, r)
 		return
 	}
-
 	if r.URL.Path != "/v1/chat/completions" {
 		http.NotFound(w, r)
 		return
 	}
 
-	// Buffer body to persist if needed
 	body, _ := io.ReadAll(r.Body)
 	r.Body = io.NopCloser(bytes.NewBuffer(body))
 
-	// JSON Schema Validation
-	schemaLoader := gojsonschema.NewStringLoader(`{
-		"type": "object",
-		"properties": {
-			"model": {"type": "string"},
-			"messages": {"type": "array"}
-		},
-		"required": ["model", "messages"]
-	}`)
-	documentLoader := gojsonschema.NewBytesLoader(body)
-	result, err := gojsonschema.Validate(schemaLoader, documentLoader)
+	schema := gojsonschema.NewStringLoader(`{"type":"object","properties":{"model":{"type":"string"},"messages":{"type":"array"}},"required":["model","messages"]}`)
+	result, err := gojsonschema.Validate(schema, gojsonschema.NewBytesLoader(body))
 	if err == nil && !result.Valid() {
 		http.Error(w, "Invalid OpenAI Request Schema", 400)
 		return
 	}
 
-	// 2. Cache Lookup
+	ctx := r.Context()
 	cacheKey := string(body)
 	if g.Redis != nil {
-		val, err := g.Redis.Get(ctx, cacheKey).Bytes()
-		if err == nil {
+		if val, err := g.Redis.Get(ctx, cacheKey).Bytes(); err == nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("X-LiteLLM-Cache", "HIT (Redis)")
 			w.Write(val)
@@ -156,14 +144,14 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		g.cacheMu.RLock()
-		cached, ok := g.Cache[cacheKey]
-		g.cacheMu.RUnlock()
-		if ok {
+		if cached, ok := g.Cache[cacheKey]; ok {
+			g.cacheMu.RUnlock()
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("X-LiteLLM-Cache", "HIT")
 			w.Write(cached)
 			return
 		}
+		g.cacheMu.RUnlock()
 	}
 
 	dbID := int64(0)
@@ -175,20 +163,17 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		dbID, _ = db.EnqueueRequest(g.DB, r.Method, r.URL.String(), headers.String(), body)
 	}
 
-	job := &RequestJob{
-		Request:  r,
-		Response: make(chan *ProxyResponse, 1),
-		Ctx:      r.Context(),
-		DBID:     dbID,
-	}
-
+	job := &RequestJob{Request: r, Response: make(chan *ProxyResponse, 1), Ctx: ctx, DBID: dbID}
 	queue := g.Queue
-	if priority { queue = g.HighPriQueue }
-
+	if r.Header.Get("X-LiteLLM-Priority") == "high" {
+		queue = g.HighPriQueue
+	}
 	select {
 	case queue <- job:
-	case <-r.Context().Done():
-		if dbID > 0 { db.DequeueRequest(g.DB, dbID) }
+	case <-ctx.Done():
+		if dbID > 0 {
+			db.DequeueRequest(g.DB, dbID)
+		}
 		return
 	}
 
@@ -197,39 +182,27 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, resp.Err.Error(), http.StatusBadGateway)
 		return
 	}
-
 	for k, v := range resp.Header {
 		w.Header()[k] = v
 	}
 	w.WriteHeader(resp.Status)
-
 	if resp.Stream != nil {
 		defer resp.Stream.Close()
-		flusher, ok := w.(http.Flusher)
-
-		// For token tracking in streams
-		var totalStreamed int
-
-		if ok {
+		if flusher, ok := w.(http.Flusher); ok {
 			buf := make([]byte, 4096)
 			for {
 				n, err := resp.Stream.Read(buf)
 				if n > 0 {
 					w.Write(buf[:n])
 					flusher.Flush()
-					totalStreamed += n
 				}
 				if err != nil {
 					break
 				}
 			}
 		} else {
-			n, _ := io.Copy(w, resp.Stream)
-			totalStreamed = int(n)
+			io.Copy(w, resp.Stream)
 		}
-
-		// Log usage for stream
-		// We can only estimate tokens from raw bytes for now
 		g.logUsage(resp.ModelID, nil, nil)
 	} else {
 		w.Write(resp.Body)
@@ -240,7 +213,7 @@ func (g *Gateway) workerLoop() {
 	if g.MaxActive <= 0 {
 		return
 	}
-	semaphore := make(chan struct{}, g.MaxActive)
+	sem := make(chan struct{}, g.MaxActive)
 	for {
 		var job *RequestJob
 		select {
@@ -251,179 +224,286 @@ func (g *Gateway) workerLoop() {
 			case job = <-g.Queue:
 			}
 		}
-
-		semaphore <- struct{}{}
+		sem <- struct{}{}
 		go func(j *RequestJob) {
-			defer func() { <-semaphore }()
+			defer func() { <-sem }()
 			g.processJob(j)
 		}(job)
 	}
 }
 
-
-// PreFlightCheck verifies a provider endpoint is reachable before sending a request.
-func (g *Gateway) PreFlightCheck(model engine.ModelCandidate) bool {
-	targetURL := g.getProviderURL(model.ID, model.Provider)
-	if targetURL == "" { return false }
-	parsed, err := url.Parse(targetURL)
-	if err != nil { return false }
-	baseURL := parsed.Scheme + "://" + parsed.Host
-	client := &http.Client{Timeout: 2 * time.Second}
-	resp, err := client.Head(baseURL)
-	if err != nil {
-		log.Printf("[PREFLIGHT] %s/%s: provider %s unreachable: %v", model.Provider, model.ID, baseURL, err)
-		return false
-	}
-	resp.Body.Close()
-	return true
-}
-
-// VerifyModelList filters models by pre-flight connectivity check.
-func (g *Gateway) VerifyModelList(models engine.RankedModels) engine.RankedModels {
-	type result struct { idx int; ok bool }
-	results := make(chan result, len(models))
-	sem := make(chan struct{}, 5)
-	var wg sync.WaitGroup
-	for i, m := range models {
-		wg.Add(1)
-		go func(idx int, model engine.ModelCandidate) {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-			results <- result{idx, g.PreFlightCheck(model)}
-		}(i, m)
-	}
-	go func() { wg.Wait(); close(results) }()
-	rm := make(map[int]bool)
-	for r := range results { rm[r.idx] = r.ok }
-	var verified engine.RankedModels
-	for i, m := range models {
-		if rm[i] { verified = append(verified, m) }
-	}
-	if len(verified) < len(models) {
-		log.Printf("[PREFLIGHT] %d/%d models passed connectivity check", len(verified), len(models))
-	}
-	return verified
-}
-
+// processJob: GUARANTEED DELIVERY routing engine
 func (g *Gateway) processJob(job *RequestJob) {
 	g.mu.RLock()
-	models := g.RankedModels
+	allModels := g.RankedModels
 	g.mu.RUnlock()
 
-	// Pre-flight connectivity check
-	models = g.VerifyModelList(models)
-	if len(models) == 0 {
-		job.Response <- &ProxyResponse{Err: fmt.Errorf("no models available after connectivity check")}
-		return
-	}
-
-	// Circuit Breaker Integration
-	if g.DB != nil {
-		blocked, _ := db.GetCircuitBreakerList(g.DB)
-		if len(blocked) > 0 {
-			var activeModels engine.RankedModels
-			for _, m := range models {
-				if !blocked[m.ID] {
-					activeModels = append(activeModels, m)
-				}
-			}
-			models = activeModels
-		}
-	}
-
-	if len(models) == 0 {
+	if len(allModels) == 0 {
 		job.Response <- &ProxyResponse{Err: fmt.Errorf("no models available")}
 		return
 	}
 
-	client := g.Client
-	if client == nil {
-		client = &http.Client{Timeout: 60 * time.Second}
-	}
-
-	// Read body once so we can retry if needed
 	body, err := io.ReadAll(job.Request.Body)
 	if err != nil {
-		job.Response <- &ProxyResponse{Err: fmt.Errorf("failed to read request body: %v", err)}
+		job.Response <- &ProxyResponse{Err: fmt.Errorf("read body: %v", err)}
 		return
 	}
 
-	// Advanced Routing: Two-Group Strategy
-	var lastErr error
+	hasTools, toolModels, plainModels := g.classifyRequest(body)
+	models := g.filterCandidates(allModels)
 
-	// 1. Try Primary Group first
-	primaryGroup := models
-	if len(models) > g.PrimaryCount {
-		primaryGroup = models[:g.PrimaryCount]
+	if len(models) == 0 {
+		log.Println("[ROUTER] All models circuit-broken, auto-recovering...")
+		g.autoRecoverCircuitBreakers()
+		models = allModels
 	}
 
-	for i, model := range primaryGroup {
-		proxyResp := g.forwardRequest(client, job.Request, model, body)
+	// Build ordered attempt list
+	var attemptOrder []engine.ModelCandidate
+	if hasTools && len(toolModels) > 0 {
+		// Tool request: tool-compatible models first, then plain as last resort
+		attemptOrder = append(attemptOrder, toolModels...)
+		if len(attemptOrder) < 5 {
+			attemptOrder = append(attemptOrder, plainModels...)
+		}
+	} else {
+		attemptOrder = models
+	}
 
+	client := g.Client
+	if client == nil {
+		client = &http.Client{Timeout: 120 * time.Second}
+	}
+
+	// Phase 1: Try ALL candidates in order
+	var lastErr error
+	for i, model := range attemptOrder {
+		sanitized := g.sanitizeRequestBody(model.Provider, body, hasTools)
+		mc := &http.Client{Timeout: 60 * time.Second}
+		if i < g.PrimaryCount {
+			mc.Timeout = 45 * time.Second
+		}
+		proxyResp := g.forwardRequest(mc, job.Request, model, sanitized)
 		if proxyResp.Err == nil && proxyResp.Status < 400 {
-			if job.DBID > 0 { db.DequeueRequest(g.DB, job.DBID) }
-			if g.DB != nil { db.RecordSuccess(g.DB, model.ID) }
-			g.logUsage(model.ID, body, proxyResp.Body)
-
-			// Store in Cache if not streaming
-			if proxyResp.Stream == nil {
-				if g.Redis != nil {
-					g.Redis.Set(job.Ctx, string(body), proxyResp.Body, 1*time.Hour)
-				} else {
-					g.cacheMu.Lock()
-					g.Cache[string(body)] = proxyResp.Body
-					g.cacheMu.Unlock()
-				}
-			}
-
-			job.Response <- proxyResp
+			g.onSuccess(job, model, proxyResp, body)
 			return
 		}
-		if g.DB != nil { db.RecordFailure(g.DB, model.ID) }
-		lastErr = proxyResp.Err
-		if proxyResp.Err == nil { lastErr = fmt.Errorf("primary status %d", proxyResp.Status) }
-		if i < len(primaryGroup)-1 { time.Sleep(500 * time.Millisecond) }
-	}
-
-	// 2. Try Fallback Group if Primary fails
-	if len(models) > g.PrimaryCount {
-		fallbackGroup := models[g.PrimaryCount:]
-		// Try up to 3 models from fallback to avoid infinite retries
-		maxFallbacks := min(len(fallbackGroup), 3)
-		for i := 0; i < maxFallbacks; i++ {
-			model := fallbackGroup[i]
-			proxyResp := g.forwardRequest(client, job.Request, model, body)
-			if proxyResp.Err == nil && proxyResp.Status < 400 {
-				g.logUsage(model.ID, body, proxyResp.Body)
-				job.Response <- proxyResp
-				return
-			}
-			if g.DB != nil { db.RecordFailure(g.DB, model.ID) }
+		if g.DB != nil {
+			db.RecordFailure(g.DB, model.ID)
+		}
+		if proxyResp.Err != nil {
 			lastErr = proxyResp.Err
-			if proxyResp.Err == nil { lastErr = fmt.Errorf("fallback status %d", proxyResp.Status) }
-			time.Sleep(1 * time.Second)
+		} else {
+			lastErr = fmt.Errorf("%s: status %d", model.ID, proxyResp.Status)
+		}
+		if i < len(attemptOrder)-1 {
+			time.Sleep(200 * time.Millisecond)
 		}
 	}
 
-	if job.DBID > 0 { db.DequeueRequest(g.DB, job.DBID) }
-	job.Response <- &ProxyResponse{Err: fmt.Errorf("all primary and fallback retries failed, last error: %v", lastErr)}
+	// Phase 2: Auto-recover circuit breakers and retry top 5
+	log.Println("[ROUTER] All models failed in phase 1, auto-recovering and retrying...")
+	g.autoRecoverCircuitBreakers()
+	retryModels := g.filterCandidates(allModels)
+	if len(retryModels) == 0 {
+		retryModels = allModels
+	}
+	maxRetry := minInt(len(retryModels), 5)
+	for i := 0; i < maxRetry; i++ {
+		model := retryModels[i]
+		sanitized := g.sanitizeRequestBody(model.Provider, body, hasTools)
+		proxyResp := g.forwardRequest(client, job.Request, model, sanitized)
+		if proxyResp.Err == nil && proxyResp.Status < 400 {
+			g.onSuccess(job, model, proxyResp, body)
+			return
+		}
+		lastErr = proxyResp.Err
+		if proxyResp.Err == nil {
+			lastErr = fmt.Errorf("%s: status %d", model.ID, proxyResp.Status)
+		}
+	}
+
+	if job.DBID > 0 {
+		db.DequeueRequest(g.DB, job.DBID)
+	}
+	job.Response <- &ProxyResponse{Err: fmt.Errorf("all %d models failed: %v", len(attemptOrder)+maxRetry, lastErr)}
 }
 
+func (g *Gateway) onSuccess(job *RequestJob, model engine.ModelCandidate, proxyResp *ProxyResponse, body []byte) {
+	if job.DBID > 0 {
+		db.DequeueRequest(g.DB, job.DBID)
+	}
+	if g.DB != nil {
+		db.RecordSuccess(g.DB, model.ID)
+	}
+	g.logUsage(model.ID, body, proxyResp.Body)
+	if proxyResp.Stream == nil {
+		if g.Redis != nil {
+			g.Redis.Set(job.Ctx, string(body), proxyResp.Body, 1*time.Hour)
+		} else {
+			g.cacheMu.Lock()
+			g.Cache[string(body)] = proxyResp.Body
+			g.cacheMu.Unlock()
+		}
+	}
+	job.Response <- proxyResp
+}
+
+// classifyRequest detects tool-call requests and splits models by tool compatibility
+func (g *Gateway) classifyRequest(body []byte) (hasTools bool, toolModels []engine.ModelCandidate, plainModels []engine.ModelCandidate) {
+	var payload map[string]interface{}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return false, nil, nil
+	}
+	if _, ok := payload["tools"]; ok {
+		hasTools = true
+	}
+	if tc, ok := payload["tool_choice"]; ok && tc != nil && tc != "none" {
+		hasTools = true
+	}
+	if msgs, ok := payload["messages"].([]interface{}); ok {
+		for _, msg := range msgs {
+			if m, ok := msg.(map[string]interface{}); ok {
+				if r, ok := m["role"].(string); ok && r == "tool" {
+					hasTools = true
+				}
+				if _, ok := m["tool_calls"]; ok {
+					hasTools = true
+				}
+			}
+		}
+	}
+
+	noTool := map[string]bool{
+		"nvidia_nim": true, "nvidia": true, "cerebras": true,
+		"cloudflare": true, "deepinfra": true,
+	}
+	g.mu.RLock()
+	for _, m := range g.RankedModels {
+		if noTool[m.Provider] {
+			plainModels = append(plainModels, m)
+		} else {
+			toolModels = append(toolModels, m)
+		}
+	}
+	g.mu.RUnlock()
+	return
+}
+
+// filterCandidates removes circuit-broken models
+func (g *Gateway) filterCandidates(all engine.RankedModels) []engine.ModelCandidate {
+	if g.DB == nil {
+		return all
+	}
+	blocked, _ := db.GetCircuitBreakerList(g.DB)
+	if len(blocked) == 0 {
+		return all
+	}
+	var valid []engine.ModelCandidate
+	for _, m := range all {
+		if !blocked[m.ID] && !blocked[m.Provider+"/"+m.ID] {
+			valid = append(valid, m)
+		}
+	}
+	if len(valid) < len(all) {
+		log.Printf("[ROUTER] Circuit breaker filtered %d/%d models", len(all)-len(valid), len(all))
+	}
+	return valid
+}
+
+// autoRecoverCircuitBreakers resets all circuit-broken models for a second chance
+func (g *Gateway) autoRecoverCircuitBreakers() {
+	if g.DB == nil {
+		return
+	}
+	g.cbRecoveryMu.Lock()
+	defer g.cbRecoveryMu.Unlock()
+	g.DB.Exec("UPDATE model_history SET failure_count = 0, retry_after = NULL WHERE failure_count >= 3")
+	log.Println("[ROUTER] Circuit breakers auto-recovered")
+}
+
+// sanitizeRequestBody strips tool-related fields for providers that don't support tools
+func (g *Gateway) sanitizeRequestBody(provider string, body []byte, hasTools bool) []byte {
+	noTool := map[string]bool{
+		"nvidia_nim": true, "nvidia": true, "cerebras": true,
+		"cloudflare": true, "deepinfra": true,
+	}
+	if !noTool[provider] || !hasTools {
+		return body
+	}
+
+	var payload map[string]interface{}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return body
+	}
+
+	delete(payload, "tools")
+	delete(payload, "tool_choice")
+
+	if msgs, ok := payload["messages"].([]interface{}); ok {
+		var clean []interface{}
+		for _, msg := range msgs {
+			if m, ok := msg.(map[string]interface{}); ok {
+				if r, ok := m["role"].(string); ok && r == "tool" {
+					continue
+				}
+				delete(m, "tool_calls")
+				delete(m, "tool_call_id")
+				clean = append(clean, m)
+			}
+		}
+		payload["messages"] = clean
+	}
+	if out, err := json.Marshal(payload); err == nil {
+		return out
+	}
+	return body
+}
+
+// PreFlightCheck with 5-minute cache
+func (g *Gateway) PreFlightCheck(model engine.ModelCandidate) bool {
+	targetURL := g.getProviderURL(model.ID, model.Provider)
+	if targetURL == "" {
+		return false
+	}
+	parsed, err := url.Parse(targetURL)
+	if err != nil {
+		return false
+	}
+	host := parsed.Host
+
+	g.preflightCacheMu.RLock()
+	if e, ok := g.preflightCache[host]; ok && time.Since(e.checkedAt) < 5*time.Minute {
+		g.preflightCacheMu.RUnlock()
+		return e.ok
+	}
+	g.preflightCacheMu.RUnlock()
+
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Head(parsed.Scheme + "://" + host)
+	ok := err == nil
+	if ok {
+		resp.Body.Close()
+	}
+
+	g.preflightCacheMu.Lock()
+	g.preflightCache[host] = preflightEntry{ok: ok, checkedAt: time.Now()}
+	g.preflightCacheMu.Unlock()
+	return ok
+}
+
+// forwardRequest sends the request to a specific provider
 func (g *Gateway) forwardRequest(client *http.Client, r *http.Request, model engine.ModelCandidate, body []byte) *ProxyResponse {
 	var payload map[string]interface{}
 	if err := json.Unmarshal(body, &payload); err != nil {
-		return &ProxyResponse{Err: fmt.Errorf("failed to unmarshal request body: %v", err)}
+		return &ProxyResponse{Err: fmt.Errorf("unmarshal: %v", err)}
 	}
 	payload["model"] = model.ID
 	stream, _ := payload["stream"].(bool)
-
 	newBody, _ := json.Marshal(payload)
 
-	// Robust Mapping Layer
-	mappedBody, err := TransformRequestBody(model.Provider, newBody)
-	if err == nil {
-		newBody = mappedBody
+	if mapped, err := TransformRequestBody(model.Provider, newBody); err == nil {
+		newBody = mapped
 	}
 
 	targetURL := g.getProviderURL(model.ID, model.Provider)
@@ -435,12 +515,11 @@ func (g *Gateway) forwardRequest(client *http.Client, r *http.Request, model eng
 	if err != nil {
 		return &ProxyResponse{Err: err}
 	}
-
 	g.transformRequest(req, model.Provider)
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return &ProxyResponse{Err: err}
+		return &ProxyResponse{Err: fmt.Errorf("%s: %v", model.Provider, err)}
 	}
 
 	if stream && resp.StatusCode == http.StatusOK {
@@ -452,29 +531,24 @@ func (g *Gateway) forwardRequest(client *http.Client, r *http.Request, model eng
 		}
 	}
 	defer resp.Body.Close()
-
 	respBody, _ := io.ReadAll(resp.Body)
 
-	// Map response back to OpenAI format
 	if !stream && resp.StatusCode == 200 {
-		mappedBody, err := TransformResponseBody(model.Provider, respBody)
-		if err == nil {
-			respBody = mappedBody
+		if mapped, err := TransformResponseBody(model.Provider, respBody); err == nil {
+			respBody = mapped
 		}
-
-		var respData map[string]interface{}
-		if err := json.Unmarshal(respBody, &respData); err == nil {
-			if _, ok := respData["usage"]; !ok {
-				respData["usage"] = map[string]int{
+		var rd map[string]interface{}
+		if json.Unmarshal(respBody, &rd) == nil {
+			if _, ok := rd["usage"]; !ok {
+				rd["usage"] = map[string]int{
 					"prompt_tokens":     len(body) / 4,
 					"completion_tokens": len(respBody) / 4,
 					"total_tokens":      (len(body) + len(respBody)) / 4,
 				}
-				respBody, _ = json.Marshal(respData)
+				respBody, _ = json.Marshal(rd)
 			}
 		}
 	}
-
 	return &ProxyResponse{
 		Status: resp.StatusCode,
 		Body:   respBody,
@@ -482,6 +556,7 @@ func (g *Gateway) forwardRequest(client *http.Client, r *http.Request, model eng
 	}
 }
 
+// Complete provider URL mapping
 func (g *Gateway) getProviderURL(modelID, provider string) string {
 	switch provider {
 	case "openrouter":
@@ -496,129 +571,41 @@ func (g *Gateway) getProviderURL(modelID, provider string) string {
 		return "https://api.cerebras.ai/v1/chat/completions"
 	case "nvidia", "nvidia_nim":
 		return "https://integrate.api.nvidia.com/v1/chat/completions"
-	case "gemini":
-		return "https://generativelanguage.googleapis.com/v1beta/models/" + modelID + ":streamGenerateContent"
-	case "anthropic":
-		return "https://api.anthropic.com/v1/messages"
-	case "opencode_zen":
-		return "https://opencode.ai/zen/v1/chat/completions"
-	case "bedrock":
-		return "https://bedrock-runtime.us-east-1.amazonaws.com/model/" + modelID + "/invoke-with-response-stream"
-	case "vertex_ai":
-		return "https://us-central1-aiplatform.googleapis.com/v1/projects/PROJECT_ID/locations/us-central1/publishers/google/models/" + modelID + ":streamGenerateContent"
+	case "huggingface":
+		return "https://api-inference.huggingface.co/models/" + modelID + "/v1/chat/completions"
 	case "mistral":
 		return "https://api.mistral.ai/v1/chat/completions"
-	case "huggingface":
-		// Hugging Face uses per-model endpoints
-		return "https://api-inference.huggingface.co/models/" + modelID + "/v1/chat/completions"
+	case "codestral":
+		return "https://codestral.mistral.ai/v1/chat/completions"
+	case "cohere":
+		return "https://api.cohere.ai/v2/chat"
+	case "sambanova":
+		return "https://api.sambanova.ai/v1/chat/completions"
+	case "fireworks":
+		return "https://api.fireworks.ai/inference/v1/chat/completions"
+	case "hyperbolic":
+		return "https://api.hyperbolic.xyz/v1/chat/completions"
+	case "cloudflare":
+		aid := os.Getenv("CLOUDFLARE_ACCOUNT_ID")
+		if aid == "" {
+			return ""
+		}
+		return "https://api.cloudflare.com/client/v4/accounts/" + aid + "/ai/v1/chat/completions"
+	case "opencode_zen":
+		return "https://opencode.ai/zen/v1/chat/completions"
+	case "ollama":
+		return "http://localhost:11434/v1/chat/completions"
+	case "lm_studio":
+		return "http://localhost:1234/v1/chat/completions"
+	case "anthropic":
+		return "https://api.anthropic.com/v1/messages"
+	case "gemini":
+		return "https://generativelanguage.googleapis.com/v1beta/models/" + modelID + ":streamGenerateContent"
 	}
 	return ""
 }
 
-func (g *Gateway) logUsage(modelID string, requestBody, responseBody []byte) {
-	if g.DB == nil {
-		return
-	}
-
-	// Basic token estimation
-	promptTokens := len(requestBody) / 4
-	completionTokens := len(responseBody) / 4
-
-	if responseBody != nil {
-		// In a real app, parse actual token counts from response JSON
-		var resp struct {
-			Usage struct {
-				PromptTokens     int `json:"prompt_tokens"`
-				CompletionTokens int `json:"completion_tokens"`
-			} `json:"usage"`
-		}
-		if err := json.Unmarshal(responseBody, &resp); err == nil && resp.Usage.PromptTokens > 0 {
-			promptTokens = resp.Usage.PromptTokens
-			completionTokens = resp.Usage.CompletionTokens
-		}
-	} else if requestBody == nil && responseBody == nil {
-		// Token tracking for stream - simplified
-		promptTokens = 0
-		completionTokens = 0
-	}
-
-	db.LogUsage(g.DB, modelID, promptTokens, completionTokens)
-}
-
-func (g *Gateway) transformRequest(req *http.Request, provider string) {
-	req.Header.Set("Content-Type", "application/json")
-	apiKey := g.getAPIKey(provider)
-	if apiKey == "" {
-		return
-	}
-
-	switch provider {
-	case "huggingface":
-		req.Header.Set("Authorization", "Bearer "+apiKey)
-	case "github":
-		req.Header.Set("Authorization", "Bearer "+apiKey)
-	default:
-		req.Header.Set("Authorization", "Bearer "+apiKey)
-	}
-}
-
-func (g *Gateway) handleModels(w http.ResponseWriter, r *http.Request) {
-	models := g.GetModels()
-
-	type ModelEntry struct {
-		ID      string `json:"id"`
-		Object  string `json:"object"`
-		Created int64  `json:"created"`
-		OwnedBy string `json:"owned_by"`
-	}
-
-	resp := struct {
-		Object string       `json:"object"`
-		Data   []ModelEntry `json:"data"`
-	}{
-		Object: "list",
-		Data:   make([]ModelEntry, 0),
-	}
-
-	now := time.Now().Unix()
-	for _, m := range models {
-		resp.Data = append(resp.Data, ModelEntry{
-			ID:      m.ID,
-			Object:  "model",
-			Created: now,
-			OwnedBy: m.Provider,
-		})
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
-}
-
-func (g *Gateway) RestoreQueue() {
-	if g.DB == nil { return }
-	pending, err := db.GetPendingRequests(g.DB)
-	if err != nil || len(pending) == 0 { return }
-
-	log.Printf("Restoring %d pending requests from disk...", len(pending))
-	for _, p := range pending {
-		req, _ := http.NewRequest(p.Method, p.URL, bytes.NewBuffer(p.Body))
-		// (Simplified header restore)
-
-		job := &RequestJob{
-			Request:  req,
-			Response: make(chan *ProxyResponse, 1),
-			Ctx:      context.Background(),
-			DBID:     p.ID,
-		}
-
-		// Drop on floor if queue full, but worker loop will process
-		select {
-		case g.Queue <- job:
-		default:
-		}
-	}
-}
-
+// API key resolution for all providers
 func (g *Gateway) getAPIKey(provider string) string {
 	switch provider {
 	case "openrouter":
@@ -635,16 +622,116 @@ func (g *Gateway) getAPIKey(provider string) string {
 		return os.Getenv("HUGGINGFACE_API_KEY")
 	case "nvidia", "nvidia_nim":
 		return os.Getenv("NVIDIA_NIM_API_KEY")
-	case "gemini":
-		return os.Getenv("GEMINI_API_KEY")
-	case "anthropic":
-		return os.Getenv("ANTHROPIC_API_KEY")
-	case "bedrock":
-		return os.Getenv("AWS_SECRET_ACCESS_KEY")
-	case "vertex_ai":
-		return os.Getenv("VERTEX_AI_KEY")
 	case "mistral":
 		return os.Getenv("MISTRAL_API_KEY")
+	case "codestral":
+		return os.Getenv("CODESTRAL_API_KEY")
+	case "cohere":
+		return os.Getenv("COHERE_API_KEY")
+	case "sambanova":
+		return os.Getenv("SAMBANOVA_API_KEY")
+	case "fireworks":
+		return os.Getenv("FIREWORKS_API_KEY")
+	case "hyperbolic":
+		return os.Getenv("HYPERBOLIC_API_KEY")
+	case "cloudflare":
+		return os.Getenv("CLOUDFLARE_API_KEY")
+	case "opencode_zen":
+		return os.Getenv("OPENCODE_ZEN_API_KEY")
+	case "anthropic":
+		return os.Getenv("ANTHROPIC_API_KEY")
+	case "gemini":
+		return os.Getenv("GEMINI_API_KEY")
 	}
 	return ""
+}
+
+func (g *Gateway) transformRequest(req *http.Request, provider string) {
+	req.Header.Set("Content-Type", "application/json")
+	apiKey := g.getAPIKey(provider)
+	if apiKey == "" {
+		return
+	}
+	if provider == "anthropic" {
+		req.Header.Set("x-api-key", apiKey)
+		req.Header.Set("anthropic-version", "2023-06-01")
+	} else {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	}
+}
+
+func (g *Gateway) handleModels(w http.ResponseWriter, r *http.Request) {
+	type ME struct {
+		ID      string `json:"id"`
+		Object  string `json:"object"`
+		Created int64  `json:"created"`
+		OwnedBy string `json:"owned_by"`
+	}
+	resp := struct {
+		Object string `json:"object"`
+		Data   []ME   `json:"data"`
+	}{
+		Object: "list",
+		Data: []ME{
+			{"free-llm", "model", time.Now().Unix(), "litellm-cp"},
+			{"free-llm-fallback", "model", time.Now().Unix(), "litellm-cp"},
+		},
+	}
+	for _, m := range g.GetModels() {
+		resp.Data = append(resp.Data, ME{m.ID, "model", time.Now().Unix(), m.Provider})
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
+func (g *Gateway) RestoreQueue() {
+	if g.DB == nil {
+		return
+	}
+	pending, err := db.GetPendingRequests(g.DB)
+	if err != nil || len(pending) == 0 {
+		return
+	}
+	log.Printf("Restoring %d pending requests...", len(pending))
+	for _, p := range pending {
+		req, _ := http.NewRequest(p.Method, p.URL, bytes.NewBuffer(p.Body))
+		job := &RequestJob{
+			Request:  req,
+			Response: make(chan *ProxyResponse, 1),
+			Ctx:      context.Background(),
+			DBID:     p.ID,
+		}
+		select {
+		case g.Queue <- job:
+		default:
+		}
+	}
+}
+
+func (g *Gateway) logUsage(modelID string, reqBody, respBody []byte) {
+	if g.DB == nil {
+		return
+	}
+	pt, ct := len(reqBody)/4, len(respBody)/4
+	if respBody != nil {
+		var r struct {
+			Usage struct {
+				P int `json:"prompt_tokens"`
+				C int `json:"completion_tokens"`
+			} `json:"usage"`
+		}
+		if json.Unmarshal(respBody, &r) == nil && r.Usage.P > 0 {
+			pt, ct = r.Usage.P, r.Usage.C
+		}
+	} else {
+		pt, ct = 0, 0
+	}
+	db.LogUsage(g.DB, modelID, pt, ct)
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
