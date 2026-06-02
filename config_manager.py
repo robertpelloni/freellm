@@ -195,6 +195,21 @@ def _build_model_entry(
         metadata["context"] = context_length
     entry["model_info"] = metadata
 
+    # Mark providers that don't support function/tool calling
+    # This prevents LiteLLM from routing tool-call requests to them
+    no_tool_providers = {"nvidia_nim", "nvidia", "cerebras", "cloudflare", "deepinfra"}
+    if provider in no_tool_providers:
+        metadata["supports_function_calling"] = False
+
+    # For nvidia_nim/nvidia: also set supported_params to exclude tools/tool_choice
+    # so LiteLLM strips them before forwarding
+    if provider in ("nvidia_nim", "nvidia"):
+        lp["supported_params"] = [
+            "max_tokens", "temperature", "top_p", "frequency_penalty",
+            "presence_penalty", "stop", "n", "stream",
+            "response_format", "seed", "logprobs", "top_logprobs",
+        ]
+
     return entry
 
 
@@ -350,7 +365,7 @@ def apply_ranked_models(
         )
 
     # Filter out models that are effectively unusable
-    MAX_LATENCY = 30.0  # seconds — models slower than this just time out
+    MAX_LATENCY = 30.0  # seconds â€” models slower than this just time out
     DEAD_CFG_PROVIDERS = {"together", "gemini", "nebius"}  # no API keys
     before_count = len(ranked_models)
     ranked_models = [
@@ -370,7 +385,7 @@ def apply_ranked_models(
     # Build model_list as CommentedSeq
     model_list = CommentedSeq()
 
-    # ── Primary group ──
+    # â”€â”€ Primary group â”€â”€
     # Add section separator comment
     model_list.yaml_add_eol_comment("=== PRIMARY GROUP ===", 0)
     for i, m in enumerate(ranked_models[:primary_count]):
@@ -401,7 +416,7 @@ def apply_ranked_models(
         model_list.append(entry)
         model_list.yaml_add_eol_comment(comment_text, i)
 
-    # ── Fallback group ──
+    # â”€â”€ Fallback group â”€â”€
     fallback_start = len(model_list)
     for j, m in enumerate(ranked_models[primary_count:]):
         timeout = 60 if m.get("latency", 0) > 4.0 else 30
@@ -553,13 +568,13 @@ def apply_ranked_models(
         )
 
     # Ensure fallbacks are set
-    litellm_settings["fallbacks"] = [{primary_group: [fallback_group]}]
-# Ensure critical timeout settings are present (upgrade old configs)
-if "stream_timeout" not in litellm_settings:
-    litellm_settings["stream_timeout"] = 300  # 5 min for streaming responses
-if "request_timeout" not in litellm_settings or litellm_settings.get("request_timeout", 0) < 60:
-    litellm_settings["request_timeout"] = 60  # 60s for non-streaming
-    config["litellm_settings"] = litellm_settings
+        litellm_settings["fallbacks"] = [{primary_group: [fallback_group]}]
+        # Ensure critical timeout settings are present (upgrade old configs)
+        if "stream_timeout" not in litellm_settings:
+            litellm_settings["stream_timeout"] = 300  # 5 min for streaming
+        if "request_timeout" not in litellm_settings or litellm_settings.get("request_timeout", 0) < 60:
+            litellm_settings["request_timeout"] = 60  # 60s for non-streaming
+        config["litellm_settings"] = litellm_settings
 
     # Port setting
     config["port"] = 4000
