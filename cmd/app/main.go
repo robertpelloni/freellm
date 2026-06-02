@@ -135,7 +135,7 @@ func onReady() {
 				notify("LiteLLM Sync", "Full model discovery started...")
 				candidates := benchmarker.FetchModels(ctx, database)
 				log.Printf("Discovered %d model candidates", len(candidates))
-				ranked := benchmarker.RunBenchmark(ctx, candidates)
+				ranked := benchmarker.RunBenchmark(ctx, candidates, database)
 				gateway.UpdateModels(ranked)
 				uiServer.UpdateModels(ranked)
 				for _, m := range ranked {

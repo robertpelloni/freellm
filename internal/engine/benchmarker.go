@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/robertpelloni/litellm_control_panel/internal/db"
 )
 
 var SizePattern = regexp.MustCompile(`(\d+)[bB]`)
@@ -547,7 +549,7 @@ func absF(a float64) float64 {
 	return a
 }
 
-func (b *Benchmarker) RunBenchmark(ctx context.Context, candidates []ModelCandidate) RankedModels {
+func (b *Benchmarker) RunBenchmark(ctx context.Context, candidates []ModelCandidate, dbConn *sql.DB) RankedModels {
 	candidates = b.FinalBenchmarkFilter(candidates)
 	b.log(fmt.Sprintf("Benchmarking %d candidates...", len(candidates)))
 	var wg sync.WaitGroup
@@ -573,7 +575,14 @@ func (b *Benchmarker) RunBenchmark(ctx context.Context, candidates []ModelCandid
 			defer func() { <-semaphore }()
 
 			lat, err := b.MeasureLatency(ctx, m.ID, m.Provider)
-			if err == nil {
+			success := err == nil
+			errMsg := ""
+			if err != nil {
+				errMsg = err.Error()
+				fmt.Printf("Benchmark failed for %s/%s: %v\n", m.Provider, m.ID, err)
+			}
+
+			if success {
 				m.Latency = lat
 				m.Score = b.CalculateScore(m.Parameters, lat, m.ContextLength)
 				m.LastBenchmark = time.Now()
@@ -584,8 +593,10 @@ func (b *Benchmarker) RunBenchmark(ctx context.Context, candidates []ModelCandid
 					b.cacheMu.Unlock()
 				}
 				results <- m
-			} else {
-				fmt.Printf("Benchmark failed for %s/%s: %v\n", m.Provider, m.ID, err)
+			}
+
+			if dbConn != nil {
+				db.RecordProbe(dbConn, m.ID, m.Provider, lat, success, errMsg, m.Score, m.ContextLength, m.Parameters)
 			}
 		}(m)
 	}
