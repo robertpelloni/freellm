@@ -17,6 +17,12 @@ type Provider struct {
 	LastChecked            time.Time
 }
 
+type StabilityMetric struct {
+	Timestamp time.Time `json:"timestamp"`
+	QPM       float64   `json:"qpm"`
+	TPS       float64   `json:"tps"`
+}
+
 type ModelHistory struct {
 	ModelID              string
 	ProviderName         string
@@ -180,6 +186,24 @@ func LogActivity(db *sql.DB, eventType, modelID, details string) error {
 		time.Now(), eventType, modelID, details,
 	)
 	return err
+}
+
+func GetStabilityMetrics(db *sql.DB, limit int) ([]StabilityMetric, error) {
+	rows, err := db.Query("SELECT timestamp, qpm, tps FROM stability_metrics ORDER BY timestamp DESC LIMIT ?", limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var metrics []StabilityMetric
+	for rows.Next() {
+		var m StabilityMetric
+		if err := rows.Scan(&m.Timestamp, &m.QPM, &m.TPS); err != nil {
+			return nil, err
+		}
+		metrics = append(metrics, m)
+	}
+	return metrics, nil
 }
 
 func LogUsage(db *sql.DB, modelID string, promptTokens, completionTokens int) error {
