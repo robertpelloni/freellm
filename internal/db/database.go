@@ -142,6 +142,11 @@ func InitDB() (*sql.DB, error) {
             headers TEXT,
             body BLOB
         )`,
+		`CREATE TABLE IF NOT EXISTS persistent_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TIMESTAMP NOT NULL,
+            message TEXT
+        )`,
 		`CREATE INDEX IF NOT EXISTS idx_probe_model ON probe_history(model_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_probe_time ON probe_history(timestamp)`,
 		`CREATE INDEX IF NOT EXISTS idx_probe_success ON probe_history(success)`,
@@ -306,40 +311,37 @@ func GetCircuitBreakerList(db *sql.DB) (map[string]bool, error) {
 	return blocked, nil
 }
 
-type ProviderHealth struct {
-	Name        string  `json:"name"`
-	AvgLatency  float64 `json:"avg_latency"`
-	SuccessRate float64 `json:"success_rate"`
-}
-
-func GetProviderHealth(db *sql.DB) ([]ProviderHealth, error) {
-	rows, err := db.Query(`
-        SELECT provider_name, AVG(latency), SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*)
-        FROM probe_history
-        WHERE timestamp > ?
-        GROUP BY provider_name`, time.Now().Add(-24*time.Hour))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var health []ProviderHealth
-	for rows.Next() {
-		var h ProviderHealth
-		if err := rows.Scan(&h.Name, &h.AvgLatency, &h.SuccessRate); err != nil {
-			return nil, err
-		}
-		health = append(health, h)
-	}
-	return health, nil
-}
-
 func LogStabilityMetric(db *sql.DB, qpm, tps float64) error {
 	_, err := db.Exec(
 		"INSERT INTO stability_metrics (timestamp, qpm, tps) VALUES (?, ?, ?)",
 		time.Now(), qpm, tps,
 	)
 	return err
+}
+
+func LogPersistent(db *sql.DB, message string) error {
+	_, err := db.Exec("INSERT INTO persistent_logs (timestamp, message) VALUES (?, ?)", time.Now(), message)
+	return err
+}
+
+type LogRecord struct {
+	Timestamp time.Time `json:"timestamp"`
+	Message   string    `json:"message"`
+}
+
+func GetPersistentLogs(db *sql.DB, limit int) ([]LogRecord, error) {
+	rows, err := db.Query("SELECT timestamp, message FROM persistent_logs ORDER BY timestamp DESC LIMIT ?", limit)
+	if err != nil { return nil, err }
+	defer rows.Close()
+
+	var logs []LogRecord
+	for rows.Next() {
+		var l LogRecord
+		if err := rows.Scan(&l.Timestamp, &l.Message); err == nil {
+			logs = append(logs, l)
+		}
+	}
+	return logs, nil
 }
 
 func LogUsage(db *sql.DB, modelID string, promptTokens, completionTokens int) error {

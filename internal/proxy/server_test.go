@@ -22,7 +22,7 @@ func TestGatewayQueueing(t *testing.T) {
 		{ID: "test-model", Provider: "test-provider"},
 	})
 
-	req := httptest.NewRequest("POST", "/v1/chat/completions", bytes.NewBufferString(`{"model":"any"}`))
+	req := httptest.NewRequest("POST", "/v1/chat/completions", bytes.NewBufferString(`{"model":"any", "messages":[]}`))
 
 	// Use a context with timeout to avoid blocking forever
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)

@@ -79,7 +79,7 @@ func onReady() {
 	}
 
 	// Initialize Engine & Logger
-	eventLogger := engine.NewEventLogger(100)
+	eventLogger := engine.NewEventLogger(100, database)
 	apiKeys := map[string]string{
 		"openrouter": os.Getenv("OPENROUTER_API_KEY"),
 		"groq":       os.Getenv("GROQ_API_KEY"),
@@ -101,7 +101,7 @@ func onReady() {
 	}()
 
 	// Initialize Web Dashboard
-	uiServer := ui.NewUIServer(database, eventLogger, gateway, benchmarker)
+	uiServer := ui.NewUIServer(database, eventLogger, gateway)
 	go func() {
 		log.Println("Starting Web Dashboard on :8080")
 		if err := uiServer.Start(":8080"); err != nil {
