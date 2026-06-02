@@ -106,6 +106,13 @@ DEAD_MODELS = {
     "EssentialAI/rnj-1.5-instruct",
     "MiniMaxAI/MiniMax-M2.7",
     "Qwen/Qwen2.5-72B-Instruct",  # DeepInfra 404
+    "llama-4-scout-17b-16e-instruct",  # OpenRouter 404
+    "whisper-large-v3",  # Groq ASR (not chat)
+    "whisper-large-v3-turbo",  # Groq ASR (not chat)
+    "text-embedding-nomic-embed-text-v1.5",  # LM Studio embedding (not chat)
+    "orpheus-v1-english",  # OpenRouter TTS 404
+    "orpheus-arabic-saudi",  # OpenRouter TTS 404
+    "HunyuanImage-3.0",  # HuggingFace DNS failure
     "Qwen/Qwen3-Coder-Next",
     "XiaomiMiMo/MiMo-V2.5-Pro",
     "deepseek-ai/DeepSeek-V4-Pro",
@@ -937,6 +944,7 @@ class ModelEngine:
                         if now < retry_dt:
                             continue
             valid_candidates.append(m)
+        self._log(f"Candidate filter: {len(candidates)} raw - {len(valid_candidates)} valid")
 
         # Track which providers returned results (so we don't force-in extras from those)
         providers_with_results = set()
