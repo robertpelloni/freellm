@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "savedAt": "2026-06-01T14:30:14.527Z",
+  "savedAt": "2026-06-01T18:07:13.232Z",
   "memories": [
     {
       "id": "dd91cbaec29aa6e4",
@@ -36120,6 +36120,904 @@
       },
       "createdAt": "2026-06-01T14:30:12.554Z",
       "accessedAt": "2026-06-01T14:30:12.554Z",
+      "accessCount": 0
+    },
+    {
+      "id": "0d1b6f9b2a722886",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "# Walkthrough: Bulk MCP Server Tool Registry Population (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43\nLog tail: ### 4. Decoupled Smithery Registry & Partitioned Database Architecture | - **Decoupled Smithery Config**: Refactored `bulk_validate_mcp_servers.mjs` to keep the Smart Smithery CLI rewrite (`npx -y @smithery/cli@latest run <slug>`) separate from database storage. The Smart Rewrite is used only during verification | - **Clean Database Environments**: Stored ONLY the original `recipe.env` (usually `{}` or clean keys) in the `env` column of `mcp_servers` to prevent leaking the bloated developer shell environment (`childEnv` / `process.env`). | - **Database Partition (`catalog.db`)**: Created a database partition script `split_database.js` to split the massive 25MB scraped catalog tables (`published_mcp_servers`, `published_mcp_config_recipes`, `published_mcp_server_sources`, `pub | - **Gitignored Catalog**: Because `catalog.db` is a `.db` file, it is automatically gitignored by the `*.db` glob rule. `tormentnexus.db` is force-tracked in Git and vacuumed to a clean 7.8MB, completely eliminating false positive secret sc | - **Attached Multi-Database Validator**: Updated `bulk_validate_mcp_servers.mjs` to attach `catalog.db` dynamically (`ATTACH DATABASE 'catalog.db' AS catalog`) allowing seamless join queries. | ### 5. Git Tracking & Multi-Remote Synchronization | - **Commit**: Committed the decoupled script and partitioned SQLite database under the version tag `feat: partition catalog tables to gitignored catalog.db and shrink tormentnexus.db (v1.0.0-alpha.84)`. | - **Dual Pushes Successful**: | - Successfully pushed the clean commit to the primary remote `origin` (`ssh://git@github.com/robertpelloni/TormentNexus.git`). | - Successfully pushed and synchronized to the backup remote `origin-backup` (`https://github.com/robertpelloni/AIOS.git`).",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "f75aeb42-a9cd-45b4-b02f-f0949ee5eb3f",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/walkthrough.md",
+        "sessionFormat": "md",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:5c3c040a596a",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:5c3c040a596a",
+          "name": "# Walkthrough: Bulk MCP Server Tool Registry Population",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43",
+          "restartCount": 0,
+          "startedAt": 1780336775057.954,
+          "stoppedAt": 1780337111625,
+          "lastActivityAt": 1780336775057.954,
+          "logTail": [
+            "### 4. Decoupled Smithery Registry & Partitioned Database Architecture",
+            "- **Decoupled Smithery Config**: Refactored `bulk_validate_mcp_servers.mjs` to keep the Smart Smithery CLI rewrite (`npx -y @smithery/cli@latest run <slug>`) separate from database storage. The Smart Rewrite is used only during verification",
+            "- **Clean Database Environments**: Stored ONLY the original `recipe.env` (usually `{}` or clean keys) in the `env` column of `mcp_servers` to prevent leaking the bloated developer shell environment (`childEnv` / `process.env`).",
+            "- **Database Partition (`catalog.db`)**: Created a database partition script `split_database.js` to split the massive 25MB scraped catalog tables (`published_mcp_servers`, `published_mcp_config_recipes`, `published_mcp_server_sources`, `pub",
+            "- **Gitignored Catalog**: Because `catalog.db` is a `.db` file, it is automatically gitignored by the `*.db` glob rule. `tormentnexus.db` is force-tracked in Git and vacuumed to a clean 7.8MB, completely eliminating false positive secret sc",
+            "- **Attached Multi-Database Validator**: Updated `bulk_validate_mcp_servers.mjs` to attach `catalog.db` dynamically (`ATTACH DATABASE 'catalog.db' AS catalog`) allowing seamless join queries.",
+            "### 5. Git Tracking & Multi-Remote Synchronization",
+            "- **Commit**: Committed the decoupled script and partitioned SQLite database under the version tag `feat: partition catalog tables to gitignored catalog.db and shrink tormentnexus.db (v1.0.0-alpha.84)`.",
+            "- **Dual Pushes Successful**:",
+            "- Successfully pushed the clean commit to the primary remote `origin` (`ssh://git@github.com/robertpelloni/TormentNexus.git`).",
+            "- Successfully pushed and synchronized to the backup remote `origin-backup` (`https://github.com/robertpelloni/AIOS.git`)."
+          ],
+          "recordedAt": 1780337111719,
+          "contentHash": "session-307233484"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-01T18:05:11.722Z",
+      "accessedAt": "2026-06-01T18:05:11.722Z",
+      "accessCount": 0
+    },
+    {
+      "id": "f099313b0756f914",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "- **Constraint Safety**: Injected the default `'system'` user ID when registering newly discovered active servers into `mcp_servers` to satisfy table constraints.",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "f75aeb42-a9cd-45b4-b02f-f0949ee5eb3f",
+        "sessionId": "imported:antigravity:5c3c040a596a",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/walkthrough.md",
+        "tags": [
+          "antigravity",
+          "memory",
+          "mcp"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-01T18:05:16.443Z",
+      "accessedAt": "2026-06-01T18:05:16.443Z",
+      "accessCount": 0
+    },
+    {
+      "id": "9065445388180bf1",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "- **Decoupled Smithery Config**: Refactored `bulk_validate_mcp_servers.mjs` to keep the Smart Smithery CLI rewrite (`npx -y @smithery/cli@latest run <slug>`) separate from database storage. The Smart Rewrite is used only during verification",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "f75aeb42-a9cd-45b4-b02f-f0949ee5eb3f",
+        "sessionId": "imported:antigravity:5c3c040a596a",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/walkthrough.md",
+        "tags": [
+          "antigravity",
+          "memory",
+          "database",
+          "validation",
+          "mcp"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-01T18:05:18.478Z",
+      "accessedAt": "2026-06-01T18:05:18.478Z",
+      "accessCount": 0
+    },
+    {
+      "id": "bde13d66182dfc62",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "- **Gitignored Catalog**: Because `catalog.db` is a `.db` file, it is automatically gitignored by the `*.db` glob rule. `tormentnexus.db` is force-tracked in Git and vacuumed to a clean 7.8MB, completely eliminating false positive secret sc",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "f75aeb42-a9cd-45b4-b02f-f0949ee5eb3f",
+        "sessionId": "imported:antigravity:5c3c040a596a",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/walkthrough.md",
+        "tags": [
+          "antigravity",
+          "instruction",
+          "database",
+          "mcp"
+        ],
+        "section": "instructions",
+        "memoryKind": "instruction",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-01T18:05:20.424Z",
+      "accessedAt": "2026-06-01T18:05:20.424Z",
+      "accessCount": 0
+    },
+    {
+      "id": "2ead1044071d94b3",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Robust Bulk Validation Script - Refactored `bulk_validate_mcp_servers.mjs` to incorporate: - **Constraint Safety**: Injected the default `'system'` user ID when registering newly discovered active servers into `mcp_serve",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "f75aeb42-a9cd-45b4-b02f-f0949ee5eb3f",
+        "sessionId": "imported:antigravity:5c3c040a596a",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/walkthrough.md",
+        "tags": [
+          "antigravity",
+          "memory",
+          "mcp"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-01T18:05:22.846Z",
+      "accessedAt": "2026-06-01T18:05:22.846Z",
+      "accessCount": 0
+    },
+    {
+      "id": "d03f8c348f5fbd9b",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "`reddit`, `linear`, `googledrive`, `context7`) and executes them using `npx -y @smithery/cli@latest run <slug>`, resolving previous npm E404 package errors.",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "f75aeb42-a9cd-45b4-b02f-f0949ee5eb3f",
+        "sessionId": "imported:antigravity:5c3c040a596a",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/walkthrough.md",
+        "tags": [
+          "antigravity",
+          "memory",
+          "validation"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-01T18:05:25.052Z",
+      "accessedAt": "2026-06-01T18:05:25.052Z",
+      "accessCount": 0
+    },
+    {
+      "id": "9d75ea1e0f77c681",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "The Smart Rewrite is used only during verification runs to fetch tools successfully, while the original regular command and arguments from the catalog recipe (e.g.",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "f75aeb42-a9cd-45b4-b02f-f0949ee5eb3f",
+        "sessionId": "imported:antigravity:5c3c040a596a",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/walkthrough.md",
+        "tags": [
+          "antigravity",
+          "memory",
+          "mcp"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-01T18:05:27.509Z",
+      "accessedAt": "2026-06-01T18:05:27.509Z",
+      "accessCount": 0
+    },
+    {
+      "id": "719ed2b8ef0b707b",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "{ (tormentnexus) ended with status imported.\nWorking directory: C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs\nLog tail: \"user\": 0, | \"agent\": 0, | \"project\": 1231, | \"discovery\": 0, | \"decision\": 0, | \"progress\": 0, | \"warning\": 0, | \"fix\": 0 | }, | \"recentContext\": [], | \"notes\": \"Automatic background handoff\" | }",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "4abcb2e7-b547-4259-8d48-fee61affff2e",
+        "sourcePath": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs/handoff_1780336431984.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "tormentnexus",
+          "imported"
+        ],
+        "sessionId": "imported:tormentnexus:05f1dd09d5cb",
+        "structuredSessionSummary": {
+          "sessionId": "imported:tormentnexus:05f1dd09d5cb",
+          "name": "{",
+          "cliType": "tormentnexus",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs",
+          "restartCount": 0,
+          "startedAt": 1780336431986.3882,
+          "stoppedAt": 1780337129734,
+          "lastActivityAt": 1780336431986.3882,
+          "logTail": [
+            "\"user\": 0,",
+            "\"agent\": 0,",
+            "\"project\": 1231,",
+            "\"discovery\": 0,",
+            "\"decision\": 0,",
+            "\"progress\": 0,",
+            "\"warning\": 0,",
+            "\"fix\": 0",
+            "},",
+            "\"recentContext\": [],",
+            "\"notes\": \"Automatic background handoff\"",
+            "}"
+          ],
+          "recordedAt": 1780337129755,
+          "contentHash": "session-1507346668"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-01T18:05:29.757Z",
+      "accessedAt": "2026-06-01T18:05:29.757Z",
+      "accessCount": 0
+    },
+    {
+      "id": "ac330d0fdd31af2b",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "{ (tormentnexus) ended with status imported.\nWorking directory: C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs\nLog tail: \"user\": 0, | \"agent\": 0, | \"project\": 1231, | \"discovery\": 0, | \"decision\": 0, | \"progress\": 0, | \"warning\": 0, | \"fix\": 0 | }, | \"recentContext\": [], | \"notes\": \"Automatic background handoff\" | }",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "866382e4-337a-425b-8afe-41e34012e216",
+        "sourcePath": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs/handoff_1780336131973.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "tormentnexus",
+          "imported"
+        ],
+        "sessionId": "imported:tormentnexus:1f241491a954",
+        "structuredSessionSummary": {
+          "sessionId": "imported:tormentnexus:1f241491a954",
+          "name": "{",
+          "cliType": "tormentnexus",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs",
+          "restartCount": 0,
+          "startedAt": 1780336131972.8508,
+          "stoppedAt": 1780337131712,
+          "lastActivityAt": 1780336131972.8508,
+          "logTail": [
+            "\"user\": 0,",
+            "\"agent\": 0,",
+            "\"project\": 1231,",
+            "\"discovery\": 0,",
+            "\"decision\": 0,",
+            "\"progress\": 0,",
+            "\"warning\": 0,",
+            "\"fix\": 0",
+            "},",
+            "\"recentContext\": [],",
+            "\"notes\": \"Automatic background handoff\"",
+            "}"
+          ],
+          "recordedAt": 1780337131730,
+          "contentHash": "session-1061398059"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-01T18:05:31.731Z",
+      "accessedAt": "2026-06-01T18:05:31.731Z",
+      "accessCount": 0
+    },
+    {
+      "id": "c67f5cd3ea3ababe",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "{ (tormentnexus) ended with status imported.\nWorking directory: C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs\nLog tail: \"user\": 0, | \"agent\": 0, | \"project\": 1231, | \"discovery\": 0, | \"decision\": 0, | \"progress\": 0, | \"warning\": 0, | \"fix\": 0 | }, | \"recentContext\": [], | \"notes\": \"Automatic background handoff\" | }",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "5a78ce55-2ecc-437c-b626-c54262ae88ad",
+        "sourcePath": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs/handoff_1780335831968.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "tormentnexus",
+          "imported"
+        ],
+        "sessionId": "imported:tormentnexus:18bc9481d908",
+        "structuredSessionSummary": {
+          "sessionId": "imported:tormentnexus:18bc9481d908",
+          "name": "{",
+          "cliType": "tormentnexus",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs",
+          "restartCount": 0,
+          "startedAt": 1780335831968.5293,
+          "stoppedAt": 1780337133951,
+          "lastActivityAt": 1780335831968.5293,
+          "logTail": [
+            "\"user\": 0,",
+            "\"agent\": 0,",
+            "\"project\": 1231,",
+            "\"discovery\": 0,",
+            "\"decision\": 0,",
+            "\"progress\": 0,",
+            "\"warning\": 0,",
+            "\"fix\": 0",
+            "},",
+            "\"recentContext\": [],",
+            "\"notes\": \"Automatic background handoff\"",
+            "}"
+          ],
+          "recordedAt": 1780337133990,
+          "contentHash": "session-134000736"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-01T18:05:33.992Z",
+      "accessedAt": "2026-06-01T18:05:33.992Z",
+      "accessCount": 0
+    },
+    {
+      "id": "d2d770dd4778b574",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "{ (tormentnexus) ended with status imported.\nWorking directory: C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs\nLog tail: \"user\": 0, | \"agent\": 0, | \"project\": 1231, | \"discovery\": 0, | \"decision\": 0, | \"progress\": 0, | \"warning\": 0, | \"fix\": 0 | }, | \"recentContext\": [], | \"notes\": \"Automatic background handoff\" | }",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "fb98a4e6-cb38-4494-9915-91f419240f87",
+        "sourcePath": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs/handoff_1780335531965.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "tormentnexus",
+          "imported"
+        ],
+        "sessionId": "imported:tormentnexus:1ef05e19e1a9",
+        "structuredSessionSummary": {
+          "sessionId": "imported:tormentnexus:1ef05e19e1a9",
+          "name": "{",
+          "cliType": "tormentnexus",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs",
+          "restartCount": 0,
+          "startedAt": 1780335531965.0598,
+          "stoppedAt": 1780337135766,
+          "lastActivityAt": 1780335531965.0598,
+          "logTail": [
+            "\"user\": 0,",
+            "\"agent\": 0,",
+            "\"project\": 1231,",
+            "\"discovery\": 0,",
+            "\"decision\": 0,",
+            "\"progress\": 0,",
+            "\"warning\": 0,",
+            "\"fix\": 0",
+            "},",
+            "\"recentContext\": [],",
+            "\"notes\": \"Automatic background handoff\"",
+            "}"
+          ],
+          "recordedAt": 1780337135788,
+          "contentHash": "session-1969566207"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-01T18:05:35.788Z",
+      "accessedAt": "2026-06-01T18:05:35.788Z",
+      "accessCount": 0
+    },
+    {
+      "id": "021dca33417c9b3d",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "{ (tormentnexus) ended with status imported.\nWorking directory: C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs\nLog tail: \"user\": 0, | \"agent\": 0, | \"project\": 1231, | \"discovery\": 0, | \"decision\": 0, | \"progress\": 0, | \"warning\": 0, | \"fix\": 0 | }, | \"recentContext\": [], | \"notes\": \"Automatic background handoff\" | }",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "a8a8a101-30b1-4d3c-90b4-febe12bf8154",
+        "sourcePath": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs/handoff_1780335231953.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "tormentnexus",
+          "imported"
+        ],
+        "sessionId": "imported:tormentnexus:e756c64f42ee",
+        "structuredSessionSummary": {
+          "sessionId": "imported:tormentnexus:e756c64f42ee",
+          "name": "{",
+          "cliType": "tormentnexus",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs",
+          "restartCount": 0,
+          "startedAt": 1780335231953.5789,
+          "stoppedAt": 1780337137956,
+          "lastActivityAt": 1780335231953.5789,
+          "logTail": [
+            "\"user\": 0,",
+            "\"agent\": 0,",
+            "\"project\": 1231,",
+            "\"discovery\": 0,",
+            "\"decision\": 0,",
+            "\"progress\": 0,",
+            "\"warning\": 0,",
+            "\"fix\": 0",
+            "},",
+            "\"recentContext\": [],",
+            "\"notes\": \"Automatic background handoff\"",
+            "}"
+          ],
+          "recordedAt": 1780337137974,
+          "contentHash": "session-1257526332"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-01T18:05:37.975Z",
+      "accessedAt": "2026-06-01T18:05:37.975Z",
+      "accessCount": 0
+    },
+    {
+      "id": "9f9e1a0ea1771ae4",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "{ (tormentnexus) ended with status imported.\nWorking directory: C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs\nLog tail: \"user\": 0, | \"agent\": 0, | \"project\": 1231, | \"discovery\": 0, | \"decision\": 0, | \"progress\": 0, | \"warning\": 0, | \"fix\": 0 | }, | \"recentContext\": [], | \"notes\": \"Automatic background handoff\" | }",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "11010d59-673c-464f-8414-8563d0dcae04",
+        "sourcePath": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs/handoff_1780334931950.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "tormentnexus",
+          "imported"
+        ],
+        "sessionId": "imported:tormentnexus:1fffdd329639",
+        "structuredSessionSummary": {
+          "sessionId": "imported:tormentnexus:1fffdd329639",
+          "name": "{",
+          "cliType": "tormentnexus",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs",
+          "restartCount": 0,
+          "startedAt": 1780334931950.551,
+          "stoppedAt": 1780337139789,
+          "lastActivityAt": 1780334931950.551,
+          "logTail": [
+            "\"user\": 0,",
+            "\"agent\": 0,",
+            "\"project\": 1231,",
+            "\"discovery\": 0,",
+            "\"decision\": 0,",
+            "\"progress\": 0,",
+            "\"warning\": 0,",
+            "\"fix\": 0",
+            "},",
+            "\"recentContext\": [],",
+            "\"notes\": \"Automatic background handoff\"",
+            "}"
+          ],
+          "recordedAt": 1780337139813,
+          "contentHash": "session-713421535"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-01T18:05:39.814Z",
+      "accessedAt": "2026-06-01T18:05:39.814Z",
+      "accessCount": 0
+    },
+    {
+      "id": "9c21a8f80020c99e",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "{ (tormentnexus) ended with status imported.\nWorking directory: C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs\nLog tail: \"user\": 0, | \"agent\": 0, | \"project\": 1231, | \"discovery\": 0, | \"decision\": 0, | \"progress\": 0, | \"warning\": 0, | \"fix\": 0 | }, | \"recentContext\": [], | \"notes\": \"Automatic background handoff\" | }",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "8b5ab54c-f0b2-4657-b08d-f691ea3052ef",
+        "sourcePath": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs/handoff_1780334631941.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "tormentnexus",
+          "imported"
+        ],
+        "sessionId": "imported:tormentnexus:c48d6f82beb4",
+        "structuredSessionSummary": {
+          "sessionId": "imported:tormentnexus:c48d6f82beb4",
+          "name": "{",
+          "cliType": "tormentnexus",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs",
+          "restartCount": 0,
+          "startedAt": 1780334631943.311,
+          "stoppedAt": 1780337217205,
+          "lastActivityAt": 1780334631943.311,
+          "logTail": [
+            "\"user\": 0,",
+            "\"agent\": 0,",
+            "\"project\": 1231,",
+            "\"discovery\": 0,",
+            "\"decision\": 0,",
+            "\"progress\": 0,",
+            "\"warning\": 0,",
+            "\"fix\": 0",
+            "},",
+            "\"recentContext\": [],",
+            "\"notes\": \"Automatic background handoff\"",
+            "}"
+          ],
+          "recordedAt": 1780337217221,
+          "contentHash": "session-2102615304"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-01T18:06:57.222Z",
+      "accessedAt": "2026-06-01T18:06:57.222Z",
+      "accessCount": 0
+    },
+    {
+      "id": "ab4de41055a6a1a6",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "{ (tormentnexus) ended with status imported.\nWorking directory: C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs\nLog tail: \"user\": 0, | \"agent\": 0, | \"project\": 1231, | \"discovery\": 0, | \"decision\": 0, | \"progress\": 0, | \"warning\": 0, | \"fix\": 0 | }, | \"recentContext\": [], | \"notes\": \"Automatic background handoff\" | }",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "8226b58d-8525-4cc6-aa59-9bcdcabff241",
+        "sourcePath": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs/handoff_1780334331927.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "tormentnexus",
+          "imported"
+        ],
+        "sessionId": "imported:tormentnexus:ddeb249b3285",
+        "structuredSessionSummary": {
+          "sessionId": "imported:tormentnexus:ddeb249b3285",
+          "name": "{",
+          "cliType": "tormentnexus",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs",
+          "restartCount": 0,
+          "startedAt": 1780334331927.374,
+          "stoppedAt": 1780337218387,
+          "lastActivityAt": 1780334331927.374,
+          "logTail": [
+            "\"user\": 0,",
+            "\"agent\": 0,",
+            "\"project\": 1231,",
+            "\"discovery\": 0,",
+            "\"decision\": 0,",
+            "\"progress\": 0,",
+            "\"warning\": 0,",
+            "\"fix\": 0",
+            "},",
+            "\"recentContext\": [],",
+            "\"notes\": \"Automatic background handoff\"",
+            "}"
+          ],
+          "recordedAt": 1780337218403,
+          "contentHash": "session-1440173590"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-01T18:06:58.404Z",
+      "accessedAt": "2026-06-01T18:06:58.404Z",
+      "accessCount": 0
+    },
+    {
+      "id": "dc63e6645d586d6d",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "{ (tormentnexus) ended with status imported.\nWorking directory: C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs\nLog tail: \"user\": 0, | \"agent\": 0, | \"project\": 1231, | \"discovery\": 0, | \"decision\": 0, | \"progress\": 0, | \"warning\": 0, | \"fix\": 0 | }, | \"recentContext\": [], | \"notes\": \"Automatic background handoff\" | }",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "a9f80bb9-fa65-40e8-a2a5-9fac019f58a6",
+        "sourcePath": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs/handoff_1780334031921.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "tormentnexus",
+          "imported"
+        ],
+        "sessionId": "imported:tormentnexus:c57ec9ee3b32",
+        "structuredSessionSummary": {
+          "sessionId": "imported:tormentnexus:c57ec9ee3b32",
+          "name": "{",
+          "cliType": "tormentnexus",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs",
+          "restartCount": 0,
+          "startedAt": 1780334031922.0933,
+          "stoppedAt": 1780337219854,
+          "lastActivityAt": 1780334031922.0933,
+          "logTail": [
+            "\"user\": 0,",
+            "\"agent\": 0,",
+            "\"project\": 1231,",
+            "\"discovery\": 0,",
+            "\"decision\": 0,",
+            "\"progress\": 0,",
+            "\"warning\": 0,",
+            "\"fix\": 0",
+            "},",
+            "\"recentContext\": [],",
+            "\"notes\": \"Automatic background handoff\"",
+            "}"
+          ],
+          "recordedAt": 1780337219875,
+          "contentHash": "session-761054034"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-01T18:06:59.877Z",
+      "accessedAt": "2026-06-01T18:06:59.877Z",
+      "accessCount": 0
+    },
+    {
+      "id": "101408ebe715b613",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "{ (tormentnexus) ended with status imported.\nWorking directory: C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs\nLog tail: \"user\": 0, | \"agent\": 0, | \"project\": 1231, | \"discovery\": 0, | \"decision\": 0, | \"progress\": 0, | \"warning\": 0, | \"fix\": 0 | }, | \"recentContext\": [], | \"notes\": \"Automatic background handoff\" | }",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "e28d1db1-15d2-4e1a-8b1c-5f8186dc4528",
+        "sourcePath": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs/handoff_1780333731918.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "tormentnexus",
+          "imported"
+        ],
+        "sessionId": "imported:tormentnexus:6ed6ca81bc4a",
+        "structuredSessionSummary": {
+          "sessionId": "imported:tormentnexus:6ed6ca81bc4a",
+          "name": "{",
+          "cliType": "tormentnexus",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs",
+          "restartCount": 0,
+          "startedAt": 1780333731919.5703,
+          "stoppedAt": 1780337221431,
+          "lastActivityAt": 1780333731919.5703,
+          "logTail": [
+            "\"user\": 0,",
+            "\"agent\": 0,",
+            "\"project\": 1231,",
+            "\"discovery\": 0,",
+            "\"decision\": 0,",
+            "\"progress\": 0,",
+            "\"warning\": 0,",
+            "\"fix\": 0",
+            "},",
+            "\"recentContext\": [],",
+            "\"notes\": \"Automatic background handoff\"",
+            "}"
+          ],
+          "recordedAt": 1780337221448,
+          "contentHash": "session-843675632"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-01T18:07:01.448Z",
+      "accessedAt": "2026-06-01T18:07:01.448Z",
+      "accessCount": 0
+    },
+    {
+      "id": "e65c77a125504bf1",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "{ (tormentnexus) ended with status imported.\nWorking directory: C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/agent_memory\nLog tail: ], | \"recordedAt\": 1780337221448, | \"contentHash\": \"session-843675632\" | }, | \"memoryKind\": \"session_summary\" | \"createdAt\": \"2026-06-01T18:07:01.448Z\", | \"accessedAt\": \"2026-06-01T18:07:01.448Z\", | \"accessCount\": 0 | } | ]",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "1dcba6dc-58e6-4263-88e2-af40eb3abf37",
+        "sourcePath": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/agent_memory/memories.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "tormentnexus",
+          "imported"
+        ],
+        "sessionId": "imported:tormentnexus:05c77d8a263e",
+        "structuredSessionSummary": {
+          "sessionId": "imported:tormentnexus:05c77d8a263e",
+          "name": "{",
+          "cliType": "tormentnexus",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/agent_memory",
+          "restartCount": 0,
+          "startedAt": 1780324214570.5737,
+          "stoppedAt": 1780337223115,
+          "lastActivityAt": 1780324214570.5737,
+          "logTail": [
+            "],",
+            "\"recordedAt\": 1780337221448,",
+            "\"contentHash\": \"session-843675632\"",
+            "},",
+            "\"memoryKind\": \"session_summary\"",
+            "\"createdAt\": \"2026-06-01T18:07:01.448Z\",",
+            "\"accessedAt\": \"2026-06-01T18:07:01.448Z\",",
+            "\"accessCount\": 0",
+            "}",
+            "]"
+          ],
+          "recordedAt": 1780337223428,
+          "contentHash": "session-843139709"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-01T18:07:03.430Z",
+      "accessedAt": "2026-06-01T18:07:03.430Z",
+      "accessCount": 0
+    },
+    {
+      "id": "a8ceef2f29ecfcb6",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "\"content\": \"Surgically search and destroy exactly the corrupted httpx library files using os.walk in cache (antigravity) ended with status imported.\\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f337",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "1dcba6dc-58e6-4263-88e2-af40eb3abf37",
+        "sessionId": "imported:tormentnexus:05c77d8a263e",
+        "path": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/agent_memory/memories.json",
+        "tags": [
+          "tormentnexus",
+          "memory",
+          "networking"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-01T18:07:05.075Z",
+      "accessedAt": "2026-06-01T18:07:05.075Z",
+      "accessCount": 0
+    },
+    {
+      "id": "7d05d351aa360391",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "\"source\": \"session_import\",",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "1dcba6dc-58e6-4263-88e2-af40eb3abf37",
+        "sessionId": "imported:tormentnexus:05c77d8a263e",
+        "path": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/agent_memory/memories.json",
+        "tags": [
+          "tormentnexus",
+          "memory",
+          "networking"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-01T18:07:06.706Z",
+      "accessedAt": "2026-06-01T18:07:06.706Z",
+      "accessCount": 0
+    },
+    {
+      "id": "be3b8efbe1606f7a",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "\"importedSessionId\": \"a1d481e2-fc18-4428-af5c-aede2d9e1d0f\",",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "1dcba6dc-58e6-4263-88e2-af40eb3abf37",
+        "sessionId": "imported:tormentnexus:05c77d8a263e",
+        "path": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/agent_memory/memories.json",
+        "tags": [
+          "tormentnexus",
+          "memory",
+          "networking"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-01T18:07:08.228Z",
+      "accessedAt": "2026-06-01T18:07:08.228Z",
+      "accessCount": 0
+    },
+    {
+      "id": "d92c6633b5f8f3a3",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "\"sourcePath\": \"C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/surgical_search_and_destroy.py.metadata.json\",",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "1dcba6dc-58e6-4263-88e2-af40eb3abf37",
+        "sessionId": "imported:tormentnexus:05c77d8a263e",
+        "path": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/agent_memory/memories.json",
+        "tags": [
+          "tormentnexus",
+          "memory"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-01T18:07:09.687Z",
+      "accessedAt": "2026-06-01T18:07:09.687Z",
+      "accessCount": 0
+    },
+    {
+      "id": "3220ed3bd9b4cb32",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "\"sessionId\": \"imported:antigravity:d2e0ca1d6df2\",",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "1dcba6dc-58e6-4263-88e2-af40eb3abf37",
+        "sessionId": "imported:tormentnexus:05c77d8a263e",
+        "path": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/agent_memory/memories.json",
+        "tags": [
+          "tormentnexus",
+          "memory",
+          "networking"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-01T18:07:11.248Z",
+      "accessedAt": "2026-06-01T18:07:11.248Z",
+      "accessCount": 0
+    },
+    {
+      "id": "cce716d100a197fb",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "\"workingDirectory\": \"C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\",",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "1dcba6dc-58e6-4263-88e2-af40eb3abf37",
+        "sessionId": "imported:tormentnexus:05c77d8a263e",
+        "path": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/agent_memory/memories.json",
+        "tags": [
+          "tormentnexus",
+          "memory"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-01T18:07:12.793Z",
+      "accessedAt": "2026-06-01T18:07:12.793Z",
       "accessCount": 0
     }
   ]
