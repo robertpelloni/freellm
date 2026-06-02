@@ -5,6 +5,10 @@ import (
 )
 
 func TransformRequestBody(provider string, openaiBody []byte) ([]byte, error) {
+	// First, sanitize the request body (LiteLLM parity)
+	sanitized, _ := sanitizeRequest(provider, openaiBody)
+	openaiBody = sanitized
+
 	switch provider {
 	case "anthropic":
 		return transformToAnthropic(openaiBody)
@@ -13,6 +17,25 @@ func TransformRequestBody(provider string, openaiBody []byte) ([]byte, error) {
 	default:
 		return openaiBody, nil
 	}
+}
+
+func sanitizeRequest(provider string, body []byte) ([]byte, error) {
+	var payload map[string]interface{}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return body, err
+	}
+
+	// Remove unsupported params for specific providers
+	unsupported := []string{"frequency_penalty", "presence_penalty", "logit_bias"}
+
+	switch provider {
+	case "anthropic", "gemini":
+		for _, p := range unsupported {
+			delete(payload, p)
+		}
+	}
+
+	return json.Marshal(payload)
 }
 
 func transformToAnthropic(body []byte) ([]byte, error) {

@@ -179,6 +179,20 @@ func (g *Gateway) processJob(job *RequestJob) {
 	models := g.RankedModels
 	g.mu.RUnlock()
 
+	// Circuit Breaker Integration
+	if g.DB != nil {
+		blocked, _ := db.GetCircuitBreakerList(g.DB)
+		if len(blocked) > 0 {
+			var activeModels engine.RankedModels
+			for _, m := range models {
+				if !blocked[m.ID] {
+					activeModels = append(activeModels, m)
+				}
+			}
+			models = activeModels
+		}
+	}
+
 	if len(models) == 0 {
 		job.Response <- &ProxyResponse{Err: fmt.Errorf("no models available")}
 		return
