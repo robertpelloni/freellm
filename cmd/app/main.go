@@ -118,7 +118,7 @@ func onReady() {
 
 			notify("LiteLLM Sync", "Continuous model discovery started...")
 
-			candidates := benchmarker.FetchModels(ctx)
+			candidates := benchmarker.FetchModels(ctx, database)
 			log.Printf("Discovered %d model candidates", len(candidates))
 
 			ranked := benchmarker.RunBenchmark(ctx, candidates)
@@ -157,6 +157,15 @@ func onReady() {
 				tps := float64(totalTokens) / 60.0
 				db.LogStabilityMetric(database, float64(qpm), tps)
 			}
+		}
+	}()
+
+	// Data Pruning Ticker (every 24h)
+	go func() {
+		ticker := time.NewTicker(24 * time.Hour)
+		for range ticker.C {
+			count, _ := db.PruneOldData(database, 30) // Keep 30 days
+			log.Printf("Pruned %d old metric/log records", count)
 		}
 	}()
 

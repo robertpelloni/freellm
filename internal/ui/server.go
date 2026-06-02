@@ -57,6 +57,7 @@ func (s *UIServer) Start(addr string) error {
 	http.HandleFunc("/api/savings", s.handleSavings)
 	http.HandleFunc("/api/proxy/", s.handleProxy)
 	http.HandleFunc("/api/config", s.handleConfig)
+	http.HandleFunc("/api/providers/toggle", s.handleProviderToggle)
 	http.HandleFunc("/api/maintenance/clear-skips", s.handleClearSkips)
 	http.HandleFunc("/api/maintenance/clear-blacklist", s.handleClearBlacklist)
 	http.HandleFunc("/api/maintenance/reset-stats", s.handleResetStats)
@@ -131,6 +132,17 @@ func (s *UIServer) handleLogs(w http.ResponseWriter, r *http.Request) {
 	logs := s.Logger.GetLogs()
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(logs)
+}
+
+func (s *UIServer) handleProviderToggle(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" { http.Error(w, "Method not allowed", 405); return }
+	name := r.URL.Query().Get("name")
+	enabled := r.URL.Query().Get("enabled") == "true"
+	if err := db.SetProviderStatus(s.DB, name, enabled); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	w.WriteHeader(200)
 }
 
 func (s *UIServer) handleLogWS(w http.ResponseWriter, r *http.Request) {

@@ -311,6 +311,44 @@ func GetCircuitBreakerList(db *sql.DB) (map[string]bool, error) {
 	return blocked, nil
 }
 
+type ProviderHealth struct {
+	Name        string  `json:"name"`
+	AvgLatency  float64 `json:"avg_latency"`
+	SuccessRate float64 `json:"success_rate"`
+	Enabled     bool    `json:"enabled"`
+}
+
+func GetProviderHealth(db *sql.DB) ([]ProviderHealth, error) {
+	rows, err := db.Query(`
+        SELECT p.provider_name, COALESCE(AVG(ph.latency), 0),
+               COALESCE(SUM(CASE WHEN ph.success = 1 THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(ph.id), 0), 0),
+               p.is_free_provider
+        FROM providers p
+        LEFT JOIN probe_history ph ON p.provider_name = ph.provider_name AND ph.timestamp > ?
+        GROUP BY p.provider_name`, time.Now().Add(-24*time.Hour))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var health []ProviderHealth
+	for rows.Next() {
+		var h ProviderHealth
+		if err := rows.Scan(&h.Name, &h.AvgLatency, &h.SuccessRate, &h.Enabled); err != nil {
+			return nil, err
+		}
+		health = append(health, h)
+	}
+	return health, nil
+}
+
+func SetProviderStatus(db *sql.DB, name string, enabled bool) error {
+	status := 0
+	if enabled { status = 1 }
+	_, err := db.Exec("UPDATE providers SET is_free_provider = ? WHERE provider_name = ?", status, name)
+	return err
+}
+
 func LogStabilityMetric(db *sql.DB, qpm, tps float64) error {
 	_, err := db.Exec(
 		"INSERT INTO stability_metrics (timestamp, qpm, tps) VALUES (?, ?, ?)",
@@ -344,6 +382,26 @@ func GetPersistentLogs(db *sql.DB, limit int) ([]LogRecord, error) {
 	return logs, nil
 }
 
+func RecordFailure(db *sql.DB, modelID string) error {
+	var currentFailures int
+	db.QueryRow("SELECT failure_count FROM model_history WHERE model_id = ?", modelID).Scan(&currentFailures)
+
+	newFailures := currentFailures + 1
+	// Exponential backoff: 2^failures * 30 minutes
+	cooldownMinutes := (1 << newFailures) * 30
+	retryAfter := time.Now().Add(time.Duration(cooldownMinutes) * time.Minute)
+
+	_, err := db.Exec("UPDATE model_history SET failure_count = ?, retry_after = ?, last_failure = ? WHERE model_id = ?",
+		newFailures, retryAfter, time.Now(), modelID)
+	return err
+}
+
+func RecordSuccess(db *sql.DB, modelID string) error {
+	_, err := db.Exec("UPDATE model_history SET failure_count = 0, retry_after = NULL, last_success = ? WHERE model_id = ?",
+		time.Now(), modelID)
+	return err
+}
+
 func LogUsage(db *sql.DB, modelID string, promptTokens, completionTokens int) error {
 	var promptPrice, completionPrice float64
 	db.QueryRow("SELECT prompt_price, completion_price FROM model_pricing WHERE model_id = ?", modelID).Scan(&promptPrice, &completionPrice)
@@ -367,6 +425,20 @@ func UpdateModelPricing(db *sql.DB, modelID, provider string, promptPrice, compl
             last_updated = EXCLUDED.last_updated`,
 		modelID, provider, promptPrice, completionPrice, time.Now())
 	return err
+}
+
+func PruneOldData(db *sql.DB, days int) (int64, error) {
+	cutoff := time.Now().Add(time.Duration(-days*24) * time.Hour)
+
+	res1, _ := db.Exec("DELETE FROM probe_history WHERE timestamp < ?", cutoff)
+	res2, _ := db.Exec("DELETE FROM persistent_logs WHERE timestamp < ?", cutoff)
+	res3, _ := db.Exec("DELETE FROM stability_metrics WHERE timestamp < ?", cutoff)
+
+	n1, _ := res1.RowsAffected()
+	n2, _ := res2.RowsAffected()
+	n3, _ := res3.RowsAffected()
+
+	return n1 + n2 + n3, nil
 }
 
 func GetTotalSavings(db *sql.DB) (float64, error) {
