@@ -1083,6 +1083,93 @@ class ModelEngine:
 
         return ranked_list
 
+    async def quick_pulse(self, current_ranked: list, top_n: int = 5) -> list:
+        """Quick latency re-check of the top N models. 
+        Re-benchmarks the top models and re-sorts the ranked list.
+        If a top model becomes slow/dead, it gets demoted and a fallback is promoted.
+        Returns the updated ranked list.
+        """
+        if not current_ranked:
+            return current_ranked
+        
+        self._log(f"Quick pulse: re-checking top {top_n} models...")
+        self.current_state = "Pulse"
+        self.active_task = "Quick health check"
+        self.progress = 0.5
+        
+        # Take the top N models
+        top_models = current_ranked[:top_n]
+        
+        # Re-measure their latency
+        semaphore = asyncio.Semaphore(3)  # Lower concurrency for pulse
+        tasks = []
+        models_to_check = []
+        
+        async def sem_measure(m_id, prov):
+            async with semaphore:
+                await asyncio.sleep(0.3)
+                return await self.measure_latency(m_id, prov)
+        
+        for m in top_models:
+            tasks.append(sem_measure(m['id'], m['provider']))
+            models_to_check.append(m)
+        
+        latencies = await asyncio.gather(*tasks)
+        
+        # Update scores for pulse-checked models
+        # Track the old ranking order to detect swaps
+        old_top_order = [m['id'] for m in current_ranked[:top_n]]
+        updated = False
+        for m, latency in zip(models_to_check, latencies):
+            if latency is not None:
+                old_latency = m.get('latency', 0)
+                old_score = m.get('score', 0)
+                new_score = self.calculate_score(m['parameters'], latency, m.get('context_length', 4096))
+                m['latency'] = latency
+                m['score'] = new_score
+                self._log(f"  Pulse: {m['id']} ({m['provider']}): {latency:.3f}s (was {old_latency:.3f}s) score={new_score:.1f} (was {old_score:.1f})")
+                database.record_probe(
+                    m['id'], m['provider'], latency,
+                    success=True, score=new_score,
+                    context_length=m.get('context_length', 0),
+                    parameters=m.get('parameters', 0),
+                )
+                # Trigger update if score changed significantly OR model failed
+                if abs(new_score - old_score) > 0.3:
+                    updated = True
+            else:
+                # Model failed - penalize it heavily
+                old_score = m.get('score', 0)
+                m['latency'] = 99.0
+                m['score'] = -10.0
+                self._log(f"  Pulse: {m['id']} ({m['provider']}): FAILED - demoting (was score={old_score:.1f})")
+                database.record_probe(
+                    m['id'], m['provider'], None,
+                    success=False,
+                    context_length=m.get('context_length', 0),
+                    parameters=m.get('parameters', 0),
+                )
+                updated = True
+        
+        # Also detect ranking order swaps (even small changes that cause #1 and #2 to swap)
+        current_ranked.sort(key=lambda x: x['score'], reverse=True)
+        new_top_order = [m['id'] for m in current_ranked[:top_n]]
+        if old_top_order != new_top_order:
+            updated = True
+            self._log(f"  Pulse: ranking order changed: {old_top_order} -> {new_top_order}")
+        
+        if updated:
+            # Already sorted above for order comparison
+            self._log(f"  Pulse: rankings updated. New top 3:")
+            for m in current_ranked[:3]:
+                self._log(f"    {m['provider']}/{m['id']} score={m['score']:.1f} latency={m['latency']:.2f}s")
+        else:
+            self._log(f"  Pulse: no significant changes detected")
+        
+        self.current_state = "Idle"
+        self.progress = 1.0
+        return current_ranked, updated
+
     async def check_connectivity(self) -> bool:
         """Check if the internet is accessible by hitting reliable endpoints."""
         endpoints = [

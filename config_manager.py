@@ -153,6 +153,10 @@ def _build_model_entry(
     lp = CommentedMap()
     lp["model"] = litellm_model
     lp["timeout"] = timeout
+    # Per-model stream timeout: slow providers need more time for streaming chunks
+    stream_timeout_providers = {"nvidia_nim", "nvidia", "openrouter", "huggingface", "sambanova"}
+    if provider in stream_timeout_providers or timeout > 45:
+        lp["stream_timeout"] = max(timeout * 5, 300)  # 5x non-stream, min 5 min
 
     env_key = info.get("env_key", "")
     if env_key:
@@ -550,6 +554,11 @@ def apply_ranked_models(
 
     # Ensure fallbacks are set
     litellm_settings["fallbacks"] = [{primary_group: [fallback_group]}]
+# Ensure critical timeout settings are present (upgrade old configs)
+if "stream_timeout" not in litellm_settings:
+    litellm_settings["stream_timeout"] = 300  # 5 min for streaming responses
+if "request_timeout" not in litellm_settings or litellm_settings.get("request_timeout", 0) < 60:
+    litellm_settings["request_timeout"] = 60  # 60s for non-streaming
     config["litellm_settings"] = litellm_settings
 
     # Port setting
