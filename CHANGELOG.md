@@ -1,5 +1,11 @@
 # Changelog: LiteLLM Control Panel
 
+## [3.0.0] - 2024-06-24
+### Changed
+- **Major Architectural Shift:** Rebuilding the entire application in Go for enhanced performance and stability.
+- **Highly Stable Network:** Implemented request queueing and buffering to prevent dropped connections.
+- **Integrated LiteLLM Core:** Porting LiteLLM's gateway functionality into the Go application.
+
 ## [2.7.1] - 2024-06-23
 ### Added
 - Repository Reconciliation: Merged latest features and fixes from the dynamic-hf-and-live-logs branch.

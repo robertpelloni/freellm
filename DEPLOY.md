@@ -1,28 +1,29 @@
-# Deployment: LiteLLM Control Panel
+# Deployment: LiteLLM Control Panel (Go)
 
 ## Prerequisites
 - Windows 10/11
-- Python 3.9+
-- LiteLLM installed and running (optional, but needed for switching to work)
+- Go 1.21+ (for building from source)
 
-## Installation
-1. Clone the repository.
-2. Install dependencies:
+## Building from Source
+1. Clone the repository and submodules.
+2. Initialize Go modules:
    ```bash
-   pip install pystray httpx ruamel.yaml pyinstaller
+   go mod tidy
+   ```
+3. Build the application:
+   ```bash
+   go build -o LiteLLMControlPanel.exe .
    ```
 
 ## Development
-- Run `python main.py` to start the tray application.
-- The app will create `provider_metrics.db` in the same directory.
-- It will look for `config.yaml` (LiteLLM config) in the configured path.
+- Run `go run .` to start the tray application in development mode.
+- The app uses `provider_metrics.db` (SQLite) for data persistence.
 
 ## Packaging
-To create a standalone Windows executable:
+To create a production build with no console window:
 ```bash
-pyinstaller --noconsole --onefile --name "LiteLLMControlPanel" main.py
+go build -ldflags -H=windowsgui -o LiteLLMControlPanel.exe .
 ```
-This will generate an `.exe` in the `dist` folder.
 
 ## Startup Integration
-The application can be configured to start with Windows. This is handled via the "Start with Windows" toggle in the menu, which adds a registry key to `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run`.
+Configurable via the system tray menu; adds a registry key to `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run`.
