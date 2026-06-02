@@ -12,3 +12,4 @@ borg.db
 config.yaml
 settings.json
 provider_metrics.db
+tormentnexus.db
