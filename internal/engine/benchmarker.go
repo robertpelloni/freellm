@@ -297,6 +297,9 @@ func (b *Benchmarker) fetchOllamaModels(ctx context.Context) []ModelCandidate {
 }
 
 func (b *Benchmarker) getModelsURL(provider string) string {
+	if url, ok := b.BaseURLs[provider+"_models"]; ok && url != "" {
+		return url
+	}
 	base := b.BaseURLs[provider]
 	switch provider {
 	case "openrouter":
@@ -336,6 +339,9 @@ func (b *Benchmarker) getModelsURL(provider string) string {
 }
 
 func (b *Benchmarker) getCompletionsURL(provider string) string {
+	if url, ok := b.BaseURLs[provider+"_completions"]; ok && url != "" {
+		return url
+	}
 	base := b.BaseURLs[provider]
 	switch provider {
 	case "openrouter":

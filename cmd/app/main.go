@@ -11,6 +11,7 @@ import (
 
 	"github.com/gen2brain/beeep"
 	"github.com/getlantern/systray"
+	"github.com/skratchdot/open-golang/open"
 	"github.com/robertpelloni/litellm_control_panel/internal/config"
 	"github.com/robertpelloni/litellm_control_panel/internal/db"
 	"github.com/robertpelloni/litellm_control_panel/internal/engine"
@@ -41,6 +42,7 @@ func onReady() {
 	systray.SetTooltip("LiteLLM Control Panel (Go)")
 
 	mOpen := systray.AddMenuItem("Open LLM Interface", "Open the interface in browser")
+	mDashboard := systray.AddMenuItem("Open Dashboard", "Open monitoring dashboard")
 	mSettings := systray.AddMenuItem("Settings", "Change settings")
 	systray.AddSeparator()
 	mRefresh := systray.AddMenuItem("Refresh Now", "Run benchmarks immediately")
@@ -59,7 +61,15 @@ func onReady() {
 	config.WatchConfig(cfgPath, func(newCfg *config.Config) {
 		log.Println("Applying new configuration...")
 		cfg = newCfg
-		// In real app, update proxyPort etc if needed
+
+		// Update Engine Base URLs
+		if newCfg.Providers != nil {
+			for p, pcfg := range newCfg.Providers {
+				if pcfg.BaseURL != "" { benchmarker.BaseURLs[p] = pcfg.BaseURL }
+				if pcfg.ModelsURL != "" { benchmarker.BaseURLs[p+"_models"] = pcfg.ModelsURL }
+				if pcfg.Completions != "" { benchmarker.BaseURLs[p+"_completions"] = pcfg.Completions }
+			}
+		}
 	})
 
 	// Initialize Database
@@ -191,11 +201,19 @@ func onReady() {
 			select {
 			case <-mOpen.ClickedCh:
 				log.Println("Opening LLM Interface...")
-				// open.Run("http://localhost:4000")
+				open.Run(fmt.Sprintf("http://localhost:%d", proxyPort))
+			case <-mDashboard.ClickedCh:
+				log.Println("Opening Dashboard...")
+				open.Run("http://localhost:8080")
 			case <-mSettings.ClickedCh:
 				log.Println("Opening Settings...")
+				open.Run("http://localhost:8080#config-tab")
 			case <-mRefresh.ClickedCh:
 				log.Println("Refreshing...")
+				select {
+				case refreshTrigger <- true:
+				default:
+				}
 			case <-mQuit.ClickedCh:
 				systray.Quit()
 				return
