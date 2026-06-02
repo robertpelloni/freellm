@@ -83,6 +83,36 @@ NON_CHAT_KEYWORDS = {
 }
 
 
+# Models known to be dead/404/nonexistent on specific providers
+DEAD_MODELS = {
+    "deepseek-ai/deepseek-v3", "deepseek-ai/deepseek-r1",
+    "qwen/qwen2.5-72b-instruct",
+    "meta-llama/meta-llama-3.1-70b-instruct", "meta-llama/meta-llama-3.1-405b-instruct",
+    "meta-llama/llama-3.1-70b-instruct", "meta-llama/llama-3.1-405b-instruct",
+    "llama-4-scout-17b-16e-instruct",
+    "orpheus-v1-english", "orpheus-arabic-saudi",
+    "openai/gpt-oss-120b",
+    "accounts/fireworks/models/gpt-oss-120b",
+    "accounts/fireworks/models/flux-1-dev-fp8",
+    "accounts/fireworks/models/flux-1-schnell-fp8",
+    "accounts/fireworks/models/flux-kontext-pro",
+    "accounts/fireworks/models/flux-kontext-max",
+    "accounts/fireworks/models/kimi-k2p5",
+    "accounts/fireworks/models/kimi-k2p6",
+    "accounts/fireworks/models/deepseek-v4-pro",
+    "accounts/fireworks/models/glm-5p1",
+}
+
+
+def _is_dead_model(model_id: str) -> bool:
+    """Check if a model ID matches any entry in DEAD_MODELS (case-insensitive, prefix-stripping)."""
+    _dl = {d.lower() for d in DEAD_MODELS}
+    mid = model_id.lower()
+    bare = mid.split("/", 1)[-1] if "/" in mid else mid
+    return mid in _dl or bare in _dl
+
+
+
 def _get_context_for_model(model_id: str, provider: str) -> int:
     """Look up context_length from known_models for a given model.
 
@@ -96,7 +126,6 @@ def _get_context_for_model(model_id: str, provider: str) -> int:
             return known["ctx"]
     # Default: models we know nothing about get 4096 (safe minimum)
     return 4096
-
 
 def _build_model_entry(
     model_id: str,
@@ -408,6 +437,9 @@ def apply_ranked_models(
                 continue
             # Skip non-chat models
             if any(kw in litellm_model.lower() for kw in NON_CHAT_KEYWORDS):
+                continue
+            # Skip dead models
+            if _is_dead_model(litellm_model):
                 continue
             # Skip models with extreme latency (effectively dead)
             mi = entry.get("model_info", {})

@@ -1136,6 +1136,7 @@ class LiteLLMControlPanel:
         """Monitors the active LiteLLM model health and tracks load stability."""
         consecutive_failures = 0
         last_metrics_time = time.time()
+        _startup_grace = time.time() + 30  # Skip health checks for 30s after app start
         while self.running:
             now = time.time()
             # 1. Stability Tracking: Calculate QPM and TPS every minute
@@ -1189,12 +1190,17 @@ class LiteLLMControlPanel:
                     await self.refresh_logic(auto_pilot=self.auto_pilot)
                     consecutive_failures = 0
             elif auto_manage:
-                print("LiteLLM process stopped unexpectedly. Attempting restart...")
-                self.notify(
-                    "LiteLLM process stopped. Attempting restart...", "Process Alert"
-                )
-                self.process_mgr.start(env=self.get_litellm_env())
-            await asyncio.sleep(60)
+                if time.time() < _startup_grace:
+                    # During startup grace period, LiteLLM may still be binding
+                    await asyncio.sleep(5)
+                else:
+                    print("LiteLLM process stopped unexpectedly. Attempting restart...")
+                    self.notify(
+                        "LiteLLM process stopped. Attempting restart...",
+                        "Process Alert",
+                    )
+                    self.process_mgr.start(env=self.get_litellm_env())
+                    await asyncio.sleep(60)
 
     async def background_worker(self):
         """Background loop for periodic model benchmarking."""
