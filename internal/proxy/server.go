@@ -60,7 +60,18 @@ func (g *Gateway) UpdateModels(models engine.RankedModels) {
 	g.RankedModels = models
 }
 
+func (g *Gateway) GetModels() engine.RankedModels {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	return g.RankedModels
+}
+
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/v1/models" {
+		g.handleModels(w, r)
+		return
+	}
+
 	if r.URL.Path != "/v1/chat/completions" {
 		http.NotFound(w, r)
 		return
@@ -329,6 +340,38 @@ func (g *Gateway) transformRequest(req *http.Request, provider string) {
 	default:
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
+}
+
+func (g *Gateway) handleModels(w http.ResponseWriter, r *http.Request) {
+	models := g.GetModels()
+
+	type ModelEntry struct {
+		ID      string `json:"id"`
+		Object  string `json:"object"`
+		Created int64  `json:"created"`
+		OwnedBy string `json:"owned_by"`
+	}
+
+	resp := struct {
+		Object string       `json:"object"`
+		Data   []ModelEntry `json:"data"`
+	}{
+		Object: "list",
+		Data:   make([]ModelEntry, 0),
+	}
+
+	now := time.Now().Unix()
+	for _, m := range models {
+		resp.Data = append(resp.Data, ModelEntry{
+			ID:      m.ID,
+			Object:  "model",
+			Created: now,
+			OwnedBy: m.Provider,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
 }
 
 func (g *Gateway) RestoreQueue() {

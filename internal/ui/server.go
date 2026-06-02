@@ -13,15 +13,24 @@ import (
 	"github.com/robertpelloni/litellm_control_panel/internal/engine"
 )
 
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool { return true },
+}
+
+type ProxyHandler interface {
+	ServeHTTP(w http.ResponseWriter, r *http.Request)
+}
+
 type UIServer struct {
 	mu           sync.RWMutex
 	RankedModels engine.RankedModels
 	DB           *sql.DB
 	Logger       *engine.EventLogger
+	Proxy        ProxyHandler
 }
 
-func NewUIServer(database *sql.DB, logger *engine.EventLogger) *UIServer {
-	return &UIServer{DB: database, Logger: logger}
+func NewUIServer(database *sql.DB, logger *engine.EventLogger, proxy ProxyHandler) *UIServer {
+	return &UIServer{DB: database, Logger: logger, Proxy: proxy}
 }
 
 func (s *UIServer) UpdateModels(models engine.RankedModels) {
@@ -30,20 +39,35 @@ func (s *UIServer) UpdateModels(models engine.RankedModels) {
 	s.RankedModels = models
 }
 
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true },
-}
-
 func (s *UIServer) Start(addr string) error {
 	http.HandleFunc("/api/rankings", s.handleRankings)
 	http.HandleFunc("/api/metrics", s.handleMetrics)
 	http.HandleFunc("/api/logs", s.handleLogs)
 	http.HandleFunc("/ws/logs", s.handleLogWS)
+	http.HandleFunc("/api/savings", s.handleSavings)
+	http.HandleFunc("/api/proxy/", s.handleProxy)
 	http.HandleFunc("/api/maintenance/clear-skips", s.handleClearSkips)
 	http.HandleFunc("/api/maintenance/clear-blacklist", s.handleClearBlacklist)
 	http.HandleFunc("/api/maintenance/reset-stats", s.handleResetStats)
 	http.HandleFunc("/", s.handleIndex)
 	return http.ListenAndServe(addr, nil)
+}
+
+func (s *UIServer) handleProxy(w http.ResponseWriter, r *http.Request) {
+	if s.Proxy == nil {
+		http.Error(w, "Proxy not connected", 500)
+		return
+	}
+	// Strip /api/proxy prefix
+	r.URL.Path = r.URL.Path[10:]
+	s.Proxy.ServeHTTP(w, r)
+}
+
+func (s *UIServer) handleSavings(w http.ResponseWriter, r *http.Request) {
+	if s.DB == nil { http.Error(w, "DB not connected", 500); return }
+	total, _ := db.GetTotalSavings(s.DB)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]float64{"total": total})
 }
 
 func (s *UIServer) handleClearSkips(w http.ResponseWriter, r *http.Request) {
@@ -151,6 +175,8 @@ func (s *UIServer) handleIndex(w http.ResponseWriter, r *http.Request) {
         <button class="tab-btn active" onclick="showTab('rankings-tab')">Rankings</button>
         <button class="tab-btn" onclick="showTab('metrics-tab')">Metrics</button>
         <button class="tab-btn" onclick="showTab('logs-tab')">Logs</button>
+        <button class="tab-btn" onclick="showTab('savings-tab')">Savings</button>
+        <button class="tab-btn" onclick="showTab('comparison-tab')">Comparison</button>
         <button class="tab-btn" onclick="showTab('maintenance-tab')">Maintenance</button>
     </div>
 
@@ -191,6 +217,36 @@ func (s *UIServer) handleIndex(w http.ResponseWriter, r *http.Request) {
         <div id="logs"></div>
     </div>
 
+    <div id="savings-tab" class="tab-content">
+        <h2>USD Cost Savings</h2>
+        <div style="background: #333; padding: 40px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 24px; color: #aaa;">Total Estimated Savings</div>
+            <div id="total-savings" style="font-size: 64px; color: #4caf50; font-weight: bold; margin-top: 10px;">$0.00</div>
+        </div>
+    </div>
+
+    <div id="comparison-tab" class="tab-content">
+        <h2>Model Comparison</h2>
+        <div style="margin-bottom: 20px;">
+            <textarea id="prompt" style="width: 100%; height: 100px; background: #222; color: #eee; border: 1px solid #444; padding: 10px; border-radius: 4px;" placeholder="Enter prompt to compare top models..."></textarea>
+            <button class="action" style="background: #2196f3; margin-top: 10px;" onclick="compareModels()">Send Prompt</button>
+        </div>
+        <div id="comparison-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">
+            <div class="model-box" style="background: #333; padding: 15px; border-radius: 8px; min-height: 200px;">
+                <h3 id="m1-name">Model 1</h3>
+                <div id="m1-output" style="white-space: pre-wrap; font-family: serif;"></div>
+            </div>
+            <div class="model-box" style="background: #333; padding: 15px; border-radius: 8px; min-height: 200px;">
+                <h3 id="m2-name">Model 2</h3>
+                <div id="m2-output" style="white-space: pre-wrap; font-family: serif;"></div>
+            </div>
+            <div class="model-box" style="background: #333; padding: 15px; border-radius: 8px; min-height: 200px;">
+                <h3 id="m3-name">Model 3</h3>
+                <div id="m3-output" style="white-space: pre-wrap; font-family: serif;"></div>
+            </div>
+        </div>
+    </div>
+
     <div id="maintenance-tab" class="tab-content">
         <h2>System Maintenance</h2>
         <div style="background: #333; padding: 20px; border-radius: 8px;">
@@ -207,6 +263,47 @@ func (s *UIServer) handleIndex(w http.ResponseWriter, r *http.Request) {
 
     <script>
         let stabilityChart = null;
+        let lastRanked = [];
+
+        async function compareModels() {
+            const prompt = document.getElementById('prompt').value;
+            if (!prompt || lastRanked.length === 0) return;
+
+            for (let i = 0; i < 3 && i < lastRanked.length; i++) {
+                const m = lastRanked[i];
+                const outDiv = document.getElementById('m' + (i+1) + '-output');
+                document.getElementById('m' + (i+1) + '-name').innerText = m.id;
+                outDiv.innerText = 'Streaming...';
+
+                fetch('/api/proxy/v1/chat/completions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model: m.id,
+                        messages: [{ role: 'user', content: prompt }],
+                        stream: true
+                    })
+                }).then(async resp => {
+                    const reader = resp.body.getReader();
+                    outDiv.innerText = '';
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        const chunk = new TextDecoder().decode(value);
+                        const lines = chunk.split('\n');
+                        for (const line of lines) {
+                            if (line.startsWith('data: ')) {
+                                try {
+                                    const data = JSON.parse(line.slice(6));
+                                    const content = data.choices[0].delta.content;
+                                    if (content) outDiv.innerText += content;
+                                } catch (e) {}
+                            }
+                        }
+                    }
+                });
+            }
+        }
 
         function showTab(id) {
             document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
@@ -228,18 +325,23 @@ func (s *UIServer) handleIndex(w http.ResponseWriter, r *http.Request) {
 
         async function refresh() {
             try {
+                const sresp = await fetch('/api/savings');
+                const sdata = await sresp.json();
+                document.getElementById('total-savings').innerText = '$' + sdata.total.toFixed(2);
+            } catch (e) {}
+
+            try {
                 const resp = await fetch('/api/rankings');
                 const data = await resp.json();
                 const tbody = document.querySelector('#rankings tbody');
                 tbody.innerHTML = '';
+                lastRanked = data;
                 data.forEach((m, i) => {
                     const row = document.createElement('tr');
-                    row.innerHTML = ` + "`" + `
-                        <td>${i === 0 ? '★ ' : ''}${m.id}</td>
-                        <td>${m.provider}</td>
-                        <td class="score">${Math.round(m.score)}</td>
-                        <td class="latency">${m.latency.toFixed(3)}s</td>
-                    ` + "`" + `;
+                    row.innerHTML = "<td>" + (i === 0 ? '★ ' : '') + m.id + "</td>" +
+                                   "<td>" + m.provider + "</td>" +
+                                   "<td class='score'>" + Math.round(m.score) + "</td>" +
+                                   "<td class='latency'>" + m.latency.toFixed(3) + "s</td>";
                     tbody.appendChild(row);
                 });
                 document.getElementById('status').innerText = 'Last updated: ' + new Date().toLocaleTimeString();
@@ -287,11 +389,9 @@ func (s *UIServer) handleIndex(w http.ResponseWriter, r *http.Request) {
 
                     data.forEach(m => {
                         const row = document.createElement('tr');
-                        row.innerHTML = ` + "`" + `
-                            <td>${new Date(m.timestamp).toLocaleTimeString()}</td>
-                            <td>${m.qpm.toFixed(1)}</td>
-                            <td>${m.tps.toFixed(1)}</td>
-                        ` + "`" + `;
+                        row.innerHTML = "<td>" + new Date(m.timestamp).toLocaleTimeString() + "</td>" +
+                                       "<td>" + m.qpm.toFixed(1) + "</td>" +
+                                       "<td>" + m.tps.toFixed(1) + "</td>";
                         tbody.appendChild(row);
                     });
                 } else {
