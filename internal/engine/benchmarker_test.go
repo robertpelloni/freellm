@@ -5,7 +5,7 @@ import (
 )
 
 func TestCalculateScore(t *testing.T) {
-	b := NewBenchmarker(nil, 100)
+	b := NewBenchmarker(nil, 100, nil)
 
 	// Test case 1: Large model, low latency
 	score1 := b.CalculateScore(405, 0.1, 128000)
@@ -19,7 +19,7 @@ func TestCalculateScore(t *testing.T) {
 }
 
 func TestExtractParameters(t *testing.T) {
-	b := NewBenchmarker(nil, 100)
+	b := NewBenchmarker(nil, 100, nil)
 
 	tests := []struct {
 		id       string

@@ -35,9 +35,10 @@ type Benchmarker struct {
 	Client     *http.Client
 	smartCache map[string]ModelCandidate
 	cacheMu    sync.RWMutex
+	Logger     *EventLogger
 }
 
-func NewBenchmarker(apiKeys map[string]string, minParams int) *Benchmarker {
+func NewBenchmarker(apiKeys map[string]string, minParams int, logger *EventLogger) *Benchmarker {
 	return &Benchmarker{
 		APIKeys:  apiKeys,
 		BaseURLs: make(map[string]string),
@@ -49,6 +50,15 @@ func NewBenchmarker(apiKeys map[string]string, minParams int) *Benchmarker {
 		MinParams:  minParams,
 		Client:     &http.Client{Timeout: 30 * time.Second},
 		smartCache: make(map[string]ModelCandidate),
+		Logger:     logger,
+	}
+}
+
+func (b *Benchmarker) log(msg string) {
+	if b.Logger != nil {
+		b.Logger.Log(msg)
+	} else {
+		fmt.Println(msg)
 	}
 }
 
@@ -71,6 +81,7 @@ func (b *Benchmarker) CalculateScore(params int, latency float64, contextLength 
 }
 
 func (b *Benchmarker) FetchModels(ctx context.Context) []ModelCandidate {
+	b.log("Starting model discovery...")
 	var candidates []ModelCandidate
 	var mu sync.Mutex
 	var wg sync.WaitGroup
@@ -319,6 +330,7 @@ func minF(a, b float64) float64 {
 type RankedModels []ModelCandidate
 
 func (b *Benchmarker) RunBenchmark(ctx context.Context, candidates []ModelCandidate) RankedModels {
+	b.log(fmt.Sprintf("Benchmarking %d candidates...", len(candidates)))
 	var wg sync.WaitGroup
 	results := make(chan ModelCandidate, len(candidates))
 	semaphore := make(chan struct{}, 5) // Limit concurrency

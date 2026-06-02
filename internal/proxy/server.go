@@ -186,11 +186,8 @@ func (g *Gateway) forwardRequest(client *http.Client, r *http.Request, model eng
 		return &ProxyResponse{Err: err}
 	}
 
-	// Copy essential headers
-	req.Header.Set("Content-Type", "application/json")
-	if apiKey := g.getAPIKey(model.Provider); apiKey != "" {
-		req.Header.Set("Authorization", "Bearer "+apiKey)
-	}
+	// Provider-specific transformations
+	g.transformRequest(req, model.Provider)
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -268,6 +265,23 @@ func (g *Gateway) logUsage(modelID string, requestBody, responseBody []byte) {
 	}
 
 	db.LogUsage(g.DB, modelID, promptTokens, completionTokens)
+}
+
+func (g *Gateway) transformRequest(req *http.Request, provider string) {
+	req.Header.Set("Content-Type", "application/json")
+	apiKey := g.getAPIKey(provider)
+	if apiKey == "" {
+		return
+	}
+
+	switch provider {
+	case "huggingface":
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	case "github":
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	default:
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	}
 }
 
 func (g *Gateway) getAPIKey(provider string) string {

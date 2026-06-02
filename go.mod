@@ -4,6 +4,7 @@ go 1.24.0
 
 require (
 	github.com/getlantern/systray v1.2.2
+	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.35.0
 )
 

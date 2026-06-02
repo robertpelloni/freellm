@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/getlantern/systray"
+	"github.com/robertpelloni/litellm_control_panel/internal/config"
 	"github.com/robertpelloni/litellm_control_panel/internal/db"
 	"github.com/robertpelloni/litellm_control_panel/internal/engine"
 	"github.com/robertpelloni/litellm_control_panel/internal/proxy"
@@ -30,19 +31,27 @@ func onReady() {
 	systray.AddSeparator()
 	mQuit := systray.AddMenuItem("Quit", "Quit the application")
 
+	// Initialize Configuration
+	cfg, err := config.LoadConfig("litellm-config.yaml")
+	if err != nil {
+		log.Printf("Warning: litellm-config.yaml not found, using defaults: %v", err)
+		cfg = &config.Config{Port: 4000}
+	}
+
 	// Initialize Database
 	database, err := db.InitDB()
 	if err != nil {
 		log.Fatalf("Failed to init DB: %v", err)
 	}
 
-	// Initialize Engine
+	// Initialize Engine & Logger
+	eventLogger := engine.NewEventLogger(100)
 	apiKeys := map[string]string{
 		"openrouter": os.Getenv("OPENROUTER_API_KEY"),
 		"groq":       os.Getenv("GROQ_API_KEY"),
 		"github":     os.Getenv("GITHUB_TOKEN"),
 	}
-	benchmarker := engine.NewBenchmarker(apiKeys, 100)
+	benchmarker := engine.NewBenchmarker(apiKeys, 100, eventLogger)
 
 	// Initialize Proxy Gateway
 	gateway := proxy.NewGateway(10, database) // Max 10 active requests
@@ -54,7 +63,7 @@ func onReady() {
 	}()
 
 	// Initialize Web Dashboard
-	uiServer := ui.NewUIServer()
+	uiServer := ui.NewUIServer(database, eventLogger)
 	go func() {
 		log.Println("Starting Web Dashboard on :8080")
 		if err := uiServer.Start(":8080"); err != nil {
