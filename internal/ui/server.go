@@ -2,7 +2,9 @@ package ui
 
 import (
 	"database/sql"
+	"embed"
 	"encoding/json"
+	"io/fs"
 	"log"
 	"net/http"
 	"sync"
@@ -16,6 +18,9 @@ import (
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
+
+//go:embed static/*
+var staticAssets embed.FS
 
 type ProxyHandler interface {
 	ServeHTTP(w http.ResponseWriter, r *http.Request)
@@ -40,6 +45,9 @@ func (s *UIServer) UpdateModels(models engine.RankedModels) {
 }
 
 func (s *UIServer) Start(addr string) error {
+	staticFS, _ := fs.Sub(staticAssets, "static")
+	fileServer := http.FileServer(http.FS(staticFS))
+
 	http.HandleFunc("/api/rankings", s.handleRankings)
 	http.HandleFunc("/api/metrics", s.handleMetrics)
 	http.HandleFunc("/api/logs", s.handleLogs)
@@ -49,7 +57,16 @@ func (s *UIServer) Start(addr string) error {
 	http.HandleFunc("/api/maintenance/clear-skips", s.handleClearSkips)
 	http.HandleFunc("/api/maintenance/clear-blacklist", s.handleClearBlacklist)
 	http.HandleFunc("/api/maintenance/reset-stats", s.handleResetStats)
-	http.HandleFunc("/", s.handleIndex)
+	http.Handle("/static/", http.StripPrefix("/static/", fileServer))
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			fileServer.ServeHTTP(w, r)
+			return
+		}
+		index, _ := staticAssets.ReadFile("static/index.html")
+		w.Header().Set("Content-Type", "text/html")
+		w.Write(index)
+	})
 	return http.ListenAndServe(addr, nil)
 }
 
@@ -58,7 +75,6 @@ func (s *UIServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Proxy not connected", 500)
 		return
 	}
-	// Strip /api/proxy prefix
 	r.URL.Path = r.URL.Path[10:]
 	s.Proxy.ServeHTTP(w, r)
 }
@@ -141,286 +157,4 @@ func (s *UIServer) handleRankings(w http.ResponseWriter, r *http.Request) {
 	defer s.mu.RUnlock()
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(s.RankedModels)
-}
-
-func (s *UIServer) handleIndex(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html")
-	w.Write([]byte(`
-<!DOCTYPE html>
-<html>
-<head>
-    <title>LiteLLM Control Panel</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        body { font-family: sans-serif; background: #1a1a1a; color: #eee; padding: 20px; }
-        .tab-btn { background: #333; color: #fff; border: none; padding: 10px 20px; cursor: pointer; margin-right: 5px; }
-        .tab-btn.active { background: #4caf50; }
-        .tab-content { display: none; margin-top: 20px; }
-        .tab-content.active { display: block; }
-        button.action { background: #f44336; color: white; border: none; padding: 10px 15px; cursor: pointer; border-radius: 4px; margin-right: 10px; }
-        button.action:hover { background: #d32f2f; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #444; }
-        th { background: #333; }
-        .latency { color: #aaa; }
-        .score { font-weight: bold; color: #4caf50; }
-        #logs { background: #000; color: #0f0; font-family: monospace; padding: 10px; height: 200px; overflow-y: scroll; border: 1px solid #444; }
-    </style>
-</head>
-<body>
-    <h1>LiteLLM Control Panel</h1>
-    <div id="status">Loading...</div>
-
-    <div style="margin-top: 20px;">
-        <button class="tab-btn active" onclick="showTab('rankings-tab')">Rankings</button>
-        <button class="tab-btn" onclick="showTab('metrics-tab')">Metrics</button>
-        <button class="tab-btn" onclick="showTab('logs-tab')">Logs</button>
-        <button class="tab-btn" onclick="showTab('savings-tab')">Savings</button>
-        <button class="tab-btn" onclick="showTab('comparison-tab')">Comparison</button>
-        <button class="tab-btn" onclick="showTab('maintenance-tab')">Maintenance</button>
-    </div>
-
-    <div id="rankings-tab" class="tab-content active">
-        <h2>Model Rankings</h2>
-        <table id="rankings">
-        <thead>
-            <tr>
-                <th>Model</th>
-                <th>Provider</th>
-                <th>Score</th>
-                <th>Latency (TTFT)</th>
-            </tr>
-        </thead>
-        <tbody></tbody>
-        </table>
-    </div>
-
-    <div id="metrics-tab" class="tab-content">
-        <h2>Stability Metrics</h2>
-        <div style="height: 300px; margin-bottom: 20px;">
-            <canvas id="stabilityChart"></canvas>
-        </div>
-        <table id="metrics">
-        <thead>
-            <tr>
-                <th>Time</th>
-                <th>Queries/Min (QPM)</th>
-                <th>Tokens/Sec (TPS)</th>
-            </tr>
-        </thead>
-        <tbody></tbody>
-        </table>
-    </div>
-
-    <div id="logs-tab" class="tab-content">
-        <h2>Engine Logs</h2>
-        <div id="logs"></div>
-    </div>
-
-    <div id="savings-tab" class="tab-content">
-        <h2>USD Cost Savings</h2>
-        <div style="background: #333; padding: 40px; border-radius: 8px; text-align: center;">
-            <div style="font-size: 24px; color: #aaa;">Total Estimated Savings</div>
-            <div id="total-savings" style="font-size: 64px; color: #4caf50; font-weight: bold; margin-top: 10px;">$0.00</div>
-        </div>
-    </div>
-
-    <div id="comparison-tab" class="tab-content">
-        <h2>Model Comparison</h2>
-        <div style="margin-bottom: 20px;">
-            <textarea id="prompt" style="width: 100%; height: 100px; background: #222; color: #eee; border: 1px solid #444; padding: 10px; border-radius: 4px;" placeholder="Enter prompt to compare top models..."></textarea>
-            <button class="action" style="background: #2196f3; margin-top: 10px;" onclick="compareModels()">Send Prompt</button>
-        </div>
-        <div id="comparison-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">
-            <div class="model-box" style="background: #333; padding: 15px; border-radius: 8px; min-height: 200px;">
-                <h3 id="m1-name">Model 1</h3>
-                <div id="m1-output" style="white-space: pre-wrap; font-family: serif;"></div>
-            </div>
-            <div class="model-box" style="background: #333; padding: 15px; border-radius: 8px; min-height: 200px;">
-                <h3 id="m2-name">Model 2</h3>
-                <div id="m2-output" style="white-space: pre-wrap; font-family: serif;"></div>
-            </div>
-            <div class="model-box" style="background: #333; padding: 15px; border-radius: 8px; min-height: 200px;">
-                <h3 id="m3-name">Model 3</h3>
-                <div id="m3-output" style="white-space: pre-wrap; font-family: serif;"></div>
-            </div>
-        </div>
-    </div>
-
-    <div id="maintenance-tab" class="tab-content">
-        <h2>System Maintenance</h2>
-        <div style="background: #333; padding: 20px; border-radius: 8px;">
-            <p>Clear manual model skips (24h duration):</p>
-            <button class="action" onclick="doAction('/api/maintenance/clear-skips')">Clear Skip List</button>
-
-            <p style="margin-top: 20px;">Reset all model and provider statistics (latency history, failure counts):</p>
-            <button class="action" onclick="doAction('/api/maintenance/reset-stats')">Reset All Stats</button>
-
-            <p style="margin-top: 20px;">Clear model blacklist:</p>
-            <button class="action" onclick="doAction('/api/maintenance/clear-blacklist')">Clear Blacklist</button>
-        </div>
-    </div>
-
-    <script>
-        let stabilityChart = null;
-        let lastRanked = [];
-
-        async function compareModels() {
-            const prompt = document.getElementById('prompt').value;
-            if (!prompt || lastRanked.length === 0) return;
-
-            for (let i = 0; i < 3 && i < lastRanked.length; i++) {
-                const m = lastRanked[i];
-                const outDiv = document.getElementById('m' + (i+1) + '-output');
-                document.getElementById('m' + (i+1) + '-name').innerText = m.id;
-                outDiv.innerText = 'Streaming...';
-
-                fetch('/api/proxy/v1/chat/completions', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        model: m.id,
-                        messages: [{ role: 'user', content: prompt }],
-                        stream: true
-                    })
-                }).then(async resp => {
-                    const reader = resp.body.getReader();
-                    outDiv.innerText = '';
-                    while (true) {
-                        const { done, value } = await reader.read();
-                        if (done) break;
-                        const chunk = new TextDecoder().decode(value);
-                        const lines = chunk.split('\n');
-                        for (const line of lines) {
-                            if (line.startsWith('data: ')) {
-                                try {
-                                    const data = JSON.parse(line.slice(6));
-                                    const content = data.choices[0].delta.content;
-                                    if (content) outDiv.innerText += content;
-                                } catch (e) {}
-                            }
-                        }
-                    }
-                });
-            }
-        }
-
-        function showTab(id) {
-            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.getElementById(id).classList.add('active');
-            event.target.classList.add('active');
-        }
-
-        async function doAction(url) {
-            if (!confirm('Are you sure?')) return;
-            try {
-                const resp = await fetch(url, { method: 'POST' });
-                if (resp.ok) alert('Action successful');
-                else alert('Action failed: ' + await resp.text());
-            } catch (e) {
-                alert('Error: ' + e);
-            }
-        }
-
-        async function refresh() {
-            try {
-                const sresp = await fetch('/api/savings');
-                const sdata = await sresp.json();
-                document.getElementById('total-savings').innerText = '$' + sdata.total.toFixed(2);
-            } catch (e) {}
-
-            try {
-                const resp = await fetch('/api/rankings');
-                const data = await resp.json();
-                const tbody = document.querySelector('#rankings tbody');
-                tbody.innerHTML = '';
-                lastRanked = data;
-                data.forEach((m, i) => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = "<td>" + (i === 0 ? '★ ' : '') + m.id + "</td>" +
-                                   "<td>" + m.provider + "</td>" +
-                                   "<td class='score'>" + Math.round(m.score) + "</td>" +
-                                   "<td class='latency'>" + m.latency.toFixed(3) + "s</td>";
-                    tbody.appendChild(row);
-                });
-                document.getElementById('status').innerText = 'Last updated: ' + new Date().toLocaleTimeString();
-            } catch (e) {
-                document.getElementById('status').innerText = 'Error loading rankings: ' + e;
-            }
-
-            try {
-                const resp = await fetch('/api/metrics');
-                const data = await resp.json();
-                const tbody = document.querySelector('#metrics tbody');
-                tbody.innerHTML = '';
-                if (data && data.length > 0) {
-                    // Update Chart
-                    const labels = data.map(m => new Date(m.timestamp).toLocaleTimeString()).reverse();
-                    const qpmData = data.map(m => m.qpm).reverse();
-                    const tpsData = data.map(m => m.tps).reverse();
-
-                    if (!stabilityChart) {
-                        const ctx = document.getElementById('stabilityChart').getContext('2d');
-                        stabilityChart = new Chart(ctx, {
-                            type: 'line',
-                            data: {
-                                labels: labels,
-                                datasets: [{
-                                    label: 'QPM',
-                                    data: qpmData,
-                                    borderColor: '#4caf50',
-                                    tension: 0.1
-                                }, {
-                                    label: 'TPS',
-                                    data: tpsData,
-                                    borderColor: '#2196f3',
-                                    tension: 0.1
-                                }]
-                            },
-                            options: { responsive: true, maintainAspectRatio: false }
-                        });
-                    } else {
-                        stabilityChart.data.labels = labels;
-                        stabilityChart.data.datasets[0].data = qpmData;
-                        stabilityChart.data.datasets[1].data = tpsData;
-                        stabilityChart.update('none');
-                    }
-
-                    data.forEach(m => {
-                        const row = document.createElement('tr');
-                        row.innerHTML = "<td>" + new Date(m.timestamp).toLocaleTimeString() + "</td>" +
-                                       "<td>" + m.qpm.toFixed(1) + "</td>" +
-                                       "<td>" + m.tps.toFixed(1) + "</td>";
-                        tbody.appendChild(row);
-                    });
-                } else {
-                    tbody.innerHTML = '<tr><td colspan="3">No metrics yet</td></tr>';
-                }
-            } catch (e) {
-                console.error('Error loading metrics:', e);
-            }
-
-            // Logs are now handled by WebSocket (see below)
-        }
-        setInterval(refresh, 5000);
-        refresh();
-
-        // WebSocket Logs
-        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const ws = new WebSocket(wsProtocol + '//' + window.location.host + '/ws/logs');
-        ws.onmessage = (event) => {
-            const l = JSON.parse(event.data);
-            const logDiv = document.getElementById('logs');
-            const entry = document.createElement('div');
-            entry.innerText = "[" + new Date(l.timestamp).toLocaleTimeString() + "] " + l.message;
-            logDiv.appendChild(entry);
-            logDiv.scrollTop = logDiv.scrollHeight;
-            if (logDiv.childNodes.length > 200) logDiv.removeChild(logDiv.firstChild);
-        };
-        ws.onerror = (e) => console.error('WS Error:', e);
-    </script>
-</body>
-</html>
-	`))
 }
