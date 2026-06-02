@@ -1,6 +1,6 @@
 module github.com/robertpelloni/litellm_control_panel
 
-go 1.24.3
+go 1.24.0
 
 require (
 	github.com/getlantern/systray v1.2.2

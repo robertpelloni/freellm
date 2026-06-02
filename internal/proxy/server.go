@@ -3,13 +3,16 @@ package proxy
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
+	"github.com/robertpelloni/litellm_control_panel/internal/db"
 	"github.com/robertpelloni/litellm_control_panel/internal/engine"
 )
 
@@ -19,6 +22,7 @@ type Gateway struct {
 	Queue        chan *RequestJob
 	ActiveJobs   int
 	MaxActive    int
+	DB           *sql.DB
 }
 
 type RequestJob struct {
@@ -34,10 +38,11 @@ type ProxyResponse struct {
 	Err    error
 }
 
-func NewGateway(maxActive int) *Gateway {
+func NewGateway(maxActive int, database *sql.DB) *Gateway {
 	g := &Gateway{
 		Queue:     make(chan *RequestJob, 1000), // Buffer 1000 requests
 		MaxActive: maxActive,
+		DB:        database,
 	}
 	go g.workerLoop()
 	return g
@@ -95,22 +100,50 @@ func (g *Gateway) workerLoop() {
 
 func (g *Gateway) processJob(job *RequestJob) {
 	g.mu.RLock()
-	if len(g.RankedModels) == 0 {
-		g.mu.RUnlock()
+	models := g.RankedModels
+	g.mu.RUnlock()
+
+	if len(models) == 0 {
 		job.Response <- &ProxyResponse{Err: fmt.Errorf("no models available")}
 		return
 	}
-	// Try primary models, then fallbacks
-	model := g.RankedModels[0] // Pick best
-	g.mu.RUnlock()
 
 	client := &http.Client{Timeout: 60 * time.Second}
 
 	// Read body once so we can retry if needed
-	body, _ := io.ReadAll(job.Request.Body)
+	body, err := io.ReadAll(job.Request.Body)
+	if err != nil {
+		job.Response <- &ProxyResponse{Err: fmt.Errorf("failed to read request body: %v", err)}
+		return
+	}
 
-	proxyResp := g.forwardRequest(client, job.Request, model, body)
-	job.Response <- proxyResp
+	// Advanced Routing: Retry with rotation
+	var lastErr error
+	maxRetries := min(len(models), 3) // Try up to 3 best models
+
+	for i := 0; i < maxRetries; i++ {
+		model := models[i]
+		proxyResp := g.forwardRequest(client, job.Request, model, body)
+
+		if proxyResp.Err == nil && proxyResp.Status < 400 {
+			// Log usage if successful
+			g.logUsage(model.ID, body, proxyResp.Body)
+			job.Response <- proxyResp
+			return
+		}
+
+		lastErr = proxyResp.Err
+		if proxyResp.Err == nil {
+			lastErr = fmt.Errorf("status %d", proxyResp.Status)
+		}
+
+		// Exponential backoff before retry
+		if i < maxRetries-1 {
+			time.Sleep(time.Duration(1<<i) * 500 * time.Millisecond)
+		}
+	}
+
+	job.Response <- &ProxyResponse{Err: fmt.Errorf("all retries failed, last error: %v", lastErr)}
 }
 
 func (g *Gateway) forwardRequest(client *http.Client, r *http.Request, model engine.ModelCandidate, body []byte) *ProxyResponse {
@@ -161,20 +194,59 @@ func (g *Gateway) getProviderURL(modelID, provider string) string {
 		return "https://api.groq.com/openai/v1/chat/completions"
 	case "github":
 		return "https://models.inference.ai.azure.com/chat/completions"
+	case "deepinfra":
+		return "https://api.deepinfra.com/v1/openai/chat/completions"
+	case "cerebras":
+		return "https://api.cerebras.ai/v1/chat/completions"
+	case "nvidia", "nvidia_nim":
+		return "https://integrate.api.nvidia.com/v1/chat/completions"
+	case "huggingface":
+		// Hugging Face uses per-model endpoints
+		return "https://api-inference.huggingface.co/models/" + modelID + "/v1/chat/completions"
 	}
 	return ""
 }
 
+func (g *Gateway) logUsage(modelID string, requestBody, responseBody []byte) {
+	if g.DB == nil {
+		return
+	}
+
+	// Basic token estimation
+	promptTokens := len(requestBody) / 4
+	completionTokens := len(responseBody) / 4
+
+	// In a real app, parse actual token counts from response JSON
+	var resp struct {
+		Usage struct {
+			PromptTokens     int `json:"prompt_tokens"`
+			CompletionTokens int `json:"completion_tokens"`
+		} `json:"usage"`
+	}
+	if err := json.Unmarshal(responseBody, &resp); err == nil && resp.Usage.PromptTokens > 0 {
+		promptTokens = resp.Usage.PromptTokens
+		completionTokens = resp.Usage.CompletionTokens
+	}
+
+	db.LogUsage(g.DB, modelID, promptTokens, completionTokens)
+}
+
 func (g *Gateway) getAPIKey(provider string) string {
-	// In a real app, this would be injected from config or env
-	// For now, we'll try to get it from environment variables
 	switch provider {
 	case "openrouter":
-		return "OPENROUTER_API_KEY" // Placeholder
+		return os.Getenv("OPENROUTER_API_KEY")
 	case "groq":
-		return "GROQ_API_KEY"
+		return os.Getenv("GROQ_API_KEY")
 	case "github":
-		return "GITHUB_TOKEN"
+		return os.Getenv("GITHUB_TOKEN")
+	case "deepinfra":
+		return os.Getenv("DEEPINFRA_API_KEY")
+	case "cerebras":
+		return os.Getenv("CEREBRAS_API_KEY")
+	case "huggingface":
+		return os.Getenv("HUGGINGFACE_API_KEY")
+	case "nvidia", "nvidia_nim":
+		return os.Getenv("NVIDIA_NIM_API_KEY")
 	}
 	return ""
 }

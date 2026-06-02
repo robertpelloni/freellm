@@ -181,3 +181,11 @@ func LogActivity(db *sql.DB, eventType, modelID, details string) error {
 	)
 	return err
 }
+
+func LogUsage(db *sql.DB, modelID string, promptTokens, completionTokens int) error {
+	_, err := db.Exec(
+		"INSERT INTO usage (model_id, timestamp, prompt_tokens, completion_tokens) VALUES (?, ?, ?, ?)",
+		modelID, time.Now(), promptTokens, completionTokens,
+	)
+	return err
+}
