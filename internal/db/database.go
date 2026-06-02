@@ -206,6 +206,17 @@ func ClearBlacklist(db *sql.DB) error {
 	return err
 }
 
+func SkipModel(db *sql.DB, modelID string, hours int) error {
+	expiry := time.Now().Add(time.Duration(hours) * time.Hour)
+	_, err := db.Exec("UPDATE model_history SET manually_skipped = 1, skip_expiry = ? WHERE model_id = ?", expiry, modelID)
+	return err
+}
+
+func BlacklistModel(db *sql.DB, modelID string) error {
+	_, err := db.Exec("UPDATE model_history SET is_blacklisted = 1 WHERE model_id = ?", modelID)
+	return err
+}
+
 func ResetStats(db *sql.DB) error {
 	_, err := db.Exec("UPDATE providers SET consecutive_empty_cycles = 0, is_free_provider = 1")
 	if err != nil { return err }

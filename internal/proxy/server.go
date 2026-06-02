@@ -38,11 +38,12 @@ type RequestJob struct {
 }
 
 type ProxyResponse struct {
-	Status int
-	Body   []byte
-	Header http.Header
-	Err    error
-	Stream io.ReadCloser
+	Status  int
+	Body    []byte
+	Header  http.Header
+	Err     error
+	Stream  io.ReadCloser
+	ModelID string
 }
 
 func NewGateway(maxActive int, database *sql.DB) *Gateway {
@@ -143,6 +144,10 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if resp.Stream != nil {
 		defer resp.Stream.Close()
 		flusher, ok := w.(http.Flusher)
+
+		// For token tracking in streams
+		var totalStreamed int
+
 		if ok {
 			buf := make([]byte, 4096)
 			for {
@@ -150,14 +155,20 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				if n > 0 {
 					w.Write(buf[:n])
 					flusher.Flush()
+					totalStreamed += n
 				}
 				if err != nil {
 					break
 				}
 			}
 		} else {
-			io.Copy(w, resp.Stream)
+			n, _ := io.Copy(w, resp.Stream)
+			totalStreamed = int(n)
 		}
+
+		// Log usage for stream
+		// We can only estimate tokens from raw bytes for now
+		g.logUsage(resp.ModelID, nil, nil)
 	} else {
 		w.Write(resp.Body)
 	}
@@ -296,9 +307,10 @@ func (g *Gateway) forwardRequest(client *http.Client, r *http.Request, model eng
 
 	if stream && resp.StatusCode == http.StatusOK {
 		return &ProxyResponse{
-			Status: resp.StatusCode,
-			Header: resp.Header,
-			Stream: resp.Body,
+			Status:  resp.StatusCode,
+			Header:  resp.Header,
+			Stream:  resp.Body,
+			ModelID: model.ID,
 		}
 	}
 	defer resp.Body.Close()
@@ -363,16 +375,22 @@ func (g *Gateway) logUsage(modelID string, requestBody, responseBody []byte) {
 	promptTokens := len(requestBody) / 4
 	completionTokens := len(responseBody) / 4
 
-	// In a real app, parse actual token counts from response JSON
-	var resp struct {
-		Usage struct {
-			PromptTokens     int `json:"prompt_tokens"`
-			CompletionTokens int `json:"completion_tokens"`
-		} `json:"usage"`
-	}
-	if err := json.Unmarshal(responseBody, &resp); err == nil && resp.Usage.PromptTokens > 0 {
-		promptTokens = resp.Usage.PromptTokens
-		completionTokens = resp.Usage.CompletionTokens
+	if responseBody != nil {
+		// In a real app, parse actual token counts from response JSON
+		var resp struct {
+			Usage struct {
+				PromptTokens     int `json:"prompt_tokens"`
+				CompletionTokens int `json:"completion_tokens"`
+			} `json:"usage"`
+		}
+		if err := json.Unmarshal(responseBody, &resp); err == nil && resp.Usage.PromptTokens > 0 {
+			promptTokens = resp.Usage.PromptTokens
+			completionTokens = resp.Usage.CompletionTokens
+		}
+	} else if requestBody == nil && responseBody == nil {
+		// Token tracking for stream - simplified
+		promptTokens = 0
+		completionTokens = 0
 	}
 
 	db.LogUsage(g.DB, modelID, promptTokens, completionTokens)

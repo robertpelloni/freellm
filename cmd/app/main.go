@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/gen2brain/beeep"
 	"github.com/getlantern/systray"
 	"github.com/robertpelloni/litellm_control_panel/internal/config"
 	"github.com/robertpelloni/litellm_control_panel/internal/db"
@@ -16,6 +17,10 @@ import (
 	"github.com/robertpelloni/litellm_control_panel/internal/proxy"
 	"github.com/robertpelloni/litellm_control_panel/internal/ui"
 )
+
+func notify(title, message string) {
+	beeep.Notify(title, message, "")
+}
 
 func main() {
 	// Single instance enforcement
@@ -101,6 +106,8 @@ func onReady() {
 			log.Println("Continuous Model Discovery & Benchmarking...")
 			ctx := context.Background()
 
+			notify("LiteLLM Sync", "Continuous model discovery started...")
+
 			candidates := benchmarker.FetchModels(ctx)
 			log.Printf("Discovered %d model candidates", len(candidates))
 
@@ -116,6 +123,7 @@ func onReady() {
 			topModel := "none"
 			if len(ranked) > 0 {
 				topModel = ranked[0].ID
+				notify("Sync Complete", fmt.Sprintf("Top Model: %s (%.2fs)", topModel, ranked[0].Latency))
 			}
 
 			db.LogActivity(database, "Sync Complete", topModel, fmt.Sprintf("Ranked %d models", len(ranked)))
@@ -161,6 +169,7 @@ func onReady() {
 				failCount++
 				log.Printf("Health check failed for %s (%d/3): %v", top.ID, failCount, err)
 				db.LogActivity(database, "Health Check Failure", top.ID, fmt.Sprintf("Attempt %d/3 failed", failCount))
+				notify("Health Alert", fmt.Sprintf("Health check failed for %s (%d/3)", top.ID, failCount))
 			} else {
 				failCount = 0
 			}

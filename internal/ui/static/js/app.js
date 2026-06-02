@@ -83,6 +83,51 @@ async function saveConfig() {
     }
 }
 
+async function sendQuickQuery() {
+    const input = document.getElementById('chat-input');
+    const out = document.getElementById('chat-output');
+    const prompt = input.value;
+    if (!prompt) return;
+
+    input.value = '';
+    out.innerText += "\nUser: " + prompt + "\nAssistant: ";
+
+    try {
+        const resp = await fetch('/api/proxy/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: 'free-llm',
+                messages: [{ role: 'user', content: prompt }],
+                stream: true
+            })
+        });
+
+        const reader = resp.body.getReader();
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = new TextDecoder().decode(value);
+            const lines = chunk.split('\n');
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    try {
+                        const data = JSON.parse(line.slice(6));
+                        const content = data.choices[0].delta.content;
+                        if (content) {
+                            out.innerText += content;
+                            out.scrollTop = out.scrollHeight;
+                        }
+                    } catch (e) {}
+                }
+            }
+        }
+        out.innerText += "\n";
+    } catch (e) {
+        out.innerText += "\n[Error: " + e + "]\n";
+    }
+}
+
 async function refresh() {
     try {
         const sresp = await fetch('/api/savings');
@@ -101,7 +146,11 @@ async function refresh() {
             row.innerHTML = "<td>" + (i === 0 ? '★ ' : '') + m.id + "</td>" +
                            "<td>" + m.provider + "</td>" +
                            "<td class='score'>" + Math.round(m.score) + "</td>" +
-                           "<td class='latency'>" + m.latency.toFixed(3) + "s</td>";
+                           "<td class='latency'>" + m.latency.toFixed(3) + "s</td>" +
+                           "<td>" +
+                           "<button class='inline-action' onclick=\"doAction('/api/models/skip?id=' + encodeURIComponent('" + m.id + "'))\">Skip</button>" +
+                           "<button class='inline-action' onclick=\"doAction('/api/models/blacklist?id=' + encodeURIComponent('" + m.id + "'))\">Blacklist</button>" +
+                           "</td>";
             tbody.appendChild(row);
         });
         document.getElementById('status').innerText = 'Last updated: ' + new Date().toLocaleTimeString();

@@ -14,6 +14,7 @@
         <button class="tab-btn" onclick="showTab('metrics-tab')">Metrics</button>
         <button class="tab-btn" onclick="showTab('logs-tab')">Logs</button>
         <button class="tab-btn" onclick="showTab('savings-tab')">Savings</button>
+        <button class="tab-btn" onclick="showTab('query-tab')">Quick Query</button>
         <button class="tab-btn" onclick="showTab('comparison-tab')">Comparison</button>
         <button class="tab-btn" onclick="showTab('config-tab')">Configuration</button>
         <button class="tab-btn" onclick="showTab('maintenance-tab')">Maintenance</button>
@@ -28,6 +29,7 @@
                 <th>Provider</th>
                 <th>Score</th>
                 <th>Latency (TTFT)</th>
+                <th>Actions</th>
             </tr>
         </thead>
         <tbody></tbody>
@@ -54,6 +56,17 @@
     <div id="logs-tab" class="tab-content">
         <h2>Engine Logs</h2>
         <div id="logs"></div>
+    </div>
+
+    <div id="query-tab" class="tab-content">
+        <h2>Quick Query</h2>
+        <div style="background: #333; padding: 20px; border-radius: 8px;">
+            <div id="chat-output" style="height: 300px; overflow-y: scroll; background: #000; color: #eee; padding: 15px; margin-bottom: 10px; border-radius: 4px; font-family: serif; white-space: pre-wrap;"></div>
+            <div style="display: flex;">
+                <input type="text" id="chat-input" style="flex-grow: 1; background: #222; color: #eee; border: 1px solid #444; padding: 10px; border-radius: 4px;" placeholder="Ask anything to the primary model...">
+                <button class="action" style="background: #4caf50; margin-left: 10px;" onclick="sendQuickQuery()">Send</button>
+            </div>
+        </div>
     </div>
 
     <div id="savings-tab" class="tab-content">

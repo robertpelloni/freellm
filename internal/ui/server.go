@@ -60,6 +60,8 @@ func (s *UIServer) Start(addr string) error {
 	http.HandleFunc("/api/maintenance/clear-skips", s.handleClearSkips)
 	http.HandleFunc("/api/maintenance/clear-blacklist", s.handleClearBlacklist)
 	http.HandleFunc("/api/maintenance/reset-stats", s.handleResetStats)
+	http.HandleFunc("/api/models/skip", s.handleModelSkip)
+	http.HandleFunc("/api/models/blacklist", s.handleModelBlacklist)
 	http.Handle("/static/", http.StripPrefix("/static/", fileServer))
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
@@ -104,6 +106,20 @@ func (s *UIServer) handleClearBlacklist(w http.ResponseWriter, r *http.Request) 
 func (s *UIServer) handleResetStats(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" { http.Error(w, "Method not allowed", 405); return }
 	if err := db.ResetStats(s.DB); err != nil { http.Error(w, err.Error(), 500); return }
+	w.WriteHeader(200)
+}
+
+func (s *UIServer) handleModelSkip(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" { http.Error(w, "Method not allowed", 405); return }
+	id := r.URL.Query().Get("id")
+	if err := db.SkipModel(s.DB, id, 24); err != nil { http.Error(w, err.Error(), 500); return }
+	w.WriteHeader(200)
+}
+
+func (s *UIServer) handleModelBlacklist(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" { http.Error(w, "Method not allowed", 405); return }
+	id := r.URL.Query().Get("id")
+	if err := db.BlacklistModel(s.DB, id); err != nil { http.Error(w, err.Error(), 500); return }
 	w.WriteHeader(200)
 }
 
