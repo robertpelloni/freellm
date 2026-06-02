@@ -89,9 +89,10 @@ func (b *Benchmarker) FetchModels(ctx context.Context, database *sql.DB) []Model
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 
-	providers := []string{"openrouter", "groq", "deepinfra", "cerebras", "github", "huggingface", "nvidia", "ollama", "lm_studio", "gemini", "mistral", "anthropic", "opencode_zen", "bedrock", "vertex_ai"}
+	providers := []string{"openrouter", "groq", "deepinfra", "cerebras", "github", "huggingface", "nvidia", "ollama", "lm_studio", "mistral", "codestral", "cohere", "sambanova", "fireworks", "hyperbolic", "cloudflare", "opencode_zen"}
 
 	for _, p := range providers {
+		if IsDeadProvider(p) { continue }
 		// Check if provider enabled in DB
 		if database != nil {
 			var enabled int
@@ -110,6 +111,11 @@ func (b *Benchmarker) FetchModels(ctx context.Context, database *sql.DB) []Model
 	}
 
 	wg.Wait()
+	candidates = b.FilterCandidates(candidates, database)
+	existingIDs := make(map[string]bool)
+	for _, c := range candidates { existingIDs[c.ID] = true }
+	known := b.ForceInjectKnownModels(existingIDs)
+	candidates = append(candidates, known...)
 	return candidates
 }
 
@@ -409,7 +415,140 @@ func minF(a, b float64) float64 {
 
 type RankedModels []ModelCandidate
 
+
+// FilterCandidates applies the full filtering pipeline.
+func (b *Benchmarker) FilterCandidates(candidates []ModelCandidate, database *sql.DB) []ModelCandidate {
+	var valid []ModelCandidate
+	now := time.Now()
+	for _, m := range candidates {
+		if IsDeadModel(m.ID) || IsDeadModel(fmt.Sprintf("%s/%s", m.Provider, m.ID)) { continue }
+		if IsDeadProvider(m.Provider) { continue }
+		if IsExcluded(m.ID) { continue }
+		if database != nil {
+			var isBlacklisted bool
+			var failureCount int
+			var retryAfter sql.NullTime
+			var manuallySkipped bool
+			var skipExpiry sql.NullTime
+			err := database.QueryRow("SELECT is_blacklisted, failure_count, retry_after, manually_skipped, skip_expiry FROM model_history WHERE model_id = ?", m.ID).
+				Scan(&isBlacklisted, &failureCount, &retryAfter, &manuallySkipped, &skipExpiry)
+			if err == nil {
+				if isBlacklisted { continue }
+				if manuallySkipped && skipExpiry.Valid && now.Before(skipExpiry.Time) { continue }
+				if failureCount >= 3 && retryAfter.Valid && now.Before(retryAfter.Time) { continue }
+			}
+		}
+		valid = append(valid, m)
+	}
+	b.log(fmt.Sprintf("Candidate filter: %d raw - %d valid", len(candidates), len(valid)))
+	return valid
+}
+
+// FinalBenchmarkFilter catches models that bypass the main filter.
+func (b *Benchmarker) FinalBenchmarkFilter(candidates []ModelCandidate) []ModelCandidate {
+	var valid []ModelCandidate
+	for _, m := range candidates {
+		if IsDeadModel(m.ID) { continue }
+		if IsExcluded(m.ID) { continue }
+		valid = append(valid, m)
+	}
+	return valid
+}
+
+// ForceInjectKnownModels adds known good models not found in provider fetches.
+func (b *Benchmarker) ForceInjectKnownModels(existingIDs map[string]bool) []ModelCandidate {
+	var known []ModelCandidate
+	for litellmID, spec := range KnownModels {
+		bareID := litellmID
+		if idx := strings.Index(litellmID, "/"); idx >= 0 { bareID = litellmID[idx+1:] }
+		if existingIDs[bareID] || existingIDs[litellmID] { continue }
+		if IsDeadProvider(spec.Provider) { continue }
+		if IsExcluded(litellmID) || IsExcluded(bareID) { continue }
+		if IsDeadModel(litellmID) || IsDeadModel(bareID) { continue }
+		effectiveProv := spec.Provider
+		if effectiveProv == "nvidia_nim" {
+			if _, ok := b.APIKeys["nvidia_nim"]; !ok {
+				if _, ok2 := b.APIKeys["nvidia"]; ok2 { effectiveProv = "nvidia" } else { continue }
+			}
+		} else {
+			if _, ok := b.APIKeys[effectiveProv]; !ok { continue }
+		}
+		known = append(known, ModelCandidate{ID: bareID, Provider: spec.Provider, Parameters: spec.Params, ContextLength: spec.Ctx})
+		existingIDs[bareID] = true
+	}
+	if len(known) > 0 { b.log(fmt.Sprintf("Force-including %d known good models", len(known))) }
+	return known
+}
+
+// QuickPulse re-benchmarks the top N models (Tier 1, every 10 min).
+func (b *Benchmarker) QuickPulse(ctx context.Context, ranked RankedModels, topN int, database *sql.DB) (RankedModels, bool) {
+	if len(ranked) == 0 { return ranked, false }
+	if topN > len(ranked) { topN = len(ranked) }
+	b.log(fmt.Sprintf("Quick pulse: re-checking top %d models...", topN))
+	oldOrder := make([]string, topN)
+	for i, m := range ranked[:topN] { oldOrder[i] = m.ID }
+	sem := make(chan struct{}, 3)
+	var wg sync.WaitGroup
+	type result struct{ idx int; lat float64; err error }
+	results := make(chan result, topN)
+	for i, m := range ranked[:topN] {
+		wg.Add(1)
+		go func(idx int, m ModelCandidate) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			lat, err := b.MeasureLatency(ctx, m.ID, m.Provider)
+			results <- result{idx, lat, err}
+		}(i, m)
+	}
+	go func() { wg.Wait(); close(results) }()
+	updated := false
+	for r := range results {
+		m := &ranked[r.idx]
+		if r.err == nil {
+			oldScore := m.Score
+			newScore := b.CalculateScore(m.Parameters, r.lat, m.ContextLength)
+			m.Latency = r.lat
+			m.Score = newScore
+			b.log(fmt.Sprintf("  Pulse: %s (%s): %.3fs score=%.1f", m.ID, m.Provider, r.lat, newScore))
+			if absF(newScore-oldScore) > 0.3 { updated = true }
+			RecordProbe(database, m.ID, m.Provider, r.lat, true, newScore, m.ContextLength, m.Parameters)
+		} else {
+			m.Latency = 99.0
+			m.Score = -10.0
+			updated = true
+			b.log(fmt.Sprintf("  Pulse: %s (%s): FAILED", m.ID, m.Provider))
+			RecordProbe(database, m.ID, m.Provider, 0, false, 0, m.ContextLength, m.Parameters)
+		}
+	}
+	sort.Slice(ranked, func(i, j int) bool { return ranked[i].Score > ranked[j].Score })
+	newOrder := make([]string, topN)
+	for i, m := range ranked[:topN] { newOrder[i] = m.ID }
+	for i := range oldOrder {
+		if oldOrder[i] != newOrder[i] { updated = true; break }
+	}
+	if updated {
+		b.log("  Pulse: rankings changed")
+	} else {
+		b.log("  Pulse: no changes")
+	}
+	return ranked, updated
+}
+
+// RecordProbe writes a probe result to the database.
+func RecordProbe(database *sql.DB, modelID, provider string, latency float64, success bool, score float64, ctxLen, params int) {
+	if database == nil { return }
+	database.Exec("INSERT INTO probe_history (model_id, provider_name, timestamp, latency, success, score, context_length, parameters) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+		modelID, provider, time.Now(), latency, success, score, ctxLen, params)
+}
+
+func absF(a float64) float64 {
+	if a < 0 { return -a }
+	return a
+}
+
 func (b *Benchmarker) RunBenchmark(ctx context.Context, candidates []ModelCandidate) RankedModels {
+	candidates = b.FinalBenchmarkFilter(candidates)
 	b.log(fmt.Sprintf("Benchmarking %d candidates...", len(candidates)))
 	var wg sync.WaitGroup
 	results := make(chan ModelCandidate, len(candidates))

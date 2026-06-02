@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -254,10 +255,63 @@ func (g *Gateway) workerLoop() {
 	}
 }
 
+
+// PreFlightCheck verifies a provider endpoint is reachable before sending a request.
+func (g *Gateway) PreFlightCheck(model engine.ModelCandidate) bool {
+	targetURL := g.getProviderURL(model.ID, model.Provider)
+	if targetURL == "" { return false }
+	parsed, err := url.Parse(targetURL)
+	if err != nil { return false }
+	baseURL := parsed.Scheme + "://" + parsed.Host
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Head(baseURL)
+	if err != nil {
+		log.Printf("[PREFLIGHT] %s/%s: provider %s unreachable: %v", model.Provider, model.ID, baseURL, err)
+		return false
+	}
+	resp.Body.Close()
+	return true
+}
+
+// VerifyModelList filters models by pre-flight connectivity check.
+func (g *Gateway) VerifyModelList(models engine.RankedModels) engine.RankedModels {
+	type result struct { idx int; ok bool }
+	results := make(chan result, len(models))
+	sem := make(chan struct{}, 5)
+	var wg sync.WaitGroup
+	for i, m := range models {
+		wg.Add(1)
+		go func(idx int, model engine.ModelCandidate) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			results <- result{idx, g.PreFlightCheck(model)}
+		}(i, m)
+	}
+	go func() { wg.Wait(); close(results) }()
+	rm := make(map[int]bool)
+	for r := range results { rm[r.idx] = r.ok }
+	var verified engine.RankedModels
+	for i, m := range models {
+		if rm[i] { verified = append(verified, m) }
+	}
+	if len(verified) < len(models) {
+		log.Printf("[PREFLIGHT] %d/%d models passed connectivity check", len(verified), len(models))
+	}
+	return verified
+}
+
 func (g *Gateway) processJob(job *RequestJob) {
 	g.mu.RLock()
 	models := g.RankedModels
 	g.mu.RUnlock()
+
+	// Pre-flight connectivity check
+	models = g.VerifyModelList(models)
+	if len(models) == 0 {
+		job.Response <- &ProxyResponse{Err: fmt.Errorf("no models available after connectivity check")}
+		return
+	}
 
 	// Circuit Breaker Integration
 	if g.DB != nil {
