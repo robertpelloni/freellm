@@ -23,6 +23,7 @@ type Gateway struct {
 	ActiveJobs   int
 	MaxActive    int
 	DB           *sql.DB
+	PrimaryCount int
 }
 
 type RequestJob struct {
@@ -40,9 +41,10 @@ type ProxyResponse struct {
 
 func NewGateway(maxActive int, database *sql.DB) *Gateway {
 	g := &Gateway{
-		Queue:     make(chan *RequestJob, 1000), // Buffer 1000 requests
-		MaxActive: maxActive,
-		DB:        database,
+		Queue:        make(chan *RequestJob, 1000), // Buffer 1000 requests
+		MaxActive:    maxActive,
+		DB:           database,
+		PrimaryCount: 5,
 	}
 	go g.workerLoop()
 	return g
@@ -117,33 +119,48 @@ func (g *Gateway) processJob(job *RequestJob) {
 		return
 	}
 
-	// Advanced Routing: Retry with rotation
+	// Advanced Routing: Two-Group Strategy
 	var lastErr error
-	maxRetries := min(len(models), 3) // Try up to 3 best models
 
-	for i := 0; i < maxRetries; i++ {
-		model := models[i]
+	// 1. Try Primary Group first
+	primaryGroup := models
+	if len(models) > g.PrimaryCount {
+		primaryGroup = models[:g.PrimaryCount]
+	}
+
+	for i, model := range primaryGroup {
 		proxyResp := g.forwardRequest(client, job.Request, model, body)
 
 		if proxyResp.Err == nil && proxyResp.Status < 400 {
-			// Log usage if successful
 			g.logUsage(model.ID, body, proxyResp.Body)
 			job.Response <- proxyResp
 			return
 		}
-
 		lastErr = proxyResp.Err
-		if proxyResp.Err == nil {
-			lastErr = fmt.Errorf("status %d", proxyResp.Status)
-		}
+		if proxyResp.Err == nil { lastErr = fmt.Errorf("primary status %d", proxyResp.Status) }
+		if i < len(primaryGroup)-1 { time.Sleep(500 * time.Millisecond) }
+	}
 
-		// Exponential backoff before retry
-		if i < maxRetries-1 {
-			time.Sleep(time.Duration(1<<i) * 500 * time.Millisecond)
+	// 2. Try Fallback Group if Primary fails
+	if len(models) > g.PrimaryCount {
+		fallbackGroup := models[g.PrimaryCount:]
+		// Try up to 3 models from fallback to avoid infinite retries
+		maxFallbacks := min(len(fallbackGroup), 3)
+		for i := 0; i < maxFallbacks; i++ {
+			model := fallbackGroup[i]
+			proxyResp := g.forwardRequest(client, job.Request, model, body)
+			if proxyResp.Err == nil && proxyResp.Status < 400 {
+				g.logUsage(model.ID, body, proxyResp.Body)
+				job.Response <- proxyResp
+				return
+			}
+			lastErr = proxyResp.Err
+			if proxyResp.Err == nil { lastErr = fmt.Errorf("fallback status %d", proxyResp.Status) }
+			time.Sleep(1 * time.Second)
 		}
 	}
 
-	job.Response <- &ProxyResponse{Err: fmt.Errorf("all retries failed, last error: %v", lastErr)}
+	job.Response <- &ProxyResponse{Err: fmt.Errorf("all primary and fallback retries failed, last error: %v", lastErr)}
 }
 
 func (g *Gateway) forwardRequest(client *http.Client, r *http.Request, model engine.ModelCandidate, body []byte) *ProxyResponse {
@@ -153,6 +170,9 @@ func (g *Gateway) forwardRequest(client *http.Client, r *http.Request, model eng
 		return &ProxyResponse{Err: fmt.Errorf("failed to unmarshal request body: %v", err)}
 	}
 	payload["model"] = model.ID
+
+	// Handle streaming flag parity
+	stream, _ := payload["stream"].(bool)
 
 	newBody, _ := json.Marshal(payload)
 
@@ -178,7 +198,26 @@ func (g *Gateway) forwardRequest(client *http.Client, r *http.Request, model eng
 	}
 	defer resp.Body.Close()
 
+	// If streaming, we should ideally pipe it, but for simplicity in the queue
+	// we'll buffer and return. (Full streaming pipe support in next phase)
 	respBody, _ := io.ReadAll(resp.Body)
+
+	// Parity: Ensure usage metadata is present or estimated
+	if !stream && resp.StatusCode == 200 {
+		var respData map[string]interface{}
+		if err := json.Unmarshal(respBody, &respData); err == nil {
+			if _, ok := respData["usage"]; !ok {
+				// Inject estimated usage if missing
+				respData["usage"] = map[string]int{
+					"prompt_tokens":     len(body) / 4,
+					"completion_tokens": len(respBody) / 4,
+					"total_tokens":      (len(body) + len(respBody)) / 4,
+				}
+				respBody, _ = json.Marshal(respData)
+			}
+		}
+	}
+
 	return &ProxyResponse{
 		Status: resp.StatusCode,
 		Body:   respBody,

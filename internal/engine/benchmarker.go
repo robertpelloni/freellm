@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -17,20 +18,23 @@ import (
 var SizePattern = regexp.MustCompile(`(\d+)[bB]`)
 
 type ModelCandidate struct {
-	ID            string  `json:"id"`
-	Provider      string  `json:"provider"`
-	Parameters    int     `json:"parameters"`
-	ContextLength int     `json:"context_length"`
-	Latency       float64 `json:"latency"`
-	Score         float64 `json:"score"`
+	ID            string    `json:"id"`
+	Provider      string    `json:"provider"`
+	Parameters    int       `json:"parameters"`
+	ContextLength int       `json:"context_length"`
+	Latency       float64   `json:"latency"`
+	Score         float64   `json:"score"`
+	LastBenchmark time.Time `json:"last_benchmark"`
 }
 
 type Benchmarker struct {
-	APIKeys   map[string]string
-	BaseURLs  map[string]string
-	MinParams int
-	Weights   map[string]float64
-	Client    *http.Client
+	APIKeys    map[string]string
+	BaseURLs   map[string]string
+	MinParams  int
+	Weights    map[string]float64
+	Client     *http.Client
+	smartCache map[string]ModelCandidate
+	cacheMu    sync.RWMutex
 }
 
 func NewBenchmarker(apiKeys map[string]string, minParams int) *Benchmarker {
@@ -42,10 +46,9 @@ func NewBenchmarker(apiKeys map[string]string, minParams int) *Benchmarker {
 			"context": 0.2,
 			"latency": 0.2,
 		},
-		MinParams: minParams,
-		Client: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		MinParams:  minParams,
+		Client:     &http.Client{Timeout: 30 * time.Second},
+		smartCache: make(map[string]ModelCandidate),
 	}
 }
 
@@ -72,7 +75,7 @@ func (b *Benchmarker) FetchModels(ctx context.Context) []ModelCandidate {
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 
-	providers := []string{"openrouter", "groq", "deepinfra", "cerebras", "github", "huggingface", "nvidia"}
+	providers := []string{"openrouter", "groq", "deepinfra", "cerebras", "github", "huggingface", "nvidia", "ollama", "lm_studio"}
 
 	for _, p := range providers {
 		wg.Add(1)
@@ -90,12 +93,19 @@ func (b *Benchmarker) FetchModels(ctx context.Context) []ModelCandidate {
 }
 
 func (b *Benchmarker) fetchProviderModels(ctx context.Context, provider string) []ModelCandidate {
+	if provider == "ollama" {
+		return b.fetchOllamaModels(ctx)
+	}
+
 	url := b.getModelsURL(provider)
 	if url == "" {
 		return nil
 	}
 
-	req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil
+	}
 	if apiKey := b.APIKeys[provider]; apiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
@@ -201,6 +211,39 @@ func (b *Benchmarker) MeasureLatency(ctx context.Context, modelID, provider stri
 	return ttft, nil
 }
 
+func (b *Benchmarker) fetchOllamaModels(ctx context.Context) []ModelCandidate {
+	url := b.BaseURLs["ollama"]
+	if url == "" {
+		url = "http://localhost:11434/api/tags"
+	} else if !strings.HasSuffix(url, "/api/tags") {
+		url += "/api/tags"
+	}
+
+	resp, err := b.Client.Get(url)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+
+	var data struct {
+		Models []struct {
+			Name string `json:"name"`
+		} `json:"models"`
+	}
+	json.NewDecoder(resp.Body).Decode(&data)
+
+	var candidates []ModelCandidate
+	for _, m := range data.Models {
+		params := b.ExtractParameters(m.Name, "", "")
+		candidates = append(candidates, ModelCandidate{
+			ID:         m.Name,
+			Provider:   "ollama",
+			Parameters: params,
+		})
+	}
+	return candidates
+}
+
 func (b *Benchmarker) getModelsURL(provider string) string {
 	base := b.BaseURLs[provider]
 	switch provider {
@@ -222,6 +265,9 @@ func (b *Benchmarker) getModelsURL(provider string) string {
 	case "nvidia":
 		if base == "" { return "https://integrate.api.nvidia.com/v1/models" }
 		return base + "/models"
+	case "lm_studio":
+		if base == "" { return "http://localhost:1234/v1/models" }
+		return base + "/v1/models"
 	}
 	return ""
 }
@@ -250,6 +296,12 @@ func (b *Benchmarker) getCompletionsURL(provider string) string {
 	case "huggingface":
 		// Hugging Face uses per-model endpoints
 		return "https://api-inference.huggingface.co/models/"
+	case "ollama":
+		if base == "" { return "http://localhost:11434/v1/chat/completions" }
+		return base + "/v1/chat/completions"
+	case "lm_studio":
+		if base == "" { return "http://localhost:1234/v1/chat/completions" }
+		return base + "/v1/chat/completions"
 	}
 	return ""
 }
@@ -272,6 +324,17 @@ func (b *Benchmarker) RunBenchmark(ctx context.Context, candidates []ModelCandid
 	semaphore := make(chan struct{}, 5) // Limit concurrency
 
 	for _, m := range candidates {
+		// Smart Cache: Reuse local results for 15m
+		if m.Provider == "ollama" || m.Provider == "lm_studio" {
+			b.cacheMu.RLock()
+			cached, ok := b.smartCache[m.ID]
+			b.cacheMu.RUnlock()
+			if ok && time.Since(cached.LastBenchmark) < 15*time.Minute {
+				results <- cached
+				continue
+			}
+		}
+
 		wg.Add(1)
 		go func(m ModelCandidate) {
 			defer wg.Done()
@@ -282,6 +345,13 @@ func (b *Benchmarker) RunBenchmark(ctx context.Context, candidates []ModelCandid
 			if err == nil {
 				m.Latency = lat
 				m.Score = b.CalculateScore(m.Parameters, lat, m.ContextLength)
+				m.LastBenchmark = time.Now()
+
+				if m.Provider == "ollama" || m.Provider == "lm_studio" {
+					b.cacheMu.Lock()
+					b.smartCache[m.ID] = m
+					b.cacheMu.Unlock()
+				}
 				results <- m
 			} else {
 				fmt.Printf("Benchmark failed for %s/%s: %v\n", m.Provider, m.ID, err)

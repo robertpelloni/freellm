@@ -12,6 +12,7 @@ import (
 	"github.com/robertpelloni/litellm_control_panel/internal/db"
 	"github.com/robertpelloni/litellm_control_panel/internal/engine"
 	"github.com/robertpelloni/litellm_control_panel/internal/proxy"
+	"github.com/robertpelloni/litellm_control_panel/internal/ui"
 )
 
 func main() {
@@ -52,6 +53,15 @@ func onReady() {
 		}
 	}()
 
+	// Initialize Web Dashboard
+	uiServer := ui.NewUIServer()
+	go func() {
+		log.Println("Starting Web Dashboard on :8080")
+		if err := uiServer.Start(":8080"); err != nil {
+			log.Printf("UI Server failed: %v", err)
+		}
+	}()
+
 	// Background worker for benchmarking
 	go func() {
 		for {
@@ -65,6 +75,7 @@ func onReady() {
 			// 2. Run TTFT benchmarks and rank
 			ranked := benchmarker.RunBenchmark(ctx, candidates)
 			gateway.UpdateModels(ranked)
+			uiServer.UpdateModels(ranked)
 
 			topModel := "none"
 			if len(ranked) > 0 {
