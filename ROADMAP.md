@@ -1,29 +1,25 @@
-# Roadmap: LiteLLM Control Panel
+# Roadmap: LiteLLM Control Panel (Go Transition)
 
-## Milestone 1: Core Engine & Data Layer
-- [x] Robust SQLite data layer for tracking provider and model health.
-- [x] Asynchronous benchmarking engine for real-time performance testing.
-- [x] Intelligent parameter parsing and filtering logic.
+## Milestone 11: Go Core & Data Layer
+- [ ] Initialize Go module and project structure.
+- [ ] Port SQLite database schema and persistence layer to Go.
+- [ ] Implement Go-native configuration management.
 
-## Milestone 2: Orchestration & Configuration
-- [x] Comment-preserving YAML manipulation for LiteLLM hot-reloading.
-- [x] Circuit breaker implementation to isolate failing endpoints.
+## Milestone 12: Benchmarking Engine (Go)
+- [ ] Implement async benchmarking logic for major providers.
+- [ ] Port "Smart Cache" and circuit breaker logic to Go.
+- [ ] Support dynamic model discovery (GitHub, HF, etc.) in Go.
 
-## Milestone 3: System Tray UI & User Control
-- [x] Non-blocking Windows System Tray implementation.
-- [x] Dynamic menu rendering for top-tier models and manual overrides.
-- [x] "Auto-Pilot" mode for autonomous model switching.
-- [x] Real-time status indicators and log viewing.
+## Milestone 13: Highly Stable Gateway (Go)
+- [ ] Implement OpenAI-compatible proxy server.
+- [ ] Build the request queueing and buffering system to prevent connection drops.
+- [ ] Implement intelligent rotation and fallback logic in Go.
 
-## Milestone 4: Deployment & Optimization
-- [x] Windows startup integration.
-- [x] Standalone executable packaging with PyInstaller.
-- [x] Adaptive learning for provider efficiency.
-- [x] Background notification system for alerts and updates.
-- [x] Real-time internal event monitoring (Engine Logs).
-- [x] Milestone 5: External Connectivity (External API Layer).
-- [x] Milestone 6: End-to-End Integration Testing.
-- [x] Milestone 7: Operational Stability & Load Monitoring.
-- [x] Milestone 8: Real-time Protocol Oversight & Engine State Tracking.
-- [x] Milestone 9: Protocol Execution Metrics & Visualizer.
-- [ ] Milestone 10: Mobile Notifications & Advanced Adaptive Learning.
+## Milestone 14: Native UI & Tray (Go)
+- [ ] Implement Go-native system tray icon and menu.
+- [ ] Port dashboards (Ranking, Monitoring, Protocol) to Go-compatible UI (Web-based or Fyne).
+- [ ] Wire all backend features to the new UI.
+
+## Milestone 15: Verification & Deployment
+- [ ] Full end-to-end integration testing of the Go implementation.
+- [ ] Native Windows build and packaging.
