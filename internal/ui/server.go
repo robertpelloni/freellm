@@ -213,39 +213,25 @@ func (s *UIServer) handleProviderHealth(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Fetch health stats for all providers from DB
-	rows, err := s.DB.Query(`
-		SELECT provider,
-		       SUM(CASE WHEN status < 400 THEN 1 ELSE 0 END) as successes,
-		       SUM(CASE WHEN status >= 400 THEN 1 ELSE 0 END) as failures
-		FROM activity_log
-		WHERE event = 'Proxy Request' AND timestamp > ?
-		GROUP BY provider
-	`, time.Now().Add(-24*time.Hour))
-
+	health, err := db.GetProviderHealth(s.DB)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	defer rows.Close()
 
 	results := make(map[string]interface{})
-	for rows.Next() {
-		var provider string
-		var successes, failures int
-		if err := rows.Scan(&provider, &successes, &failures); err == nil {
-			status := "healthy"
-			if failures > successes && failures > 0 {
-				status = "unstable"
-			}
-			if successes == 0 && failures > 0 {
-				status = "offline"
-			}
-			results[provider] = map[string]interface{}{
-				"status":    status,
-				"successes": successes,
-				"failures":  failures,
-			}
+	for _, h := range health {
+		status := "healthy"
+		if h.SuccessRate < 50 && h.SuccessRate > 0 {
+			status = "unstable"
+		} else if h.SuccessRate == 0 {
+			status = "offline"
+		}
+		results[h.Name] = map[string]interface{}{
+			"status":       status,
+			"avg_latency":  h.AvgLatency,
+			"success_rate": h.SuccessRate,
+			"enabled":      h.Enabled,
 		}
 	}
 

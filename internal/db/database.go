@@ -415,6 +415,14 @@ func LogUsage(db *sql.DB, modelID string, promptTokens, completionTokens int) er
 	return err
 }
 
+func RecordProbe(db *sql.DB, modelID, provider string, latency float64, success bool, errBody string, score float64, ctxLen, params int) error {
+	_, err := db.Exec(`
+        INSERT INTO probe_history (model_id, provider_name, timestamp, latency, success, error_message, score, context_length, parameters)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		modelID, provider, time.Now(), latency, success, errBody, score, ctxLen, params)
+	return err
+}
+
 func UpdateModelPricing(db *sql.DB, modelID, provider string, promptPrice, completionPrice float64) error {
 	_, err := db.Exec(`
         INSERT INTO model_pricing (model_id, provider, prompt_price, completion_price, last_updated)
