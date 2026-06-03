@@ -334,8 +334,7 @@ func onReady() {
 
 		models := gateway.GetModels()
 		if len(models) == 0 {
-			menuBuilt = true // mark built even with 0 models to prevent double-build
-			return
+			return // don't build yet, don't set menuBuilt so it retries later
 		}
 		primaryCount := gateway.PrimaryCount
 
@@ -589,10 +588,19 @@ func onReady() {
 		}
 	}()
 
-	// Deferred initial menu build
+	// Deferred initial menu build — retry until models are loaded
 	go func() {
-		time.Sleep(15 * time.Second)
-		rebuildDynamicMenu()
+		for i := 0; i < 60; i++ {
+			time.Sleep(10 * time.Second)
+			if menuBuilt {
+				return
+			}
+			models := gateway.GetModels()
+			if len(models) > 0 {
+				rebuildDynamicMenu()
+				return
+			}
+		}
 	}()
 
 	// ============================================================
