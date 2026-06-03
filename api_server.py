@@ -3,11 +3,11 @@ import uvicorn
 import threading
 import database
 
-class LiteLLMAPI:
+class FreeLLMAPI:
     def __init__(self, app_instance, port=8000):
         self.app = app_instance
         self.port = port
-        self.fastapi_app = FastAPI(title="LiteLLM Control Panel API")
+        self.fastapi_app = FastAPI(title="FreeLLM API")
         self._setup_routes()
 
     def _setup_routes(self):
@@ -44,18 +44,18 @@ class LiteLLMAPI:
 
         @self.fastapi_app.post("/proxy/start")
         async def start_proxy():
-            if self.app.launch_litellm(None, None):
+            if self.app.launch_freellm(None, None):
                 return {"status": "Proxy start requested"}
             raise HTTPException(status_code=500, detail="Failed to start proxy")
 
         @self.fastapi_app.post("/proxy/stop")
         async def stop_proxy():
-            self.app.stop_litellm(None, None)
+            self.app.stop_freellm(None, None)
             return {"status": "Proxy stop requested"}
 
         @self.fastapi_app.post("/proxy/restart")
         async def restart_proxy():
-            self.app.restart_litellm(None, None)
+            self.app.restart_freellm(None, None)
             return {"status": "Proxy restart requested"}
 
     def run(self):
@@ -64,5 +64,5 @@ class LiteLLMAPI:
         server.run()
 
 def start_api_server(app_instance, port=8000):
-    api = LiteLLMAPI(app_instance, port)
+    api = FreeLLMAPI(app_instance, port)
     threading.Thread(target=api.run, daemon=True).start()

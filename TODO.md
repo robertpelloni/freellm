@@ -1,8 +1,8 @@
-# TODO: LiteLLM Control Panel (Go Transition)
+# TODO: FreeLLM (Go Transition)
 
 ## Milestone 4.x Tasks
 - [ ] Implement Response Transformation Layer (map back to OpenAI format).
-- [ ] Externalize all provider endpoints to `litellm-config.yaml`.
+- [ ] Externalize all provider endpoints to `freellm-config.yaml`.
 - [ ] Implement Redis auth and connection pool settings.
 - [ ] Add unit tests for `internal/ui` API endpoints.
 - [ ] Implement disk-backed persistent logs (archive old logs).
@@ -16,7 +16,7 @@
 - [x] USD Cost Savings tracking.
 - [x] Quick Query interactive chat.
 - [x] Go implementation of all core providers (12+).
-- [x] Request prioritization (X-LiteLLM-Priority).
+- [x] Request prioritization (X-FreeLLM-Priority).
 - [x] Redis Caching support.
 - [x] Global search in web dashboard.
 - [x] Embedded static assets (go:embed).

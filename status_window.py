@@ -6,7 +6,7 @@ class StatusWindow:
     def __init__(self, app_instance):
         self.app = app_instance
         self.root = tk.Tk()
-        self.root.title("LiteLLM System Status")
+        self.root.title("FreeLLM System Status")
         self.root.geometry("500x400")
         self.root.resizable(False, False)
 
@@ -16,8 +16,8 @@ class StatusWindow:
     def create_widgets(self):
         padding = {'padx': 20, 'pady': 10}
 
-        # LiteLLM Proxy Status
-        self.proxy_label = ttk.Label(self.root, text="LiteLLM Proxy: Checking...", font=('Helvetica', 12, 'bold'))
+        # FreeLLM Proxy Status
+        self.proxy_label = ttk.Label(self.root, text="FreeLLM Proxy: Checking...", font=('Helvetica', 12, 'bold'))
         self.proxy_label.pack(fill='x', **padding)
 
         # Active Model
@@ -48,7 +48,7 @@ class StatusWindow:
         is_running = self.app.process_mgr.is_running()
         status_text = "Running" if is_running else "Stopped"
         color = "green" if is_running else "red"
-        self.proxy_label.config(text=f"LiteLLM Proxy: {status_text}", foreground=color)
+        self.proxy_label.config(text=f"FreeLLM Proxy: {status_text}", foreground=color)
 
         # Update Active Model
         active_model = "None"

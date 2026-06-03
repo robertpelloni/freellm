@@ -58,9 +58,9 @@ def load_settings():
         "MIN_PARAMETERS": 0,
         "AUTO_PILOT": False,
         "GLOBAL_EXCLUSIONS": "-base, vision, dummy",
-        "CONFIG_PATH": "C:/Users/hyper/.hermes/litellm-config.yaml",
+        "CONFIG_PATH": "C:/Users/hyper/.hermes/freellm-config.yaml",
         "INTERFACE_URL": "http://localhost:4000",
-        "AUTO_MANAGE_LITELLM": True,
+        "AUTO_MANAGE_FREELLM": True,
         "START_WITH_WINDOWS": False,
         "ROUTING_ENABLED": True,
         "ENABLE_NOTIFICATIONS": True,
@@ -79,7 +79,7 @@ class SettingsUI:
         self.on_save_callback = on_save_callback
         self.engine = engine
         self.root = tk.Tk()
-        self.root.title("LiteLLM Control Panel Settings")
+        self.root.title("FreeLLM Settings")
         self.root.geometry("550x850")
         self.root.resizable(True, True)
 
@@ -225,7 +225,7 @@ class SettingsUI:
         path_frame = ttk.LabelFrame(container, text="System Paths")
         path_frame.pack(fill='x', **padding)
 
-        ttk.Label(path_frame, text="LiteLLM Config Path:").grid(row=0, column=0, sticky='w', **padding)
+        ttk.Label(path_frame, text="FreeLLM Config Path:").grid(row=0, column=0, sticky='w', **padding)
         self.config_path = ttk.Entry(path_frame)
         self.config_path.insert(0, self.settings.get("CONFIG_PATH", "config.yaml"))
         self.config_path.grid(row=0, column=1, sticky='ew', **padding)
@@ -241,8 +241,8 @@ class SettingsUI:
         opt_frame = ttk.LabelFrame(container, text="Options")
         opt_frame.pack(fill='x', **padding)
 
-        self.auto_manage_var = tk.BooleanVar(value=self.settings.get("AUTO_MANAGE_LITELLM", True))
-        ttk.Checkbutton(opt_frame, text="Auto-Manage LiteLLM Proxy", variable=self.auto_manage_var).pack(anchor='w', **padding)
+        self.auto_manage_var = tk.BooleanVar(value=self.settings.get("AUTO_MANAGE_FREELLM", True))
+        ttk.Checkbutton(opt_frame, text="Auto-Manage FreeLLM Proxy", variable=self.auto_manage_var).pack(anchor='w', **padding)
 
         self.start_with_windows_var = tk.BooleanVar(value=self.settings.get("START_WITH_WINDOWS", False))
         ttk.Checkbutton(opt_frame, text="Start with Windows", variable=self.start_with_windows_var).pack(anchor='w', **padding)
@@ -318,7 +318,7 @@ class SettingsUI:
 
         km_cols = ('id', 'params', 'ctx', 'provider')
         self.km_tree = ttk.Treeview(tab, columns=km_cols, show='headings', height=25)
-        self.km_tree.heading('id', text='LiteLLM Model ID')
+        self.km_tree.heading('id', text='FreeLLM Model ID')
         self.km_tree.heading('params', text='Params(B)')
         self.km_tree.heading('ctx', text='Context')
         self.km_tree.heading('provider', text='Provider')
@@ -401,7 +401,7 @@ class SettingsUI:
             self.settings["GLOBAL_EXCLUSIONS"] = self.exclusions.get()
             self.settings["CONFIG_PATH"] = self.config_path.get()
             self.settings["INTERFACE_URL"] = self.interface_url.get()
-            self.settings["AUTO_MANAGE_LITELLM"] = self.auto_manage_var.get()
+            self.settings["AUTO_MANAGE_FREELLM"] = self.auto_manage_var.get()
             self.settings["START_WITH_WINDOWS"] = self.start_with_windows_var.get()
             self.settings["ENABLE_NOTIFICATIONS"] = self.enable_notifications_var.get()
             
@@ -425,9 +425,9 @@ class SettingsUI:
     def _populate_known_models(self):
         for i in self.km_tree.get_children():
             self.km_tree.delete(i)
-        for litellm_id, spec in sorted(known_models.all_models().items()):
+        for freellm_id, spec in sorted(known_models.all_models().items()):
             self.km_tree.insert('', 'end', values=(
-                litellm_id,
+                freellm_id,
                 spec.get('params', 0),
                 spec.get('ctx', 0),
                 spec.get('provider', ''),
@@ -439,7 +439,7 @@ class SettingsUI:
         win.geometry('400x220')
         win.resizable(False, False)
         
-        ttk.Label(win, text='LiteLLM Model ID:').grid(row=0, column=0, padx=10, pady=5, sticky='w')
+        ttk.Label(win, text='FreeLLM Model ID:').grid(row=0, column=0, padx=10, pady=5, sticky='w')
         id_entry = ttk.Entry(win, width=40)
         id_entry.grid(row=0, column=1, padx=10, pady=5)
         
@@ -488,7 +488,7 @@ class SettingsUI:
         win.geometry('400x220')
         win.resizable(False, False)
         
-        ttk.Label(win, text='LiteLLM Model ID:').grid(row=0, column=0, padx=10, pady=5, sticky='w')
+        ttk.Label(win, text='FreeLLM Model ID:').grid(row=0, column=0, padx=10, pady=5, sticky='w')
         id_entry = ttk.Entry(win, width=40)
         id_entry.insert(0, old_id)
         id_entry.config(state='readonly')

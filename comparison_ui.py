@@ -10,7 +10,7 @@ class ComparisonUI:
         self.settings = settings
         self.models = models[:3]  # Compare top 3 models
         self.root = tk.Tk()
-        self.root.title("LiteLLM Model Comparison")
+        self.root.title("FreeLLM Model Comparison")
         self.root.geometry("1200x700")
 
         self.create_widgets()
@@ -98,7 +98,7 @@ class ComparisonUI:
                             except:
                                 pass
         except Exception as e:
-            self._append_text(index, f"\nFailed to connect to LiteLLM: {e}\n")
+            self._append_text(index, f"\nFailed to connect to FreeLLM: {e}\n")
 
     def _append_text(self, index, text):
         def inner():

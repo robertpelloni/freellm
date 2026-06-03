@@ -6,7 +6,7 @@ class ProtocolOversightUI:
     def __init__(self, app_instance):
         self.app = app_instance
         self.root = tk.Tk()
-        self.root.title("LiteLLM Control Panel - Protocol Oversight")
+        self.root.title("FreeLLM - Protocol Oversight")
         self.root.geometry("1000x800")
 
         self.create_widgets()

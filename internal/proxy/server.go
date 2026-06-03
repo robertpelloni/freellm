@@ -17,8 +17,8 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"github.com/xeipuuv/gojsonschema"
-	"github.com/robertpelloni/litellm_control_panel/internal/db"
-	"github.com/robertpelloni/litellm_control_panel/internal/engine"
+	"github.com/robertpelloni/freellm/internal/db"
+	"github.com/robertpelloni/freellm/internal/engine"
 )
 
 type Gateway struct {
@@ -87,7 +87,7 @@ func (g *Gateway) GetModels() engine.RankedModels {
 }
 
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	authKey := os.Getenv("LITELLM_MASTER_KEY")
+	authKey := os.Getenv("FREELLM_MASTER_KEY")
 	if authKey != "" {
 		token := r.Header.Get("Authorization")
 		if token != "Bearer "+authKey {
@@ -142,7 +142,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if g.Redis != nil {
 		if val, err := g.Redis.Get(ctx, cacheKey).Bytes(); err == nil {
 			w.Header().Set("Content-Type", "application/json")
-			w.Header().Set("X-LiteLLM-Cache", "HIT (Redis)")
+			w.Header().Set("X-FreeLLM-Cache", "HIT (Redis)")
 			w.Write(val)
 			return
 		}
@@ -151,7 +151,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if cached, ok := g.Cache[cacheKey]; ok {
 			g.cacheMu.RUnlock()
 			w.Header().Set("Content-Type", "application/json")
-			w.Header().Set("X-LiteLLM-Cache", "HIT")
+			w.Header().Set("X-FreeLLM-Cache", "HIT")
 			w.Write(cached)
 			return
 		}
@@ -169,7 +169,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	job := &RequestJob{Request: r, Response: make(chan *ProxyResponse, 1), Ctx: ctx, DBID: dbID}
 	queue := g.Queue
-	if r.Header.Get("X-LiteLLM-Priority") == "high" {
+	if r.Header.Get("X-FreeLLM-Priority") == "high" {
 		queue = g.HighPriQueue
 	}
 
@@ -758,9 +758,9 @@ func (g *Gateway) handleModels(w http.ResponseWriter, r *http.Request) {
 	}{
 		Object: "list",
 		Data: []ME{
-			{"free-llm", "model", time.Now().Unix(), "litellm-cp"},
-			{"free-llm-fallback", "model", time.Now().Unix(), "litellm-cp"},
-			{"free-llm-plain", "model", time.Now().Unix(), "litellm-cp"},
+			{"free-llm", "model", time.Now().Unix(), "freellm"},
+			{"free-llm-fallback", "model", time.Now().Unix(), "freellm"},
+			{"free-llm-plain", "model", time.Now().Unix(), "freellm"},
 		},
 	}
 	for _, m := range g.GetModels() {

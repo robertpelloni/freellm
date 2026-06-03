@@ -58,7 +58,7 @@ class TestIntegration(unittest.TestCase):
         self.mock_save = self.save_patcher.start()
 
         # Initialize app
-        self.app = main.LiteLLMControlPanel()
+        self.app = main.FreeLLM()
         self.app.icon = MockIcon()
 
         # Add some mock models
@@ -84,7 +84,7 @@ class TestIntegration(unittest.TestCase):
         # using httpx.AsyncClient or just call the endpoints via a TestClient if we had it,
         # but here we'll just check if the api_server logic correctly accesses app data.
 
-        api = api_server.LiteLLMAPI(self.app, port=8888)
+        api = api_server.FreeLLMAPI(self.app, port=8888)
 
         # Test status route logic
         async def check_status():

@@ -4,7 +4,7 @@ import database
 import engine
 import asyncio
 
-class TestLiteLLMControlPanel(unittest.TestCase):
+class TestFreeLLM(unittest.TestCase):
     def setUp(self):
         # Use a test database
         database.DB_NAME = "test_metrics.db"

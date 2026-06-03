@@ -53,7 +53,7 @@ def _port_is_open(port=4000, timeout=2):
         return False
 
 
-class LiteLLMProcess:
+class FreeLLMProcess:
     def __init__(self, config_path="config.yaml"):
         self.config_path = config_path
         self.process = None
@@ -88,7 +88,7 @@ class LiteLLMProcess:
         return False
 
     def start(self, env=None):
-        """Start the LiteLLM proxy process (non-blocking).
+        """Start the FreeLLM proxy process (non-blocking).
 
         Starts the subprocess and returns immediately. The monitor loop
         will detect when the port becomes available via is_running()/check_health().
@@ -103,9 +103,9 @@ class LiteLLMProcess:
         self._starting = True
 
         try:
-            # Check if LiteLLM is already running on port 4000
+            # Check if FreeLLM is already running on port 4000
             if _port_is_open():
-                print("LiteLLM is already running on port 4000.")
+                print("FreeLLM is already running on port 4000.")
                 return True
 
             # Kill any zombie on port 4000 before starting
@@ -116,9 +116,9 @@ class LiteLLMProcess:
                 print(f"Config file not found: {self.config_path} - skipping start")
                 return False
 
-            print(f"Starting LiteLLM with config: {self.config_path}")
+            print(f"Starting FreeLLM with config: {self.config_path}")
 
-            cmd = ["litellm", "--config", self.config_path, "--port", "4000"]
+            cmd = ["freellm", "--config", self.config_path, "--port", "4000"]
             creationflags = 0
             if sys.platform == "win32":
                 creationflags = subprocess.CREATE_NO_WINDOW
@@ -140,38 +140,38 @@ class LiteLLMProcess:
 
             # Start background thread to consume stdout
             threading.Thread(target=self._read_stdout, daemon=True).start()
-            print(f"LiteLLM subprocess started (PID {self.process.pid})")
+            print(f"FreeLLM subprocess started (PID {self.process.pid})")
             return True
 
         except Exception as e:
-            print(f"Failed to start LiteLLM: {e}")
+            print(f"Failed to start FreeLLM: {e}")
             return False
         finally:
             self._starting = False
 
     def stop(self):
-        """Stop LiteLLM by killing all processes on port 4000."""
+        """Stop FreeLLM by killing all processes on port 4000."""
         _kill_port(4000)
         self.process = None
         return True
 
     def restart(self, env=None):
-        """Restart the LiteLLM proxy process."""
+        """Restart the FreeLLM proxy process."""
         self.stop()
         time.sleep(2)
         return self.start(env=env)
 
     def is_running(self):
-        """Check if LiteLLM is running by checking if port 4000 is open.
+        """Check if FreeLLM is running by checking if port 4000 is open.
 
         We check the PORT instead of the subprocess because on Windows,
-        litellm spawns a uvicorn child process. The parent wrapper may
+        freellm spawns a uvicorn child process. The parent wrapper may
         exit while the actual server continues running on the port.
         """
         return _port_is_open()
 
     def check_health(self):
-        """Checks if the LiteLLM proxy is responding.
+        """Checks if the FreeLLM proxy is responding.
 
         First does a quick TCP port check, then tries HTTP endpoints.
         A timeout on the HTTP check means the server is alive but busy = healthy.

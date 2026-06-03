@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/robertpelloni/litellm_control_panel/internal/db"
-	"github.com/robertpelloni/litellm_control_panel/internal/engine"
+	"github.com/robertpelloni/freellm/internal/db"
+	"github.com/robertpelloni/freellm/internal/engine"
 )
 
 var upgrader = websocket.Upgrader{
@@ -186,13 +186,13 @@ func (s *UIServer) handleMetrics(w http.ResponseWriter, r *http.Request) {
 
 func (s *UIServer) handleConfig(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
-		data, err := os.ReadFile("litellm-config.yaml")
+		data, err := os.ReadFile("freellm-config.yaml")
 		if err != nil { http.Error(w, err.Error(), 500); return }
 		w.Header().Set("Content-Type", "text/yaml")
 		w.Write(data)
 	} else if r.Method == "POST" {
 		body, _ := io.ReadAll(r.Body)
-		if err := os.WriteFile("litellm-config.yaml", body, 0644); err != nil {
+		if err := os.WriteFile("freellm-config.yaml", body, 0644); err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}

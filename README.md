@@ -1,8 +1,8 @@
-# LiteLLM Control Panel v2.0.0
+# FreeLLM v2.0.0
 
 A powerful, autonomous Windows system tray utility for intelligent LLM routing, benchmarking, and proxy management.
 
-LiteLLM Control Panel ensures your high-performance LLM workflows always hit the best available models. It automatically benchmarks free, massive models (>= 100B parameters) across a wide array of providers and dynamically updates your routing configuration.
+FreeLLM ensures your high-performance LLM workflows always hit the best available models. It automatically benchmarks free, massive models (>= 100B parameters) across a wide array of providers and dynamically updates your routing configuration.
 
 ## 🚀 Key Features
 
@@ -18,7 +18,7 @@ LiteLLM Control Panel ensures your high-performance LLM workflows always hit the
 - **Operational Tools**:
   - **Main Dashboard**: Full oversight of rankings, scores, and provider health.
   - **Quick Query**: A minimalist chat interface for instant model testing.
-  - **Advanced Log Viewer**: Real-time monitoring of LiteLLM proxy output with search/filter.
+  - **Advanced Log Viewer**: Real-time monitoring of FreeLLM proxy output with search/filter.
   - **Maintenance Suite**: Tools to clear skips, manage blacklists, and backup/restore configurations.
 
 ## 🛠️ Quick Start
@@ -42,8 +42,8 @@ The router uses a configurable weighted algorithm to rank models:
 
 ## ⚙️ Configuration Safety
 
-- **Structure Preservation**: Uses `ruamel.yaml` to ensure your `.hermes` or local LiteLLM config comments and formatting are never lost.
-- **Automated Lifecycle**: Control Panel can automatically start and stop the LiteLLM proxy process.
+- **Structure Preservation**: Uses `ruamel.yaml` to ensure your `.hermes` or local FreeLLM config comments and formatting are never lost.
+- **Automated Lifecycle**: Control Panel can automatically start and stop the FreeLLM proxy process.
 
 ---
 *Optimized for high-performance developer environments on Windows.*

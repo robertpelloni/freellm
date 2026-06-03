@@ -6,7 +6,7 @@ class MonitoringUI:
     def __init__(self, app_instance=None):
         self.app = app_instance
         self.root = tk.Tk()
-        self.root.title("LiteLLM Control Panel - Autonomous Monitoring")
+        self.root.title("FreeLLM - Autonomous Monitoring")
         self.root.geometry("1000x700")
 
         self.notebook = ttk.Notebook(self.root)

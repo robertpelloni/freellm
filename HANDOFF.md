@@ -1,4 +1,4 @@
-# Session Handoff: LiteLLM Control Panel v4.5.0 (Autonomous Go Execution)
+# Session Handoff: FreeLLM v4.5.0 (Autonomous Go Execution)
 
 ## Overview
 Successfully finalized the transition from Python to a pure Go architecture, achieving parity with the previous Python stack and introducing significant reliability enhancements. The project now operates as an autonomous "Highly Stable Network" gateway.
@@ -11,7 +11,7 @@ Successfully finalized the transition from Python to a pure Go architecture, ach
 
 ## Completed Tasks
 - **Go Port Refinement:** Resolved compilation issues in `main.go` and verified the internal package logic.
-- **Submodule Integration:** Linked `robertpelloni/litellm` as a submodule for reference.
+- **Submodule Integration:** Linked `robertpelloni/freellm` as a submodule for reference.
 - **Dashboard APIs:** Implemented WebSocket log streaming and historical provider performance analytics.
 - **Benchmarking Logic:** Standardized TTFT measurement and scoring for 14+ providers.
 - **Deployment Safety:** Implemented SQLite schema migrations with existence checks.

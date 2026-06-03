@@ -9,7 +9,7 @@ def add_to_startup():
 
     import winreg
     key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
-    app_name = "LiteLLMControlPanel"
+    app_name = "FreeLLM"
     exe_path = os.path.realpath(sys.executable if getattr(sys, 'frozen', False) else sys.argv[0])
 
     try:
@@ -27,7 +27,7 @@ def remove_from_startup():
 
     import winreg
     key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
-    app_name = "LiteLLMControlPanel"
+    app_name = "FreeLLM"
 
     try:
         key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE)

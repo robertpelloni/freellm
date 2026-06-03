@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/robertpelloni/litellm_control_panel/internal/engine"
+	"github.com/robertpelloni/freellm/internal/engine"
 )
 
 type mockTransport struct {

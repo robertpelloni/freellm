@@ -1,4 +1,4 @@
-# Structural Map: LiteLLM Control Panel (Go Edition)
+# Structural Map: FreeLLM (Go Edition)
 
 ## Core Logic
 - `cmd/app/main.go`: Entry point, system tray management, background worker orchestration, and single-instance enforcement.
@@ -21,4 +21,4 @@
 - `CHANGELOG.md`: Detailed feature and fix history.
 
 ## Submodules
-- `litellm_repo/`: Official LiteLLM repository for parity reference and integration.
+- `freellm_repo/`: Official FreeLLM repository for parity reference and integration.

@@ -956,24 +956,24 @@ class ModelEngine:
         known_to_force = []
         existing_ids = {c['id'] for c in valid_candidates}
 
-        for litellm_id, spec in known_models.all_models().items():
+        for freellm_id, spec in known_models.all_models().items():
             # The ID stored in known_models includes provider prefix, e.g. "github/DeepSeek-R1"
             # But our candidate list uses the bare model ID, e.g. "DeepSeek-R1"
-            bare_id = litellm_id.split("/", 1)[-1] if "/" in litellm_id else litellm_id
+            bare_id = freellm_id.split("/", 1)[-1] if "/" in freellm_id else freellm_id
             prov = spec.get("provider", "")
             # Skip dead providers (exhausted/depleted keys)
             if prov in DEAD_PROVIDERS:
                 continue
             # Skip non-chat models by keyword
-            if any(exc in litellm_id.lower() for exc in GLOBAL_EXCLUSIONS):
+            if any(exc in freellm_id.lower() for exc in GLOBAL_EXCLUSIONS):
                 continue
 
             # Skip if already in candidates (check both bare id and full id)
-            if bare_id in existing_ids or litellm_id in existing_ids:
+            if bare_id in existing_ids or freellm_id in existing_ids:
                 continue
 
             # Skip if blacklisted in DB
-            db_stat = db_status.get(bare_id) or db_status.get(litellm_id)
+            db_stat = db_status.get(bare_id) or db_status.get(freellm_id)
             if db_stat and db_stat[4]:  # is_blacklisted
                 continue
 

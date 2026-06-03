@@ -1,4 +1,4 @@
-# Deployment: LiteLLM Control Panel (Go)
+# Deployment: FreeLLM (Go)
 
 ## Prerequisites
 - Windows 10/11
@@ -12,7 +12,7 @@
    ```
 3. Build the application:
    ```bash
-   go build -o LiteLLMControlPanel.exe .
+   go build -o FreeLLMControlPanel.exe .
    ```
 
 ## Development
@@ -22,7 +22,7 @@
 ## Packaging
 To create a production build with no console window:
 ```bash
-go build -ldflags -H=windowsgui -o LiteLLMControlPanel.exe .
+go build -ldflags -H=windowsgui -o FreeLLMControlPanel.exe .
 ```
 
 ## Startup Integration

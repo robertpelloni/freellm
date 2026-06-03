@@ -16,7 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/robertpelloni/litellm_control_panel/internal/db"
+	"github.com/robertpelloni/freellm/internal/db"
 )
 
 var SizePattern = regexp.MustCompile(`(\d+)[bB]`)
@@ -499,13 +499,13 @@ func (b *Benchmarker) FinalBenchmarkFilter(candidates []ModelCandidate) []ModelC
 // ForceInjectKnownModels adds known good models not found in provider fetches.
 func (b *Benchmarker) ForceInjectKnownModels(existingIDs map[string]bool) []ModelCandidate {
 	var known []ModelCandidate
-	for litellmID, spec := range KnownModels {
-		bareID := litellmID
-		if idx := strings.Index(litellmID, "/"); idx >= 0 { bareID = litellmID[idx+1:] }
-		if existingIDs[bareID] || existingIDs[litellmID] { continue }
+	for modelID, spec := range KnownModels {
+		bareID := modelID
+		if idx := strings.Index(modelID, "/"); idx >= 0 { bareID = modelID[idx+1:] }
+		if existingIDs[bareID] || existingIDs[modelID] { continue }
 		if IsDeadProvider(spec.Provider) { continue }
-		if IsExcluded(litellmID) || IsExcluded(bareID) { continue }
-		if IsDeadModel(litellmID) || IsDeadModel(bareID) { continue }
+		if IsExcluded(modelID) || IsExcluded(bareID) { continue }
+		if IsDeadModel(modelID) || IsDeadModel(bareID) { continue }
 		effectiveProv := spec.Provider
 		if effectiveProv == "nvidia_nim" {
 			if _, ok := b.APIKeys["nvidia_nim"]; !ok {
