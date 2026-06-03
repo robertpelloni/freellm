@@ -99,7 +99,10 @@ func (b *Benchmarker) FetchModels(ctx context.Context, database *sql.DB) []Model
 		// Check if provider enabled in DB
 		if database != nil {
 			var enabled int
-			database.QueryRow("SELECT is_free_provider FROM providers WHERE provider_name = ?", p).Scan(&enabled)
+			err := database.QueryRow("SELECT is_free_provider FROM providers WHERE provider_name = ?", p).Scan(&enabled)
+			if err != nil {
+				enabled = 1 // No row = not in DB yet, treat as enabled
+			}
 			if enabled == 0 { continue }
 		}
 
@@ -123,7 +126,7 @@ func (b *Benchmarker) FetchModels(ctx context.Context, database *sql.DB) []Model
 }
 
 func (b *Benchmarker) fetchProviderModels(ctx context.Context, provider string) []ModelCandidate {
-	if provider == "ollama" {
+		if provider == "ollama" {
 		return b.fetchOllamaModels(ctx)
 	}
 	if provider == "huggingface" {
@@ -132,7 +135,7 @@ func (b *Benchmarker) fetchProviderModels(ctx context.Context, provider string) 
 
 	url := b.getModelsURL(provider)
 	if url == "" {
-		return nil
+				return nil
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
@@ -145,12 +148,12 @@ func (b *Benchmarker) fetchProviderModels(ctx context.Context, provider string) 
 
 	resp, err := b.Client.Do(req)
 	if err != nil {
-		return nil
+				return nil
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil
+				return nil
 	}
 
 	var data struct {

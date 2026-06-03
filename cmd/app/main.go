@@ -59,17 +59,33 @@ func onReady() {
 	// Initialize Engine & Logger
 	eventLogger := engine.NewEventLogger(100, database)
 	apiKeys := map[string]string{
-		"openrouter":  os.Getenv("OPENROUTER_API_KEY"),
-		"groq":        os.Getenv("GROQ_API_KEY"),
-		"github":      os.Getenv("GITHUB_TOKEN"),
-		"deepinfra":   os.Getenv("DEEPINFRA_API_KEY"),
-		"cerebras":    os.Getenv("CEREBRAS_API_KEY"),
-		"huggingface": os.Getenv("HUGGINGFACE_API_KEY"),
-		"nvidia":      os.Getenv("NVIDIA_NIM_API_KEY"),
-		"gemini":      os.Getenv("GEMINI_API_KEY"),
-		"anthropic":   os.Getenv("ANTHROPIC_API_KEY"),
-		"mistral":     os.Getenv("MISTRAL_API_KEY"),
+		"openrouter":   os.Getenv("OPENROUTER_API_KEY"),
+		"groq":         os.Getenv("GROQ_API_KEY"),
+		"github":       os.Getenv("GITHUB_TOKEN"),
+		"deepinfra":    os.Getenv("DEEPINFRA_API_KEY"),
+		"cerebras":     os.Getenv("CEREBRAS_API_KEY"),
+		"huggingface":  os.Getenv("HUGGINGFACE_API_KEY"),
+		"nvidia":       os.Getenv("NVIDIA_NIM_API_KEY"),
+		"gemini":       os.Getenv("GEMINI_API_KEY"),
+		"anthropic":    os.Getenv("ANTHROPIC_API_KEY"),
+		"mistral":      os.Getenv("MISTRAL_API_KEY"),
+		"cohere":       os.Getenv("COHERE_API_KEY"),
+		"sambanova":    os.Getenv("SAMBANOVA_API_KEY"),
+		"fireworks":    os.Getenv("FIREWORKS_API_KEY"),
+		"hyperbolic":   os.Getenv("HYPERBOLIC_API_KEY"),
+		"cloudflare":   os.Getenv("CLOUDFLARE_API_KEY"),
+		"opencode_zen": os.Getenv("OPENCODE_ZEN_API_KEY"),
+		"codestral":    os.Getenv("CODESTRAL_API_KEY"),
+		"nvidia_nim":   os.Getenv("NVIDIA_API_KEY"),
 	}
+	// Debug: count configured API keys
+	keyCount := 0
+	for _, v := range apiKeys {
+		if v != "" {
+			keyCount++
+		}
+	}
+	log.Printf("API keys configured: %d/%d providers have keys", keyCount, len(apiKeys))
 	benchmarker := engine.NewBenchmarker(apiKeys, 100, eventLogger)
 
 	// Initialize Configuration
