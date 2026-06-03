@@ -17,23 +17,22 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"github.com/xeipuuv/gojsonschema"
-
 	"github.com/robertpelloni/litellm_control_panel/internal/db"
 	"github.com/robertpelloni/litellm_control_panel/internal/engine"
 )
 
 type Gateway struct {
-	RankedModels  engine.RankedModels
-	mu            sync.RWMutex
-	Queue         chan *RequestJob
-	HighPriQueue  chan *RequestJob
-	MaxActive     int
-	DB            *sql.DB
-	PrimaryCount  int
-	Cache         map[string][]byte
-	cacheMu       sync.RWMutex
-	Redis         *redis.Client
-	Client        *http.Client
+	RankedModels     engine.RankedModels
+	mu               sync.RWMutex
+	Queue            chan *RequestJob
+	HighPriQueue     chan *RequestJob
+	MaxActive        int
+	DB               *sql.DB
+	PrimaryCount     int
+	Cache            map[string][]byte
+	cacheMu          sync.RWMutex
+	Redis            *redis.Client
+	Client           *http.Client
 	preflightCache   map[string]preflightEntry
 	preflightCacheMu sync.RWMutex
 	cbRecoveryMu     sync.Mutex
@@ -92,10 +91,11 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if authKey != "" {
 		token := r.Header.Get("Authorization")
 		if token != "Bearer "+authKey {
-			http.Error(w, "Unauthorized", 401)
+			writeJSONError(w, 401, "Unauthorized", "invalid_api_key", "auth")
 			return
 		}
 	}
+
 	if r.URL.Path == "/health" || r.URL.Path == "/health/liveness" {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -107,11 +107,11 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		count := len(g.RankedModels)
 		g.mu.RUnlock()
 		if count > 0 {
-w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"status":"ready"}`))
 		} else {
-w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusServiceUnavailable)
 			w.Write([]byte(`{"status":"not_ready"}`))
 		}
@@ -132,12 +132,13 @@ w.Header().Set("Content-Type", "application/json")
 	schema := gojsonschema.NewStringLoader(`{"type":"object","properties":{"model":{"type":"string"},"messages":{"type":"array"}},"required":["model","messages"]}`)
 	result, err := gojsonschema.Validate(schema, gojsonschema.NewBytesLoader(body))
 	if err == nil && !result.Valid() {
-		http.Error(w, "Invalid OpenAI Request Schema", 400)
+		writeJSONError(w, 400, "Invalid OpenAI Request Schema", "invalid_request_error", "request")
 		return
 	}
 
 	ctx := r.Context()
 	cacheKey := string(body)
+
 	if g.Redis != nil {
 		if val, err := g.Redis.Get(ctx, cacheKey).Bytes(); err == nil {
 			w.Header().Set("Content-Type", "application/json")
@@ -171,6 +172,7 @@ w.Header().Set("Content-Type", "application/json")
 	if r.Header.Get("X-LiteLLM-Priority") == "high" {
 		queue = g.HighPriQueue
 	}
+
 	select {
 	case queue <- job:
 	case <-ctx.Done():
@@ -182,13 +184,15 @@ w.Header().Set("Content-Type", "application/json")
 
 	resp := <-job.Response
 	if resp.Err != nil {
-		http.Error(w, resp.Err.Error(), http.StatusBadGateway)
+		writeJSONError(w, http.StatusBadGateway, resp.Err.Error(), "server_error", "proxy")
 		return
 	}
+
 	for k, v := range resp.Header {
 		w.Header()[k] = v
 	}
 	w.WriteHeader(resp.Status)
+
 	if resp.Stream != nil {
 		defer resp.Stream.Close()
 		if flusher, ok := w.(http.Flusher); ok {
@@ -264,7 +268,6 @@ func (g *Gateway) processJob(job *RequestJob) {
 	// Build ordered attempt list
 	var attemptOrder []engine.ModelCandidate
 	if hasTools && len(toolModels) > 0 {
-		// Tool request: tool-compatible models first, then plain as last resort
 		attemptOrder = append(attemptOrder, toolModels...)
 		if len(attemptOrder) < 5 {
 			attemptOrder = append(attemptOrder, plainModels...)
@@ -378,8 +381,11 @@ func (g *Gateway) classifyRequest(body []byte) (hasTools bool, toolModels []engi
 	}
 
 	noTool := map[string]bool{
-		"nvidia_nim": true, "nvidia": true, "cerebras": true,
-		"cloudflare": true, "deepinfra": true,
+		"nvidia_nim": true,
+		"nvidia":     true,
+		"cerebras":   true,
+		"cloudflare": true,
+		"deepinfra":  true,
 	}
 	g.mu.RLock()
 	for _, m := range g.RankedModels {
@@ -425,38 +431,89 @@ func (g *Gateway) autoRecoverCircuitBreakers() {
 	log.Println("[ROUTER] Circuit breakers auto-recovered")
 }
 
-// sanitizeRequestBody strips tool-related fields for providers that don't support tools
+// sanitizeRequestBody cleans request body for provider compatibility:
+// - ALWAYS strips reasoning_content from messages (DeepSeek adds this, breaks other providers)
+// - ALWAYS strips unsupported params per provider
+// - For no-tool providers: strips tools/tool_choice/tool messages/tool_calls
+// - Sets null assistant content to ""
+// - Sets default max_tokens if not provided
 func (g *Gateway) sanitizeRequestBody(provider string, body []byte, hasTools bool) []byte {
 	noTool := map[string]bool{
-		"nvidia_nim": true, "nvidia": true, "cerebras": true,
-		"cloudflare": true, "deepinfra": true,
+		"nvidia_nim": true,
+		"nvidia":     true,
+		"cerebras":   true,
+		"cloudflare": true,
+		"deepinfra":  true,
 	}
-	if !noTool[provider] || !hasTools {
-		return body
-	}
-
 	var payload map[string]interface{}
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return body
 	}
 
-	delete(payload, "tools")
-	delete(payload, "tool_choice")
-
+	// Clean messages: strip reasoning_content, fix null content, handle tool fields
 	if msgs, ok := payload["messages"].([]interface{}); ok {
 		var clean []interface{}
 		for _, msg := range msgs {
-			if m, ok := msg.(map[string]interface{}); ok {
+			m, ok := msg.(map[string]interface{})
+			if !ok {
+				clean = append(clean, msg)
+				continue
+			}
+			// ALWAYS strip reasoning_content - DeepSeek models add this and
+			// other providers reject it with "Extra inputs are not permitted"
+			delete(m, "reasoning_content")
+
+			// Fix null assistant content -> ""
+			if r, ok := m["role"].(string); ok && r == "assistant" {
+				if content, exists := m["content"]; exists && content == nil {
+					m["content"] = ""
+				}
+			}
+
+			// For no-tool providers: strip tool-related fields
+			if noTool[provider] && hasTools {
 				if r, ok := m["role"].(string); ok && r == "tool" {
-					continue
+					continue // skip tool result messages entirely
 				}
 				delete(m, "tool_calls")
 				delete(m, "tool_call_id")
-				clean = append(clean, m)
 			}
+			clean = append(clean, m)
 		}
 		payload["messages"] = clean
 	}
+
+	// For no-tool providers: strip tools and tool_choice
+	if noTool[provider] && hasTools {
+		delete(payload, "tools")
+		delete(payload, "tool_choice")
+	}
+
+	// Strip unsupported params per provider
+	switch provider {
+	case "mistral", "codestral":
+		delete(payload, "frequency_penalty")
+		delete(payload, "presence_penalty")
+	case "nvidia", "nvidia_nim", "cerebras":
+		delete(payload, "frequency_penalty")
+		delete(payload, "presence_penalty")
+		delete(payload, "logit_bias")
+		delete(payload, "logprobs")
+		delete(payload, "top_logprobs")
+	case "cohere":
+		delete(payload, "logit_bias")
+		delete(payload, "logprobs")
+	case "groq":
+		delete(payload, "logit_bias")
+		delete(payload, "logprobs")
+		delete(payload, "top_logprobs")
+	}
+
+	// Set default max_tokens if not provided
+	if _, ok := payload["max_tokens"]; !ok {
+		payload["max_tokens"] = 4096
+	}
+
 	if out, err := json.Marshal(payload); err == nil {
 		return out
 	}
@@ -488,7 +545,6 @@ func (g *Gateway) PreFlightCheck(model engine.ModelCandidate) bool {
 	if ok {
 		resp.Body.Close()
 	}
-
 	g.preflightCacheMu.Lock()
 	g.preflightCache[host] = preflightEntry{ok: ok, checkedAt: time.Now()}
 	g.preflightCacheMu.Unlock()
@@ -501,10 +557,16 @@ func (g *Gateway) forwardRequest(client *http.Client, r *http.Request, model eng
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return &ProxyResponse{Err: fmt.Errorf("unmarshal: %v", err)}
 	}
-	payload["model"] = model.ID
+
+	// Set model ID, stripping provider prefixes where needed
+	modelForAPI := model.ID
+	if model.Provider == "nvidia_nim" {
+		modelForAPI = strings.TrimPrefix(modelForAPI, "nvidia_nim/")
+	}
+	payload["model"] = modelForAPI
+
 	stream, _ := payload["stream"].(bool)
 	newBody, _ := json.Marshal(payload)
-
 	if mapped, err := TransformRequestBody(model.Provider, newBody); err == nil {
 		newBody = mapped
 	}
@@ -534,6 +596,7 @@ func (g *Gateway) forwardRequest(client *http.Client, r *http.Request, model eng
 		}
 	}
 	defer resp.Body.Close()
+
 	respBody, _ := io.ReadAll(resp.Body)
 
 	if !stream && resp.StatusCode == 200 {
@@ -542,16 +605,31 @@ func (g *Gateway) forwardRequest(client *http.Client, r *http.Request, model eng
 		}
 		var rd map[string]interface{}
 		if json.Unmarshal(respBody, &rd) == nil {
+			// Strip reasoning_content from response messages too
+			if choices, ok := rd["choices"].([]interface{}); ok {
+				for _, c := range choices {
+					if choice, ok := c.(map[string]interface{}); ok {
+						if msg, ok := choice["message"].(map[string]interface{}); ok {
+							delete(msg, "reasoning_content")
+						}
+					}
+				}
+				rd["choices"] = choices
+			}
+			// Add usage if missing
 			if _, ok := rd["usage"]; !ok {
 				rd["usage"] = map[string]int{
 					"prompt_tokens":     len(body) / 4,
 					"completion_tokens": len(respBody) / 4,
 					"total_tokens":      (len(body) + len(respBody)) / 4,
 				}
-				respBody, _ = json.Marshal(rd)
 			}
+			// Set model name in response
+			rd["model"] = model.ID
+			respBody, _ = json.Marshal(rd)
 		}
 	}
+
 	return &ProxyResponse{
 		Status: resp.StatusCode,
 		Body:   respBody,
@@ -608,7 +686,7 @@ func (g *Gateway) getProviderURL(modelID, provider string) string {
 	return ""
 }
 
-// API key resolution for all providers
+// API key resolution for all providers (with NVIDIA fallback)
 func (g *Gateway) getAPIKey(provider string) string {
 	switch provider {
 	case "openrouter":
@@ -624,7 +702,11 @@ func (g *Gateway) getAPIKey(provider string) string {
 	case "huggingface":
 		return os.Getenv("HUGGINGFACE_API_KEY")
 	case "nvidia", "nvidia_nim":
-		return os.Getenv("NVIDIA_NIM_API_KEY")
+		key := os.Getenv("NVIDIA_NIM_API_KEY")
+		if key == "" {
+			key = os.Getenv("NVIDIA_API_KEY")
+		}
+		return key
 	case "mistral":
 		return os.Getenv("MISTRAL_API_KEY")
 	case "codestral":
@@ -678,6 +760,7 @@ func (g *Gateway) handleModels(w http.ResponseWriter, r *http.Request) {
 		Data: []ME{
 			{"free-llm", "model", time.Now().Unix(), "litellm-cp"},
 			{"free-llm-fallback", "model", time.Now().Unix(), "litellm-cp"},
+			{"free-llm-plain", "model", time.Now().Unix(), "litellm-cp"},
 		},
 	}
 	for _, m := range g.GetModels() {
@@ -730,6 +813,20 @@ func (g *Gateway) logUsage(modelID string, reqBody, respBody []byte) {
 		pt, ct = 0, 0
 	}
 	db.LogUsage(g.DB, modelID, pt, ct)
+}
+
+// writeJSONError sends an OpenAI-compatible error response
+func writeJSONError(w http.ResponseWriter, status int, message, code, param string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"error": map[string]interface{}{
+			"message": message,
+			"type":    "server_error",
+			"param":   param,
+			"code":    code,
+		},
+	})
 }
 
 func minInt(a, b int) int {
