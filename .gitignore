@@ -13,3 +13,6 @@ config.yaml
 settings.json
 provider_metrics.db
 tormentnexus.db
+litellm-cp.exe
+litellm-cp.exe~
+litellm-config-go.yaml
