@@ -10,7 +10,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/gen2brain/beeep"
@@ -31,18 +30,22 @@ func notify(title, message string) {
 // menuAction represents a click event from any menu item
 type menuAction struct {
 	id   string
-	data interface{}
+	data string
 }
 
 // menuEventBus collects all menu clicks into a single channel
-var menuEventBus = make(chan menuAction, 100)
+var menuEventBus = make(chan menuAction, 256)
 
-func click(id string, data interface{}) {
-	menuEventBus <- menuAction{id: id, data: data}
+func click(id, data string) {
+	select {
+	case menuEventBus <- menuAction{id: id, data: data}:
+	default:
+		log.Printf("menuEventBus full, dropping action %s", id)
+	}
 }
 
 // watchMenuItem launches a goroutine that sends a menu action when the item is clicked
-func watchMenuItem(item *systray.MenuItem, id string, data interface{}) {
+func watchMenuItem(item *systray.MenuItem, id, data string) {
 	go func() {
 		for range item.ClickedCh {
 			click(id, data)
@@ -51,7 +54,6 @@ func watchMenuItem(item *systray.MenuItem, id string, data interface{}) {
 }
 
 func main() {
-	// Single instance enforcement
 	lockFile := filepath.Join(os.TempDir(), "freellm.lock")
 	if data, err := os.ReadFile(lockFile); err == nil {
 		if pid, err := strconv.Atoi(string(bytes.TrimSpace(data))); err == nil {
@@ -78,16 +80,13 @@ func onReady() {
 	systray.SetTitle("FreeLLM")
 	systray.SetTooltip("FreeLLM - Starting...")
 
-	// --- Database ---
 	database, err := db.InitDB()
 	if err != nil {
 		log.Fatalf("Failed to init DB: %v", err)
 	}
 
-	// --- Event Logger ---
 	eventLogger := engine.NewEventLogger(100, database)
 
-	// --- API Keys ---
 	apiKeys := map[string]string{
 		"openrouter":   os.Getenv("OPENROUTER_API_KEY"),
 		"groq":         os.Getenv("GROQ_API_KEY"),
@@ -119,7 +118,6 @@ func onReady() {
 
 	benchmarker := engine.NewBenchmarker(apiKeys, 100, eventLogger)
 
-	// --- Configuration ---
 	cfgPath := "freellm-config.yaml"
 	cfg, err := config.LoadConfig(cfgPath)
 	if err != nil {
@@ -145,7 +143,6 @@ func onReady() {
 		}
 	})
 
-	// --- Proxy Gateway ---
 	proxyPort := cfg.Port
 	if proxyPort == 0 {
 		proxyPort = 4000
@@ -153,7 +150,6 @@ func onReady() {
 	if envPort := os.Getenv("FREELLM_PORT"); envPort != "" {
 		if p, err := strconv.Atoi(envPort); err == nil && p > 0 {
 			proxyPort = p
-			log.Printf("Using FREELLM_PORT=%d from environment", proxyPort)
 		}
 	}
 
@@ -168,7 +164,6 @@ func onReady() {
 		}
 	}()
 
-	// --- Web Dashboard ---
 	uiServer := ui.NewUIServer(database, eventLogger, gateway)
 	go func() {
 		log.Println("Starting Web Dashboard on :8080")
@@ -178,7 +173,7 @@ func onReady() {
 	}()
 
 	// ============================================================
-	//  State Variables
+	//  State
 	// ============================================================
 
 	routingEnabled := true
@@ -187,21 +182,26 @@ func onReady() {
 	fullRefreshInterval := 60 * time.Minute
 	pulseInterval := 10 * time.Minute
 	lastFullRefresh := time.Time{}
+	menuBuilt := false
 
 	// ============================================================
-	//  Build the Full Right-Click Menu (matching Python version)
+	//  Build Static Menu (matches Python version layout)
+	//  Model submenus are flat (2 levels max) to work on Windows.
+	//  Each model is listed as a clickable item under its group.
+	//  Clicking a model = Set as Primary.
+	//  Skip/Blacklist are separate items per model.
 	// ============================================================
 
-	// --- Top Section: Master Routing + Copy Active Model ---
+	// --- Top ---
 	mRouting := systray.AddMenuItemCheckbox("Master Routing", "Enable request routing", true)
-	watchMenuItem(mRouting, "toggle_routing", nil)
+	watchMenuItem(mRouting, "toggle_routing", "")
 
 	mCopyModel := systray.AddMenuItem("Copy Active Model", "Copy primary model ID to clipboard")
-	watchMenuItem(mCopyModel, "copy_active_model", nil)
+	watchMenuItem(mCopyModel, "copy_active_model", "")
 
 	systray.AddSeparator()
 
-	// --- Status Line ---
+	// --- Status ---
 	mStatus := systray.AddMenuItem("FreeLLM: Starting | Primary: None", "Current status")
 	mStatus.Disable()
 
@@ -209,49 +209,49 @@ func onReady() {
 
 	// --- Primary Actions ---
 	mOpen := systray.AddMenuItem("Open LLM Interface", "Open the LLM chat in browser")
-	watchMenuItem(mOpen, "open_interface", nil)
+	watchMenuItem(mOpen, "open_interface", "")
 
 	mSettings := systray.AddMenuItem("Settings", "Open settings")
-	watchMenuItem(mSettings, "open_settings", nil)
+	watchMenuItem(mSettings, "open_settings", "")
 
 	systray.AddSeparator()
 
 	// --- UI Windows ---
 	mQuickQuery := systray.AddMenuItem("Quick Query", "Send a quick query to the LLM")
-	watchMenuItem(mQuickQuery, "open_quick_query", nil)
+	watchMenuItem(mQuickQuery, "open_quick_query", "")
 
 	mModelComparison := systray.AddMenuItem("Model Comparison", "Compare model responses side by side")
-	watchMenuItem(mModelComparison, "open_comparison", nil)
+	watchMenuItem(mModelComparison, "open_comparison", "")
 
 	mDashboard := systray.AddMenuItem("Show Dashboard", "Open monitoring dashboard")
-	watchMenuItem(mDashboard, "open_dashboard", nil)
+	watchMenuItem(mDashboard, "open_dashboard", "")
 
 	mLeaderboard := systray.AddMenuItem("Model Leaderboard", "View model rankings")
-	watchMenuItem(mLeaderboard, "open_leaderboard", nil)
+	watchMenuItem(mLeaderboard, "open_leaderboard", "")
 
 	mSavings := systray.AddMenuItem("Cost Savings", "View cost savings report")
-	watchMenuItem(mSavings, "open_savings", nil)
+	watchMenuItem(mSavings, "open_savings", "")
 
 	mMonitoring := systray.AddMenuItem("Monitoring Dashboard", "Real-time monitoring")
-	watchMenuItem(mMonitoring, "open_monitoring", nil)
+	watchMenuItem(mMonitoring, "open_monitoring", "")
 
 	mProtocol := systray.AddMenuItem("Protocol Oversight", "View protocol compliance")
-	watchMenuItem(mProtocol, "open_protocol", nil)
+	watchMenuItem(mProtocol, "open_protocol", "")
 
 	mExecution := systray.AddMenuItem("Execution Dashboard", "View execution metrics")
-	watchMenuItem(mExecution, "open_execution", nil)
+	watchMenuItem(mExecution, "open_execution", "")
 
 	mSystemStatus := systray.AddMenuItem("System Status", "View system health")
-	watchMenuItem(mSystemStatus, "open_status", nil)
+	watchMenuItem(mSystemStatus, "open_status", "")
 
 	systray.AddSeparator()
 
-	// --- ★ Primary Models Submenu (populated dynamically) ---
-	mPrimaryGroup := systray.AddMenuItem("★ Primary (0)", "Primary model group")
+	// --- ★ Primary Models Submenu (flat, populated dynamically) ---
+	mPrimaryGroup := systray.AddMenuItem("★ Primary (0)", "Primary model group — click model to set as #1")
 	mPrimaryPlaceholder := mPrimaryGroup.AddSubMenuItem("No models loaded yet...", "")
 	mPrimaryPlaceholder.Disable()
 
-	// --- Fallback Models Submenu (populated dynamically) ---
+	// --- Fallback Models Submenu (flat, populated dynamically) ---
 	mFallbackGroup := systray.AddMenuItem("  Fallback (0)", "Fallback model group")
 	mFallbackPlaceholder := mFallbackGroup.AddSubMenuItem("No models loaded yet...", "")
 	mFallbackPlaceholder.Disable()
@@ -260,10 +260,10 @@ func onReady() {
 
 	// --- Auto-Pilot & Refresh ---
 	mAutoPilot := systray.AddMenuItemCheckbox("Auto-Pilot Mode", "Automatically benchmark and route", true)
-	watchMenuItem(mAutoPilot, "toggle_autopilot", nil)
+	watchMenuItem(mAutoPilot, "toggle_autopilot", "")
 
 	mRefreshNow := systray.AddMenuItem("Refresh Now", "Force a model refresh now")
-	watchMenuItem(mRefreshNow, "refresh_now", nil)
+	watchMenuItem(mRefreshNow, "refresh_now", "")
 
 	systray.AddSeparator()
 
@@ -274,75 +274,79 @@ func onReady() {
 
 	// --- Documentation ---
 	mDocs := systray.AddMenuItem("Documentation", "Open FreeLLM documentation")
-	watchMenuItem(mDocs, "open_docs", nil)
+	watchMenuItem(mDocs, "open_docs", "")
 
 	// --- Start with Windows ---
 	mStartup := systray.AddMenuItem("Start with Windows", "Launch on system startup")
 	mStartupEnable := mStartup.AddSubMenuItem("Enable", "Add to Windows startup")
-	watchMenuItem(mStartupEnable, "startup_enable", nil)
+	watchMenuItem(mStartupEnable, "startup_enable", "")
 	mStartupDisable := mStartup.AddSubMenuItem("Disable", "Remove from Windows startup")
-	watchMenuItem(mStartupDisable, "startup_disable", nil)
+	watchMenuItem(mStartupDisable, "startup_disable", "")
 
 	// --- Maintenance ---
 	mMaintenance := systray.AddMenuItem("Maintenance", "System maintenance options")
 	mMaintClearSkips := mMaintenance.AddSubMenuItem("Clear Skip List", "Clear all manual model skips")
-	watchMenuItem(mMaintClearSkips, "maint_clear_skips", nil)
+	watchMenuItem(mMaintClearSkips, "maint_clear_skips", "")
 	mMaintClearBlacklist := mMaintenance.AddSubMenuItem("Clear Blacklist", "Remove all blacklisted models")
-	watchMenuItem(mMaintClearBlacklist, "maint_clear_blacklist", nil)
+	watchMenuItem(mMaintClearBlacklist, "maint_clear_blacklist", "")
 	mMaintResetStats := mMaintenance.AddSubMenuItem("Reset Provider Stats", "Reset all provider and model statistics")
-	watchMenuItem(mMaintResetStats, "maint_reset_stats", nil)
+	watchMenuItem(mMaintResetStats, "maint_reset_stats", "")
 	mMaintCleanupProbes := mMaintenance.AddSubMenuItem("Cleanup Old Probes (>90d)", "Delete probe history older than 90 days")
-	watchMenuItem(mMaintCleanupProbes, "maint_cleanup_probes", nil)
+	watchMenuItem(mMaintCleanupProbes, "maint_cleanup_probes", "")
 	mMaintBackupConfig := mMaintenance.AddSubMenuItem("Backup FreeLLM Config", "Save current config to .bak")
-	watchMenuItem(mMaintBackupConfig, "maint_backup_config", nil)
+	watchMenuItem(mMaintBackupConfig, "maint_backup_config", "")
 	mMaintRestoreConfig := mMaintenance.AddSubMenuItem("Restore FreeLLM Config", "Restore config from .bak backup")
-	watchMenuItem(mMaintRestoreConfig, "maint_restore_config", nil)
+	watchMenuItem(mMaintRestoreConfig, "maint_restore_config", "")
 
 	systray.AddSeparator()
 
 	// --- FreeLLM Control ---
 	mControl := systray.AddMenuItem("FreeLLM Control", "Proxy control options")
 	mControlRefresh := mControl.AddSubMenuItem("Refresh Models", "Re-discover and benchmark all models")
-	watchMenuItem(mControlRefresh, "control_refresh", nil)
+	watchMenuItem(mControlRefresh, "control_refresh", "")
 	mControlViewLogs := mControl.AddSubMenuItem("View Proxy Logs", "Open log viewer")
-	watchMenuItem(mControlViewLogs, "control_view_logs", nil)
+	watchMenuItem(mControlViewLogs, "control_view_logs", "")
 	mControlViewEngineLogs := mControl.AddSubMenuItem("View Engine Logs", "View engine/benchmark logs")
-	watchMenuItem(mControlViewEngineLogs, "control_view_engine_logs", nil)
+	watchMenuItem(mControlViewEngineLogs, "control_view_engine_logs", "")
 	mControlViewConfig := mControl.AddSubMenuItem("View Config", "Open config editor")
-	watchMenuItem(mControlViewConfig, "control_view_config", nil)
+	watchMenuItem(mControlViewConfig, "control_view_config", "")
 
 	systray.AddSeparator()
 
 	// --- Quit ---
 	mQuit := systray.AddMenuItem("Quit", "Quit FreeLLM")
-	watchMenuItem(mQuit, "quit", nil)
+	watchMenuItem(mQuit, "quit", "")
 
 	// ============================================================
-	//  Dynamic Menu Building (models + providers)
+	//  Build Dynamic Model Items (FLAT — max 2 nesting levels)
+	//
+	//  Structure per model (under ★ Primary / Fallback submenu):
+	//    ★ model-name (provider) 2.1s score=85    [click = Set as Primary]
+	//       ↳ Skip (24h)                          [click = skip 24h]
+	//       ↳ Blacklist                            [click = blacklist]
+	//       ↳ ↓ Demote to Fallback  (primary only)
+	//       ↳ ↑ Promote to Primary   (fallback only)
+	//       ↳ ↑ Move Up              (not first)
+	//       ↳ ↓ Move Down            (not last)
+	//
+	//  This keeps it at exactly 2 levels: Group → Item + Actions
+	//  Windows systray renders this correctly.
 	// ============================================================
-
-	type modelMenuEntry struct {
-		modelID   string
-		isPrimary bool
-	}
-
-	var dynamicModels []modelMenuEntry
-	var dynamicProviders []string
-	var dynMu sync.Mutex
-	menuBuilt := false
 
 	rebuildDynamicMenu := func() {
-		dynMu.Lock()
-		defer dynMu.Unlock()
+		if menuBuilt {
+			return // systray doesn't support removing items, build once
+		}
 
 		models := gateway.GetModels()
+		if len(models) == 0 {
+			return
+		}
 		primaryCount := gateway.PrimaryCount
 
-		pCount := 0
-		if len(models) < primaryCount {
+		pCount := primaryCount
+		if len(models) < pCount {
 			pCount = len(models)
-		} else {
-			pCount = primaryCount
 		}
 		fCount := len(models) - primaryCount
 		if fCount < 0 {
@@ -352,120 +356,93 @@ func onReady() {
 		mPrimaryGroup.SetTitle(fmt.Sprintf("★ Primary (%d)", pCount))
 		mFallbackGroup.SetTitle(fmt.Sprintf("  Fallback (%d)", fCount))
 
-		if menuBuilt && len(dynamicModels) == len(models) {
-			// Same count, just update titles
-			for i, m := range models {
-				isPrimary := i < primaryCount
-				latStr := "?"
-				if m.Latency > 0 {
-					latStr = fmt.Sprintf("%.2fs", m.Latency)
-				}
-				scoreStr := ""
-				if m.Score > 0 {
-					scoreStr = fmt.Sprintf("score=%.0f", m.Score)
-				}
-				paramsStr := ""
-				if m.Parameters > 0 {
-					paramsStr = fmt.Sprintf("%dB", m.Parameters)
-				}
-				groupTag := "★"
-				if !isPrimary {
-					groupTag = "  "
-				}
-				label := fmt.Sprintf("%s %s (%s) %s %s %s", groupTag, m.ID, m.Provider, paramsStr, latStr, scoreStr)
-				_ = label // Titles can't be updated on sub-items in systray v1.2.2
+		for i, m := range models {
+			isPrimary := i < primaryCount
+
+			latStr := "?"
+			if m.Latency > 0 {
+				latStr = fmt.Sprintf("%.2fs", m.Latency)
 			}
-			return
+			scoreStr := ""
+			if m.Score > 0 {
+				scoreStr = fmt.Sprintf("score=%.0f", m.Score)
+			}
+			paramsStr := ""
+			if m.Parameters > 0 {
+				paramsStr = fmt.Sprintf("%dB", m.Parameters)
+			}
+			groupTag := "★"
+			if !isPrimary {
+				groupTag = "  "
+			}
+
+			// Model label is a flat item under the group submenu.
+			// Clicking it sets it as primary (#1).
+			label := fmt.Sprintf("%s %s (%s) %s %s %s", groupTag, m.ID, m.Provider, paramsStr, latStr, scoreStr)
+
+			var parent *systray.MenuItem
+			if isPrimary {
+				parent = mPrimaryGroup
+			} else {
+				parent = mFallbackGroup
+			}
+
+			mEntry := parent.AddSubMenuItem(label, m.ID)
+			watchMenuItem(mEntry, "model_set_primary", m.ID)
+
+			// Skip (24h) — sub-action of this model entry
+			mSkip := mEntry.AddSubMenuItem("Skip (24h)", "Skip "+m.ID+" for 24 hours")
+			watchMenuItem(mSkip, "model_skip", m.ID)
+
+			// Blacklist
+			mBL := mEntry.AddSubMenuItem("Blacklist", "Permanently blacklist "+m.ID)
+			watchMenuItem(mBL, "model_blacklist", m.ID)
+
+			if isPrimary {
+				// Demote
+				mDemote := mEntry.AddSubMenuItem("↓ Demote to Fallback", "Move "+m.ID+" to fallback group")
+				watchMenuItem(mDemote, "model_demote", m.ID)
+
+				// Move Up (if not already #1)
+				if i > 0 {
+					mUp := mEntry.AddSubMenuItem("↑ Move Up", "Move "+m.ID+" higher in priority")
+					watchMenuItem(mUp, "model_move_up", m.ID)
+				}
+
+				// Move Down (if not last in primary group)
+				if i < primaryCount-1 && i < len(models)-1 {
+					mDown := mEntry.AddSubMenuItem("↓ Move Down", "Move "+m.ID+" lower in priority")
+					watchMenuItem(mDown, "model_move_down", m.ID)
+				}
+			} else {
+				// Promote
+				mPromote := mEntry.AddSubMenuItem("↑ Promote to Primary", "Move "+m.ID+" to primary group")
+				watchMenuItem(mPromote, "model_promote", m.ID)
+
+				// Move Up (if not first in fallback)
+				if i > primaryCount {
+					mUp := mEntry.AddSubMenuItem("↑ Move Up", "Move "+m.ID+" higher in priority")
+					watchMenuItem(mUp, "model_move_up", m.ID)
+				}
+
+				// Move Down (if not last)
+				if i < len(models)-1 {
+					mDown := mEntry.AddSubMenuItem("↓ Move Down", "Move "+m.ID+" lower in priority")
+					watchMenuItem(mDown, "model_move_down", m.ID)
+				}
+			}
 		}
 
-		// Build new model submenus (note: systray doesn't support removing items,
-		// so we only build once and add incrementally)
-		if !menuBuilt {
-			for i, m := range models {
-				isPrimary := i < primaryCount
-				latStr := "?"
-				if m.Latency > 0 {
-					latStr = fmt.Sprintf("%.2fs", m.Latency)
-				}
-				scoreStr := ""
-				if m.Score > 0 {
-					scoreStr = fmt.Sprintf("score=%.0f", m.Score)
-				}
-				paramsStr := ""
-				if m.Parameters > 0 {
-					paramsStr = fmt.Sprintf("%dB", m.Parameters)
-				}
-				groupTag := "★"
-				if !isPrimary {
-					groupTag = "  "
-				}
-				label := fmt.Sprintf("%s %s (%s) %s %s %s", groupTag, m.ID, m.Provider, paramsStr, latStr, scoreStr)
-
-				var parent *systray.MenuItem
-				if isPrimary {
-					parent = mPrimaryGroup
-				} else {
-					parent = mFallbackGroup
-				}
-
-				mEntry := parent.AddSubMenuItem(label, m.ID)
-
-				// "Set as Primary ★"
-				mSetPrimary := mEntry.AddSubMenuItem("Set as Primary ★", "Make this the #1 model")
-				watchMenuItem(mSetPrimary, "model_set_primary", m.ID)
-
-				if isPrimary {
-					// "↓ Demote to Fallback"
-					if i >= 0 { // always show for primary models
-						mDemote := mEntry.AddSubMenuItem("↓ Demote to Fallback", "Move to fallback group")
-						watchMenuItem(mDemote, "model_demote", m.ID)
-					}
-					if i > 0 {
-						mUp := mEntry.AddSubMenuItem("↑ Move Up", "Move higher in priority")
-						watchMenuItem(mUp, "model_move_up", m.ID)
-					}
-					if i < primaryCount-1 {
-						mDown := mEntry.AddSubMenuItem("↓ Move Down", "Move lower in priority")
-						watchMenuItem(mDown, "model_move_down", m.ID)
-					}
-				} else {
-					// "↑ Promote to Primary"
-					mPromote := mEntry.AddSubMenuItem("↑ Promote to Primary", "Move to primary group")
-					watchMenuItem(mPromote, "model_promote", m.ID)
-					if i > primaryCount {
-						mUp := mEntry.AddSubMenuItem("↑ Move Up", "Move higher in priority")
-						watchMenuItem(mUp, "model_move_up", m.ID)
-					}
-					if i < len(models)-1 {
-						mDown := mEntry.AddSubMenuItem("↓ Move Down", "Move lower in priority")
-						watchMenuItem(mDown, "model_move_down", m.ID)
-					}
-				}
-
-				// Skip & Blacklist (always available)
-				mSkip := mEntry.AddSubMenuItem("Skip (24h)", "Skip this model for 24 hours")
-				watchMenuItem(mSkip, "model_skip", m.ID)
-				mBlacklist := mEntry.AddSubMenuItem("Blacklist", "Permanently blacklist this model")
-				watchMenuItem(mBlacklist, "model_blacklist", m.ID)
-
-				dynamicModels = append(dynamicModels, modelMenuEntry{
-					modelID:   m.ID,
-					isPrimary: isPrimary,
-				})
-			}
-
-			// Build provider toggle checkboxes
-			providerHealth, _ := db.GetProviderHealth(database)
-			for _, ph := range providerHealth {
-				cb := mProviders.AddSubMenuItemCheckbox(ph.Name,
-					fmt.Sprintf("Toggle %s (latency=%.1fs, success=%.0f%%)", ph.Name, ph.AvgLatency, ph.SuccessRate),
-					ph.Enabled)
-				watchMenuItem(cb, "toggle_provider", ph.Name)
-				dynamicProviders = append(dynamicProviders, ph.Name)
-			}
-
-			menuBuilt = true
+		// Build provider toggle checkboxes
+		providerHealth, _ := db.GetProviderHealth(database)
+		for _, ph := range providerHealth {
+			cb := mProviders.AddSubMenuItemCheckbox(ph.Name,
+				fmt.Sprintf("Toggle %s (latency=%.1fs, success=%.0f%%)", ph.Name, ph.AvgLatency, ph.SuccessRate),
+				ph.Enabled)
+			watchMenuItem(cb, "toggle_provider", ph.Name)
 		}
+
+		menuBuilt = true
 	}
 
 	// ============================================================
@@ -503,7 +480,6 @@ func onReady() {
 	//  Background Workers
 	// ============================================================
 
-	// --- Two-tier benchmarking worker ---
 	go func() {
 		for {
 			ctx := context.Background()
@@ -544,9 +520,7 @@ func onReady() {
 						if changed {
 							gateway.UpdateModels(ranked)
 							uiServer.UpdateModels(ranked)
-							log.Println("Quick pulse: rankings changed, config updated")
-						} else {
-							log.Println("Quick pulse: no changes")
+							log.Println("Quick pulse: rankings changed")
 						}
 					}
 				}
@@ -560,7 +534,6 @@ func onReady() {
 		}
 	}()
 
-	// --- Operational Stability Ticker ---
 	go func() {
 		ticker := time.NewTicker(60 * time.Second)
 		for range ticker.C {
@@ -576,16 +549,14 @@ func onReady() {
 		}
 	}()
 
-	// --- Data Pruning Ticker (every 24h) ---
 	go func() {
 		ticker := time.NewTicker(24 * time.Hour)
 		for range ticker.C {
 			count, _ := db.PruneOldData(database, 30)
-			log.Printf("Pruned %d old metric/log records", count)
+			log.Printf("Pruned %d old records", count)
 		}
 	}()
 
-	// --- Proactive Health Monitor ---
 	go func() {
 		failCount := 0
 		startupGrace := time.Now().Add(30 * time.Second)
@@ -613,7 +584,7 @@ func onReady() {
 			}
 			if failCount >= 3 {
 				log.Println("Proactive health threshold reached. Triggering refresh...")
-				db.LogActivity(database, "Fallback Triggered", top.ID, "Triggering refresh due to consecutive health failures")
+				db.LogActivity(database, "Fallback Triggered", top.ID, "Consecutive health failures")
 				select {
 				case refreshTrigger <- true:
 				default:
@@ -623,7 +594,7 @@ func onReady() {
 		}
 	}()
 
-	// --- Initial dynamic menu build (deferred to let models load) ---
+	// Deferred initial menu build
 	go func() {
 		time.Sleep(15 * time.Second)
 		rebuildDynamicMenu()
@@ -640,82 +611,62 @@ func onReady() {
 			// --- Top Section ---
 			case "toggle_routing":
 				routingEnabled = !routingEnabled
-				if routingEnabled {
-					log.Println("Master Routing enabled")
-				} else {
-					log.Println("Master Routing disabled")
-				}
+				log.Printf("Master Routing: %v", routingEnabled)
 
 			case "copy_active_model":
 				models := gateway.GetModels()
 				if len(models) > 0 {
 					modelID := models[0].ID
-					cmd := exec.Command("powershell", "-Command",
-						fmt.Sprintf("Set-Clipboard -Value '%s'", modelID))
-					cmd.Run()
+					exec.Command("powershell", "-Command",
+						fmt.Sprintf("Set-Clipboard -Value '%s'", modelID)).Run()
 					notify("FreeLLM", fmt.Sprintf("Copied: %s", modelID))
 				}
 
 			// --- Primary Actions ---
 			case "open_interface":
-				log.Println("Opening LLM Interface...")
 				open.Run(fmt.Sprintf("http://localhost:%d", proxyPort))
 
 			case "open_settings":
-				log.Println("Opening Settings...")
 				open.Run("http://localhost:8080#config-tab")
 
 			// --- UI Windows ---
 			case "open_quick_query":
-				log.Println("Opening Quick Query...")
 				open.Run(fmt.Sprintf("http://localhost:%d", proxyPort))
 
 			case "open_comparison":
-				log.Println("Opening Model Comparison...")
 				open.Run("http://localhost:8080#comparison-tab")
 
 			case "open_dashboard":
-				log.Println("Opening Dashboard...")
 				open.Run("http://localhost:8080")
 
 			case "open_leaderboard":
-				log.Println("Opening Leaderboard...")
 				open.Run("http://localhost:8080#rankings-tab")
 
 			case "open_savings":
-				log.Println("Opening Cost Savings...")
 				open.Run("http://localhost:8080#savings-tab")
 
 			case "open_monitoring":
-				log.Println("Opening Monitoring Dashboard...")
 				open.Run("http://localhost:8080#monitoring-tab")
 
 			case "open_protocol":
-				log.Println("Opening Protocol Oversight...")
 				open.Run("http://localhost:8080#protocol-tab")
 
 			case "open_execution":
-				log.Println("Opening Execution Dashboard...")
 				open.Run("http://localhost:8080#execution-tab")
 
 			case "open_status":
-				log.Println("Opening System Status...")
 				open.Run("http://localhost:8080#status-tab")
 
 			// --- Auto-Pilot & Refresh ---
 			case "toggle_autopilot":
 				autoPilot = !autoPilot
-				if autoPilot {
-					log.Println("Auto-Pilot enabled")
-				} else {
-					log.Println("Auto-Pilot disabled")
-				}
+				log.Printf("Auto-Pilot: %v", autoPilot)
 
 			case "refresh_now":
 				log.Println("Refreshing models...")
 				systray.SetIcon(icon.Yellow)
 				mStatus.SetTitle("FreeLLM: Refreshing...")
-				lastFullRefresh = time.Time{} // force full refresh
+				lastFullRefresh = time.Time{}
 				select {
 				case refreshTrigger <- true:
 				default:
@@ -723,45 +674,37 @@ func onReady() {
 
 			// --- Documentation ---
 			case "open_docs":
-				log.Println("Opening documentation...")
 				open.Run("https://docs.freellm.ai/")
 
 			// --- Startup ---
 			case "startup_enable":
-				log.Println("Enabling startup...")
 				config.SetStartWithWindows(true)
 				notify("FreeLLM", "Start with Windows enabled")
 
 			case "startup_disable":
-				log.Println("Disabling startup...")
 				config.SetStartWithWindows(false)
 				notify("FreeLLM", "Start with Windows disabled")
 
 			// --- Maintenance ---
 			case "maint_clear_skips":
-				log.Println("Clearing skip list...")
 				db.ClearSkips(database)
 				notify("FreeLLM", "Skip list cleared")
 
 			case "maint_clear_blacklist":
-				log.Println("Clearing blacklist...")
 				db.ClearBlacklist(database)
 				notify("FreeLLM", "Blacklist cleared")
 
 			case "maint_reset_stats":
-				log.Println("Resetting stats...")
 				db.ResetStats(database)
 				notify("FreeLLM", "All provider and model stats reset")
 
 			case "maint_cleanup_probes":
-				log.Println("Cleaning up old probes...")
 				count, err := db.PruneOldData(database, 90)
 				if err == nil {
 					notify("FreeLLM", fmt.Sprintf("Cleaned up %d old probe records", count))
 				}
 
 			case "maint_backup_config":
-				log.Println("Backing up config...")
 				data, err := os.ReadFile(cfgPath)
 				if err == nil {
 					os.WriteFile(cfgPath+".bak", data, 0644)
@@ -769,7 +712,6 @@ func onReady() {
 				}
 
 			case "maint_restore_config":
-				log.Println("Restoring config from backup...")
 				data, err := os.ReadFile(cfgPath + ".bak")
 				if err == nil {
 					os.WriteFile(cfgPath, data, 0644)
@@ -783,7 +725,6 @@ func onReady() {
 
 			// --- FreeLLM Control ---
 			case "control_refresh":
-				log.Println("Refreshing models (control)...")
 				systray.SetIcon(icon.Yellow)
 				mStatus.SetTitle("FreeLLM: Refreshing...")
 				lastFullRefresh = time.Time{}
@@ -793,82 +734,70 @@ func onReady() {
 				}
 
 			case "control_view_logs":
-				log.Println("Opening proxy logs...")
 				open.Run("http://localhost:8080#logs-tab")
 
 			case "control_view_engine_logs":
-				log.Println("Opening engine logs...")
 				open.Run("http://localhost:8080#engine-logs-tab")
 
 			case "control_view_config":
-				log.Println("Opening config...")
 				open.Run("http://localhost:8080#config-tab")
 
-			// --- Model Submenu Actions ---
+			// --- Model Actions ---
 			case "model_set_primary":
-				modelID := action.data.(string)
-				log.Printf("Setting %s as primary ★", modelID)
-				gateway.SetModelPrimary(modelID)
-				db.LogActivity(database, "Set Primary", modelID, "Manually set as primary model")
-				notify("FreeLLM", fmt.Sprintf("Primary set to: %s", modelID))
+				log.Printf("Setting %s as primary ★", action.data)
+				gateway.SetModelPrimary(action.data)
+				db.LogActivity(database, "Set Primary", action.data, "Manually set as primary model")
+				notify("FreeLLM", fmt.Sprintf("Primary set to: %s", action.data))
 				updateTrayStatus()
 
 			case "model_demote":
-				modelID := action.data.(string)
-				log.Printf("Demoting %s to fallback", modelID)
-				gateway.DemoteModel(modelID)
-				db.LogActivity(database, "Demote Model", modelID, "Demoted to fallback group")
-				notify("FreeLLM", fmt.Sprintf("Demoted: %s", modelID))
+				log.Printf("Demoting %s to fallback", action.data)
+				gateway.DemoteModel(action.data)
+				db.LogActivity(database, "Demote Model", action.data, "Demoted to fallback group")
+				notify("FreeLLM", fmt.Sprintf("Demoted: %s", action.data))
 
 			case "model_promote":
-				modelID := action.data.(string)
-				log.Printf("Promoting %s to primary", modelID)
-				gateway.PromoteModel(modelID)
-				db.LogActivity(database, "Promote Model", modelID, "Promoted to primary group")
-				notify("FreeLLM", fmt.Sprintf("Promoted: %s", modelID))
+				log.Printf("Promoting %s to primary", action.data)
+				gateway.PromoteModel(action.data)
+				db.LogActivity(database, "Promote Model", action.data, "Promoted to primary group")
+				notify("FreeLLM", fmt.Sprintf("Promoted: %s", action.data))
 				updateTrayStatus()
 
 			case "model_move_up":
-				modelID := action.data.(string)
-				log.Printf("Moving %s up", modelID)
-				gateway.MoveModelUp(modelID)
+				log.Printf("Moving %s up", action.data)
+				gateway.MoveModelUp(action.data)
 
 			case "model_move_down":
-				modelID := action.data.(string)
-				log.Printf("Moving %s down", modelID)
-				gateway.MoveModelDown(modelID)
+				log.Printf("Moving %s down", action.data)
+				gateway.MoveModelDown(action.data)
 
 			case "model_skip":
-				modelID := action.data.(string)
-				log.Printf("Skipping %s for 24h", modelID)
-				db.SkipModel(database, modelID, 24)
-				db.LogActivity(database, "Skip Model", modelID, "Skipped for 24 hours")
-				notify("FreeLLM", fmt.Sprintf("Skipped (24h): %s", modelID))
+				log.Printf("Skipping %s for 24h", action.data)
+				db.SkipModel(database, action.data, 24)
+				db.LogActivity(database, "Skip Model", action.data, "Skipped for 24 hours")
+				notify("FreeLLM", fmt.Sprintf("Skipped (24h): %s", action.data))
 
 			case "model_blacklist":
-				modelID := action.data.(string)
-				log.Printf("Blacklisting %s", modelID)
-				db.BlacklistModel(database, modelID)
-				db.LogActivity(database, "Blacklist Model", modelID, "Permanently blacklisted")
-				notify("FreeLLM", fmt.Sprintf("Blacklisted: %s", modelID))
+				log.Printf("Blacklisting %s", action.data)
+				db.BlacklistModel(database, action.data)
+				db.LogActivity(database, "Blacklist Model", action.data, "Permanently blacklisted")
+				notify("FreeLLM", fmt.Sprintf("Blacklisted: %s", action.data))
 
 			// --- Provider Toggle ---
 			case "toggle_provider":
-				providerName := action.data.(string)
-				// Get current status from DB
 				providers, _ := db.GetProviderHealth(database)
 				var currentEnabled bool
 				for _, p := range providers {
-					if p.Name == providerName {
+					if p.Name == action.data {
 						currentEnabled = p.Enabled
 						break
 					}
 				}
 				newState := !currentEnabled
-				log.Printf("Toggling provider %s: enabled=%v", providerName, newState)
-				db.SetProviderStatus(database, providerName, newState)
-				db.LogActivity(database, "Toggle Provider", providerName,
-					fmt.Sprintf("Provider %s: enabled=%v", providerName, newState))
+				log.Printf("Toggling provider %s: enabled=%v", action.data, newState)
+				db.SetProviderStatus(database, action.data, newState)
+				db.LogActivity(database, "Toggle Provider", action.data,
+					fmt.Sprintf("Provider %s: enabled=%v", action.data, newState))
 
 			// --- Quit ---
 			case "quit":
@@ -879,6 +808,4 @@ func onReady() {
 	}()
 }
 
-func onExit() {
-	// Cleanup
-}
+func onExit() {}
