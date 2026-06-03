@@ -248,13 +248,9 @@ func onReady() {
 
 	// --- ★ Primary Models Submenu (flat, populated dynamically) ---
 	mPrimaryGroup := systray.AddMenuItem("★ Primary (0)", "Primary model group — click model to set as #1")
-	mPrimaryPlaceholder := mPrimaryGroup.AddSubMenuItem("No models loaded yet...", "")
-	mPrimaryPlaceholder.Disable()
 
 	// --- Fallback Models Submenu (flat, populated dynamically) ---
 	mFallbackGroup := systray.AddMenuItem("  Fallback (0)", "Fallback model group")
-	mFallbackPlaceholder := mFallbackGroup.AddSubMenuItem("No models loaded yet...", "")
-	mFallbackPlaceholder.Disable()
 
 	systray.AddSeparator()
 
@@ -269,8 +265,6 @@ func onReady() {
 
 	// --- Enable Providers Submenu (populated dynamically) ---
 	mProviders := systray.AddMenuItem("Enable Providers", "Toggle provider on/off")
-	mProviderPlaceholder := mProviders.AddSubMenuItem("Loading providers...", "")
-	mProviderPlaceholder.Disable()
 
 	// --- Documentation ---
 	mDocs := systray.AddMenuItem("Documentation", "Open FreeLLM documentation")
@@ -340,6 +334,7 @@ func onReady() {
 
 		models := gateway.GetModels()
 		if len(models) == 0 {
+			menuBuilt = true // mark built even with 0 models to prevent double-build
 			return
 		}
 		primaryCount := gateway.PrimaryCount
