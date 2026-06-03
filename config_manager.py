@@ -287,10 +287,10 @@ def apply_ranked_models(
     path=DEFAULT_CONFIG_PATH,
     primary_group="free-llm",
     fallback_group="free-llm-fallback",
+    plain_group="free-llm-plain",
     primary_count=5,
 ):
     """Write the config merging benchmarked models with existing entries.
-
     ranked_models: list of dicts with at least: id, provider, latency, score, parameters
     primary_count: top N go into primary_group, rest into fallback_group
 
@@ -350,9 +350,9 @@ def apply_ranked_models(
 
     comment_lines = [
         f"LiteLLM Config - Updated {now}",
-        f"Two groups: {primary_group} (top {primary_count}) + {fallback_group} (remaining)",
+        f"Three groups: {primary_group} (top {primary_count}) + {fallback_group} (tool-compatible) + {plain_group} (non-tool)",
         "Routing: simple-shuffle (picks smart models, not fast small ones)",
-        f"Fallback: {primary_group} -> {fallback_group}",
+        f"Fallback: {primary_group} -> {fallback_group} (plain group {plain_group} for direct use only)",
         "",
         "PROBE RESULTS:",
     ]
@@ -377,18 +377,38 @@ def apply_ranked_models(
     if filtered_count:
         comment_lines.append(f"  (filtered {filtered_count} dead/high-latency models)")
 
-    # Cap primary_count to available models
-    effective_primary = min(primary_count, len(ranked_models))
-    if effective_primary < 1 and len(ranked_models) > 0:
+    # Split models into tool-compatible and non-tool groups
+    NO_TOOL_PROVIDERS = {"nvidia", "nvidia_nim", "cerebras", "cloudflare", "deepinfra"}
+    tool_compatible = [m for m in ranked_models if m.get("provider", "") not in NO_TOOL_PROVIDERS]
+    plain_only = [m for m in ranked_models if m.get("provider", "") in NO_TOOL_PROVIDERS]
+
+    # Apply provider diversity to primary selection (max 2 per provider)
+    MAX_PER_PROVIDER_PRIMARY = 2
+    primary_selected = []
+    provider_count = {}
+    for m in tool_compatible:
+        p = m.get("provider", "")
+        if provider_count.get(p, 0) < MAX_PER_PROVIDER_PRIMARY:
+            primary_selected.append(m)
+            provider_count[p] = provider_count.get(p, 0) + 1
+        if len(primary_selected) >= primary_count:
+            break
+
+    # Fallback = remaining tool-compatible not in primary
+    primary_ids = {m["id"] for m in primary_selected}
+    fallback_models = [m for m in tool_compatible if m["id"] not in primary_ids]
+
+    # Cap primary_count
+    effective_primary = min(primary_count, len(primary_selected))
+    if effective_primary < 1 and len(primary_selected) > 0:
         effective_primary = 1
 
     # Build model_list as CommentedSeq
     model_list = CommentedSeq()
 
-    # â”€â”€ Primary group â”€â”€
-    # Add section separator comment
-    model_list.yaml_add_eol_comment("=== PRIMARY GROUP ===", 0)
-    for i, m in enumerate(ranked_models[:primary_count]):
+    # -- Primary group (tool-compatible only) --
+    model_list.yaml_add_eol_comment("=== PRIMARY GROUP (tool-compatible) ===", 0)
+    for i, m in enumerate(primary_selected[:primary_count]):
         timeout = 45 if m.get("latency", 0) > 4.0 else 30
         ctx = m.get("context_length", 0) or _get_context_for_model(
             m["id"], m["provider"]
@@ -418,7 +438,7 @@ def apply_ranked_models(
 
     # â”€â”€ Fallback group â”€â”€
     fallback_start = len(model_list)
-    for j, m in enumerate(ranked_models[primary_count:]):
+    for j, m in enumerate(fallback_models):
         timeout = 60 if m.get("latency", 0) > 4.0 else 30
         ctx = m.get("context_length", 0) or _get_context_for_model(
             m["id"], m["provider"]
@@ -446,6 +466,50 @@ def apply_ranked_models(
 
         model_list.append(entry)
         model_list.yaml_add_eol_comment(comment_text, fallback_start + j)
+
+    # ── Plain group (non-tool models: nvidia_nim, cerebras, etc.) ──
+    plain_start = len(model_list)
+    for j, m in enumerate(plain_only):
+        timeout = 60 if m.get("latency", 0) > 4.0 else 30
+        ctx = m.get("context_length", 0) or _get_context_for_model(
+            m["id"], m["provider"]
+        )
+        entry = _build_model_entry(
+            m["id"], m["provider"], plain_group, timeout, context_length=ctx
+        )
+        lat = m.get("latency", 0)
+        score = m.get("score", 0)
+        params = m.get("parameters", 0)
+        if "model_info" in entry:
+            entry["model_info"]["score"] = round(score, 2)
+            entry["model_info"]["latency"] = round(lat, 3)
+            entry["model_info"]["params"] = params
+            entry["model_info"]["context"] = ctx
+        model_list.append(entry)
+        comment_text = f"{m['id']} via {m['provider']} (no-tool) - {lat:.1f}s, score={score:.0f}"
+        model_list.yaml_add_eol_comment(comment_text, plain_start + j)
+
+    # -- Plain group (non-tool models: nvidia, cerebras, etc.) --
+    plain_start = len(model_list)
+    for j, m in enumerate(plain_only):
+        timeout = 60 if m.get("latency", 0) > 4.0 else 30
+        ctx = m.get("context_length", 0) or _get_context_for_model(
+            m["id"], m["provider"]
+        )
+        entry = _build_model_entry(
+            m["id"], m["provider"], plain_group, timeout, context_length=ctx
+        )
+        lat = m.get("latency", 0)
+        score = m.get("score", 0)
+        params = m.get("parameters", 0)
+        if "model_info" in entry:
+            entry["model_info"]["score"] = round(score, 2)
+            entry["model_info"]["latency"] = round(lat, 3)
+            entry["model_info"]["params"] = params
+            entry["model_info"]["context"] = ctx
+        model_list.append(entry)
+        comment_text = f"{m['id']} via {m['provider']} (no-tool) - {lat:.1f}s, score={score:.0f}"
+        model_list.yaml_add_eol_comment(comment_text, plain_start + j)
 
     # Preserve existing models that were NOT in this benchmark run
     preserved_count = 0
@@ -648,7 +712,7 @@ def reorder_primary(
     config["model_list"] = model_list
     config["router_settings"] = router_settings
     config["litellm_settings"] = litellm_settings
-    config["litellm_settings"]["fallbacks"] = [{primary_group: [fallback_group]}]
+    config["litellm_settings"]["fallbacks"] = [{primary_group: [fallback_group, "free-llm-plain"]}]
 
     # Backup and write
     if os.path.exists(path):
