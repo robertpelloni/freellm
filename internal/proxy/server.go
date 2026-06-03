@@ -1003,6 +1003,39 @@ func (g *Gateway) DemoteModel(modelID string) {
 	}
 }
 
+// SetAsFallback moves a model to the first position in the fallback group (position = PrimaryCount)
+func (g *Gateway) SetAsFallback(modelID string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	idx := -1
+	for i, m := range g.RankedModels {
+		if m.ID == modelID {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return // not found
+	}
+	target := g.PrimaryCount
+	if target >= len(g.RankedModels) {
+		target = len(g.RankedModels) - 1
+	}
+	if idx == target {
+		return // already at target position
+	}
+	model := g.RankedModels[idx]
+	// Shift items between idx and target
+	if idx < target {
+		// Moving down: shift items up
+		copy(g.RankedModels[idx:target], g.RankedModels[idx+1:target+1])
+	} else {
+		// Moving up: shift items down
+		copy(g.RankedModels[target+1:idx+1], g.RankedModels[target:idx])
+	}
+	g.RankedModels[target] = model
+}
+
 // MoveModelUp moves a model one position higher in the rankings
 func (g *Gateway) MoveModelUp(modelID string) {
 	g.mu.Lock()
