@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/robertpelloni/litellm_control_panel/internal/engine"
+	"github.com/robertpelloni/freellm/internal/engine"
 )
 
 func TestHandleRankings(t *testing.T) {

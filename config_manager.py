@@ -10,7 +10,7 @@ yaml.indent(mapping=2, sequence=4, offset=2)
 
 DEFAULT_CONFIG_PATH = "config.yaml"
 
-# Provider -> litellm prefix + env var mapping
+# Provider -> freellm prefix + env var mapping
 PROVIDER_MAP = {
     "openrouter": {"prefix": "openrouter", "env_key": "OPENROUTER_API_KEY"},
     "groq": {"prefix": "groq", "env_key": "GROQ_API_KEY"},
@@ -135,23 +135,23 @@ def _build_model_entry(
     api_base: str | None = None,
     context_length: int = 0,
 ) -> CommentedMap:
-    """Build a single model_list entry for the LiteLLM config as a CommentedMap."""
+    """Build a single model_list entry for the FreeLLM config as a CommentedMap."""
     info = PROVIDER_MAP.get(
         provider, {"prefix": provider, "env_key": f"{provider.upper()}_API_KEY"}
     )
 
     prefix = info["prefix"]
-    # For github, we want the prefix to be 'openai' as per LiteLLM standards for Azure Inference
+    # For github, we want the prefix to be 'openai' as per FreeLLM standards for Azure Inference
     if model_id.startswith(prefix + "/"):
-        litellm_model = model_id
+        freellm_model = model_id
     else:
-        litellm_model = f"{prefix}/{model_id}"
+        freellm_model = f"{prefix}/{model_id}"
 
     entry = CommentedMap()
     entry["model_name"] = group_name
 
     lp = CommentedMap()
-    lp["model"] = litellm_model
+    lp["model"] = freellm_model
     lp["timeout"] = timeout
     # Per-model stream timeout: slow providers need more time for streaming chunks
     stream_timeout_providers = {"nvidia_nim", "nvidia", "openrouter", "huggingface", "sambanova"}
@@ -185,7 +185,7 @@ def _build_model_entry(
         if max_out > 0:
             lp["max_tokens"] = max_out
 
-    entry["litellm_params"] = lp
+    entry["freellm_params"] = lp
 
     # Add metadata for model_info display
     metadata = CommentedMap()
@@ -196,13 +196,13 @@ def _build_model_entry(
     entry["model_info"] = metadata
 
     # Mark providers that don't support function/tool calling
-    # This prevents LiteLLM from routing tool-call requests to them
+    # This prevents FreeLLM from routing tool-call requests to them
     no_tool_providers = {"nvidia_nim", "nvidia", "cerebras", "cloudflare", "deepinfra"}
     if provider in no_tool_providers:
         metadata["supports_function_calling"] = False
 
     # For nvidia_nim/nvidia: also set supported_params to exclude tools/tool_choice
-    # so LiteLLM strips them before forwarding
+    # so FreeLLM strips them before forwarding
     if provider in ("nvidia_nim", "nvidia"):
         lp["supported_params"] = [
             "max_tokens", "temperature", "top_p", "frequency_penalty",
@@ -229,7 +229,7 @@ def write_config(config, path=DEFAULT_CONFIG_PATH):
 
 def get_model_entries(path=DEFAULT_CONFIG_PATH):
     """Parse the config and return structured info about all model entries.
-    Returns a list of dicts: {id, provider, group, litellm_model, api_key, api_base, timeout, raw_entry}
+    Returns a list of dicts: {id, provider, group, freellm_model, api_key, api_base, timeout, raw_entry}
     """
     config = read_config(path)
     if not config or "model_list" not in config:
@@ -240,16 +240,16 @@ def get_model_entries(path=DEFAULT_CONFIG_PATH):
         if entry is None:
             continue
         model_name = entry.get("model_name", "")
-        lp = entry.get("litellm_params", {})
-        litellm_model = lp.get("model", "")
+        lp = entry.get("freellm_params", {})
+        freellm_model = lp.get("model", "")
 
         provider = "unknown"
-        model_id = litellm_model
+        model_id = freellm_model
         for prov_key, info in PROVIDER_MAP.items():
             prefix = info["prefix"]
-            if litellm_model.startswith(prefix + "/"):
+            if freellm_model.startswith(prefix + "/"):
                 provider = prov_key
-                model_id = litellm_model[len(prefix) + 1 :]
+                model_id = freellm_model[len(prefix) + 1 :]
                 break
 
         entries.append(
@@ -257,7 +257,7 @@ def get_model_entries(path=DEFAULT_CONFIG_PATH):
                 "id": model_id,
                 "provider": provider,
                 "group": model_name,
-                "litellm_model": litellm_model,
+                "freellm_model": freellm_model,
                 "api_key": lp.get("api_key", ""),
                 "api_base": lp.get("api_base", ""),
                 "timeout": lp.get("timeout", 30),
@@ -296,7 +296,7 @@ def apply_ranked_models(
 
     Models from ranked_models are placed by score. Any models already in the
     config that were NOT in this benchmark run are preserved in fallback.
-    Preserves router_settings, litellm_settings, and fallbacks structure.
+    Preserves router_settings, freellm_settings, and fallbacks structure.
     """
     # Filter out providers with exhausted/depleted API keys
     ranked_models = [
@@ -312,21 +312,21 @@ def apply_ranked_models(
     # Read existing config for settings and existing model entries to preserve
     existing_config = read_config(path)
     router_settings = CommentedMap()
-    litellm_settings = CommentedMap()
+    freellm_settings = CommentedMap()
     existing_entries = {}  # model_id -> raw_entry (for preserving un-benchmarked models)
     if existing_config:
         if existing_config.get("router_settings"):
             router_settings = existing_config["router_settings"]
-        if existing_config.get("litellm_settings"):
-            litellm_settings = existing_config["litellm_settings"]
+        if existing_config.get("freellm_settings"):
+            freellm_settings = existing_config["freellm_settings"]
         # Collect existing model entries so we can preserve ones not in this benchmark
         for entry in existing_config.get("model_list", []):
             if entry is None:
                 continue
-            lp = entry.get("litellm_params", {})
-            litellm_model = lp.get("model", "")
-            if litellm_model:
-                existing_entries[litellm_model] = entry
+            lp = entry.get("freellm_params", {})
+            freellm_model = lp.get("model", "")
+            if freellm_model:
+                existing_entries[freellm_model] = entry
 
     # Identify which models from ranked_models are already in the config
     ranked_model_ids = set()
@@ -336,12 +336,12 @@ def apply_ranked_models(
         )
         prefix = info.get("prefix", m.get("provider", ""))
         model_id = m["id"]
-        litellm_model = (
+        freellm_model = (
             f"{prefix}/{model_id}"
             if not model_id.startswith(prefix + "/")
             else model_id
         )
-        ranked_model_ids.add(litellm_model)
+        ranked_model_ids.add(freellm_model)
 
     # Build header comment with probe results
     import datetime
@@ -349,7 +349,7 @@ def apply_ranked_models(
     now = datetime.datetime.now().strftime("%Y-%m-%d")
 
     comment_lines = [
-        f"LiteLLM Config - Updated {now}",
+        f"FreeLLM Config - Updated {now}",
         f"Three groups: {primary_group} (top {primary_count}) + {fallback_group} (tool-compatible) + {plain_group} (non-tool)",
         "Routing: simple-shuffle (picks smart models, not fast small ones)",
         f"Fallback: {primary_group} -> {fallback_group} (plain group {plain_group} for direct use only)",
@@ -513,16 +513,16 @@ def apply_ranked_models(
 
     # Preserve existing models that were NOT in this benchmark run
     preserved_count = 0
-    for litellm_model, entry in existing_entries.items():
-        if litellm_model not in ranked_model_ids:
+    for freellm_model, entry in existing_entries.items():
+        if freellm_model not in ranked_model_ids:
             # Skip dead providers (also catches variant prefixes like together_ai/)
-            if any(p in litellm_model for p in DEAD_PROVIDERS):
+            if any(p in freellm_model for p in DEAD_PROVIDERS):
                 continue
             # Skip non-chat models
-            if any(kw in litellm_model.lower() for kw in NON_CHAT_KEYWORDS):
+            if any(kw in freellm_model.lower() for kw in NON_CHAT_KEYWORDS):
                 continue
             # Skip dead models
-            if _is_dead_model(litellm_model):
+            if _is_dead_model(freellm_model):
                 continue
             # Skip models with extreme latency (effectively dead)
             mi = entry.get("model_info", {})
@@ -543,24 +543,24 @@ def apply_ranked_models(
     for entry in model_list:
         if entry is None:
             continue
-        lp = entry.get("litellm_params", {})
+        lp = entry.get("freellm_params", {})
         if lp:
             current_models_in_config.add(lp.get("model", ""))
     injected_count = 0
     MAX_FORCE_INJECT = 10  # Don't bloat the fallback group
-    for litellm_id, spec in known_models.all_models().items():
+    for freellm_id, spec in known_models.all_models().items():
         if injected_count >= MAX_FORCE_INJECT:
             break
         prov = spec.get("provider", "")
         if prov in DEAD_PROVIDERS:
             continue
-        # Also skip if the litellm_model string contains a dead provider
+        # Also skip if the freellm_model string contains a dead provider
         info = PROVIDER_MAP.get(prov, {"prefix": prov})
         prefix = info.get("prefix", prov)
         if any(p in prefix for p in DEAD_PROVIDERS):
             continue
         # Skip non-chat models (TTS, ASR, image gen, etc.)
-        if any(kw in litellm_id.lower() for kw in NON_CHAT_KEYWORDS):
+        if any(kw in freellm_id.lower() for kw in NON_CHAT_KEYWORDS):
             continue
         # Skip tiny models (< 7B params)
         params = spec.get("params", 0)
@@ -571,8 +571,8 @@ def apply_ranked_models(
             continue
         info = PROVIDER_MAP.get(prov, {"prefix": prov})
         prefix = info.get("prefix", prov)
-        # Calculate the actual litellm_model string that will be generated
-        base_id = litellm_id.split("/", 1)[-1] if "/" in litellm_id else litellm_id
+        # Calculate the actual freellm_model string that will be generated
+        base_id = freellm_id.split("/", 1)[-1] if "/" in freellm_id else freellm_id
         target_model_name = (
             f"{prefix}/{base_id}"
             if not base_id.startswith(prefix + "/")
@@ -619,9 +619,9 @@ def apply_ranked_models(
 
     config["router_settings"] = router_settings
 
-    # LiteLLM settings (preserve or default)
-    if not litellm_settings:
-        litellm_settings = CommentedMap(
+    # FreeLLM settings (preserve or default)
+    if not freellm_settings:
+        freellm_settings = CommentedMap(
             {
                 "drop_params": True,
                 "num_retries": 2,
@@ -632,13 +632,13 @@ def apply_ranked_models(
         )
 
     # Ensure fallbacks are set
-        litellm_settings["fallbacks"] = [{primary_group: [fallback_group]}]
+        freellm_settings["fallbacks"] = [{primary_group: [fallback_group]}]
         # Ensure critical timeout settings are present (upgrade old configs)
-        if "stream_timeout" not in litellm_settings:
-            litellm_settings["stream_timeout"] = 300  # 5 min for streaming
-        if "request_timeout" not in litellm_settings or litellm_settings.get("request_timeout", 0) < 60:
-            litellm_settings["request_timeout"] = 60  # 60s for non-streaming
-        config["litellm_settings"] = litellm_settings
+        if "stream_timeout" not in freellm_settings:
+            freellm_settings["stream_timeout"] = 300  # 5 min for streaming
+        if "request_timeout" not in freellm_settings or freellm_settings.get("request_timeout", 0) < 60:
+            freellm_settings["request_timeout"] = 60  # 60s for non-streaming
+        config["freellm_settings"] = freellm_settings
 
     # Port setting
     config["port"] = 4000
@@ -679,7 +679,7 @@ def reorder_primary(
     primary_entries = [
         e
         for e in entries
-        if e["id"] in models_in_primary or e["litellm_model"] in models_in_primary
+        if e["id"] in models_in_primary or e["freellm_model"] in models_in_primary
     ]
     fallback_entries = [e for e in entries if e not in primary_entries]
 
@@ -690,8 +690,8 @@ def reorder_primary(
         if existing_config
         else CommentedMap()
     )
-    litellm_settings = (
-        existing_config.get("litellm_settings", CommentedMap())
+    freellm_settings = (
+        existing_config.get("freellm_settings", CommentedMap())
         if existing_config
         else CommentedMap()
     )
@@ -701,7 +701,7 @@ def reorder_primary(
         entry = e["raw_entry"]
         entry["model_name"] = primary_group
         model_list.append(entry)
-        model_list.yaml_add_eol_comment(f"Primary: {e['litellm_model']}", i)
+        model_list.yaml_add_eol_comment(f"Primary: {e['freellm_model']}", i)
 
     for j, e in enumerate(fallback_entries):
         entry = e["raw_entry"]
@@ -711,8 +711,8 @@ def reorder_primary(
     config = CommentedMap()
     config["model_list"] = model_list
     config["router_settings"] = router_settings
-    config["litellm_settings"] = litellm_settings
-    config["litellm_settings"]["fallbacks"] = [{primary_group: [fallback_group, "free-llm-plain"]}]
+    config["freellm_settings"] = freellm_settings
+    config["freellm_settings"]["fallbacks"] = [{primary_group: [fallback_group, "free-llm-plain"]}]
 
     # Backup and write
     if os.path.exists(path):
@@ -725,14 +725,14 @@ def reorder_primary(
 
 
 def ensure_config_exists(path=DEFAULT_CONFIG_PATH):
-    """Creates a basic LiteLLM config if it doesn't exist."""
+    """Creates a basic FreeLLM config if it doesn't exist."""
     if not os.path.exists(path):
         config = CommentedMap()
         model_list = CommentedSeq()
         entry = CommentedMap(
             {
                 "model_name": "free-llm",
-                "litellm_params": CommentedMap(
+                "freellm_params": CommentedMap(
                     {
                         "model": "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
                         "api_key": "os.environ/OPENROUTER_API_KEY",
@@ -754,7 +754,7 @@ def ensure_config_exists(path=DEFAULT_CONFIG_PATH):
                 "ignore_cooldown_on_fallbacks": True,
             }
         )
-        config["litellm_settings"] = CommentedMap(
+        config["freellm_settings"] = CommentedMap(
             {
                 "drop_params": True,
                 "num_retries": 2,
@@ -768,10 +768,10 @@ def ensure_config_exists(path=DEFAULT_CONFIG_PATH):
 
 
 # Legacy compatibility
-def apply_model_to_litellm(model_id, provider_name, path=DEFAULT_CONFIG_PATH):
+def apply_model_to_freellm(model_id, provider_name, path=DEFAULT_CONFIG_PATH):
     """Legacy: updates a single model entry. Prefer apply_ranked_models for full config management."""
     print(
-        "Note: apply_model_to_litellm is deprecated. Use apply_ranked_models for full config management."
+        "Note: apply_model_to_freellm is deprecated. Use apply_ranked_models for full config management."
     )
     ensure_config_exists(path)
     config = read_config(path)
@@ -781,29 +781,29 @@ def apply_model_to_litellm(model_id, provider_name, path=DEFAULT_CONFIG_PATH):
             {"prefix": provider_name, "env_key": f"{provider_name.upper()}_API_KEY"},
         )
         prefix = info["prefix"]
-        litellm_model = (
+        freellm_model = (
             f"{prefix}/{model_id}"
             if not model_id.startswith(prefix + "/")
             else model_id
         )
-        config["model_list"][0]["litellm_params"]["model"] = litellm_model
+        config["model_list"][0]["freellm_params"]["model"] = freellm_model
         if info.get("env_key"):
-            config["model_list"][0]["litellm_params"]["api_key"] = (
+            config["model_list"][0]["freellm_params"]["api_key"] = (
                 f"os.environ/{info['env_key']}"
             )
         if info.get("api_base"):
-            config["model_list"][0]["litellm_params"]["api_base"] = info["api_base"]
+            config["model_list"][0]["freellm_params"]["api_base"] = info["api_base"]
         write_config(config, path)
-        print(f"Updated first model entry to {litellm_model}")
+        print(f"Updated first model entry to {freellm_model}")
 
 
 if __name__ == "__main__":
-    test_path = r"C:\Users\hyper\.hermes\litellm-config.yaml"
+    test_path = r"C:\Users\hyper\.hermes\freellm-config.yaml"
     groups, order = get_groups(test_path)
     print(f"Groups: {order}")
     for g in order:
         print(f"\n  {g}:")
         for e in groups[g]:
             print(
-                f"    {e['litellm_model']} (provider={e['provider']}, timeout={e['timeout']})"
+                f"    {e['freellm_model']} (provider={e['provider']}, timeout={e['timeout']})"
             )

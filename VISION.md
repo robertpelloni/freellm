@@ -1,4 +1,4 @@
-# Vision: LiteLLM Control Panel (Go Edition)
+# Vision: FreeLLM (Go Edition)
 
 ## Core Goal
 To build a high-performance, ultra-stable AI Gateway and system tray router in Go that provides a "Highly Stable Network" for LLM interactions. It automatically navigates the shifting landscape of free LLM API limits across multiple providers while ensuring external applications never experience dropped connections.

@@ -1,4 +1,4 @@
-# Memory: LiteLLM Control Panel Architectural Observations (Go Transition)
+# Memory: FreeLLM Architectural Observations (Go Transition)
 
 ## Codebase Traits
 - **Language:** Go (Golang)
@@ -12,7 +12,7 @@
 - **Decoupled Architecture:** Benchmarking engine runs independently of the proxy server.
 - **Favor Large Models:** Strict >= 100B parameter filter (configurable).
 - **Circuit Breaking:** Failure counts used to temporarily isolate unstable models.
-- **LiteLLM Compatibility:** Maintaining full OpenAI-format support for seamless drop-in replacement.
+- **FreeLLM Compatibility:** Maintaining full OpenAI-format support for seamless drop-in replacement.
 
 ## Discovered Optimizations
 - Using Go's `http.ReverseProxy` as a base for the gateway logic.

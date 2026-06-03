@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/robertpelloni/litellm_control_panel/internal/db"
+	"github.com/robertpelloni/freellm/internal/db"
 )
 
 type LogEntry struct {

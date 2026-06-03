@@ -12,11 +12,11 @@ import (
 
 	"github.com/gen2brain/beeep"
 	"github.com/getlantern/systray"
-	"github.com/robertpelloni/litellm_control_panel/internal/config"
-	"github.com/robertpelloni/litellm_control_panel/internal/db"
-	"github.com/robertpelloni/litellm_control_panel/internal/engine"
-	"github.com/robertpelloni/litellm_control_panel/internal/proxy"
-	"github.com/robertpelloni/litellm_control_panel/internal/ui"
+	"github.com/robertpelloni/freellm/internal/config"
+	"github.com/robertpelloni/freellm/internal/db"
+	"github.com/robertpelloni/freellm/internal/engine"
+	"github.com/robertpelloni/freellm/internal/proxy"
+	"github.com/robertpelloni/freellm/internal/ui"
 	"github.com/skratchdot/open-golang/open"
 )
 
@@ -26,9 +26,8 @@ func notify(title, message string) {
 
 func main() {
 	// Single instance enforcement
-	lockFile := filepath.Join(os.TempDir(), "litellm_control_panel_go.lock")
+	lockFile := filepath.Join(os.TempDir(), "freellm.lock")
 	if _, err := os.Stat(lockFile); err == nil {
-		// Basic check, in real app we'd check if PID is alive
 		log.Println("Another instance may be running. Cleaning up lock...")
 		os.Remove(lockFile)
 	}
@@ -39,16 +38,18 @@ func main() {
 }
 
 func onReady() {
-	systray.SetTitle("LiteLLM Control Panel")
-	systray.SetTooltip("LiteLLM Control Panel (Go)")
+	systray.SetTitle("FreeLLM")
+	systray.SetTooltip("FreeLLM - Free AI Model Router")
 
-	mOpen := systray.AddMenuItem("Open LLM Interface", "Open the interface in browser")
+	mOpen := systray.AddMenuItem("Open Chat", "Open the LLM chat interface")
 	mDashboard := systray.AddMenuItem("Open Dashboard", "Open monitoring dashboard")
 	mSettings := systray.AddMenuItem("Settings", "Change settings")
 	systray.AddSeparator()
-	mRefresh := systray.AddMenuItem("Refresh Now", "Run benchmarks immediately")
+	mRefresh := systray.AddMenuItem("Refresh Models", "Re-discover and benchmark models")
+	mStatus := systray.AddMenuItem("Status: Starting...", "Current status")
+	mStatus.Disable()
 	systray.AddSeparator()
-	mQuit := systray.AddMenuItem("Quit", "Quit the application")
+	mQuit := systray.AddMenuItem("Quit", "Quit FreeLLM")
 
 	// Initialize Database
 	database, err := db.InitDB()
@@ -58,26 +59,28 @@ func onReady() {
 
 	// Initialize Engine & Logger
 	eventLogger := engine.NewEventLogger(100, database)
+
 	apiKeys := map[string]string{
-		"openrouter":   os.Getenv("OPENROUTER_API_KEY"),
-		"groq":         os.Getenv("GROQ_API_KEY"),
-		"github":       os.Getenv("GITHUB_TOKEN"),
-		"deepinfra":    os.Getenv("DEEPINFRA_API_KEY"),
-		"cerebras":     os.Getenv("CEREBRAS_API_KEY"),
-		"huggingface":  os.Getenv("HUGGINGFACE_API_KEY"),
-		"nvidia":       os.Getenv("NVIDIA_NIM_API_KEY"),
-		"gemini":       os.Getenv("GEMINI_API_KEY"),
-		"anthropic":    os.Getenv("ANTHROPIC_API_KEY"),
-		"mistral":      os.Getenv("MISTRAL_API_KEY"),
-		"cohere":       os.Getenv("COHERE_API_KEY"),
-		"sambanova":    os.Getenv("SAMBANOVA_API_KEY"),
-		"fireworks":    os.Getenv("FIREWORKS_API_KEY"),
-		"hyperbolic":   os.Getenv("HYPERBOLIC_API_KEY"),
-		"cloudflare":   os.Getenv("CLOUDFLARE_API_KEY"),
+		"openrouter":  os.Getenv("OPENROUTER_API_KEY"),
+		"groq":        os.Getenv("GROQ_API_KEY"),
+		"github":      os.Getenv("GITHUB_TOKEN"),
+		"deepinfra":   os.Getenv("DEEPINFRA_API_KEY"),
+		"cerebras":    os.Getenv("CEREBRAS_API_KEY"),
+		"huggingface": os.Getenv("HUGGINGFACE_API_KEY"),
+		"nvidia":      os.Getenv("NVIDIA_NIM_API_KEY"),
+		"gemini":      os.Getenv("GEMINI_API_KEY"),
+		"anthropic":   os.Getenv("ANTHROPIC_API_KEY"),
+		"mistral":     os.Getenv("MISTRAL_API_KEY"),
+		"cohere":      os.Getenv("COHERE_API_KEY"),
+		"sambanova":   os.Getenv("SAMBANOVA_API_KEY"),
+		"fireworks":   os.Getenv("FIREWORKS_API_KEY"),
+		"hyperbolic":  os.Getenv("HYPERBOLIC_API_KEY"),
+		"cloudflare":  os.Getenv("CLOUDFLARE_API_KEY"),
 		"opencode_zen": os.Getenv("OPENCODE_ZEN_API_KEY"),
-		"codestral":    os.Getenv("CODESTRAL_API_KEY"),
-		"nvidia_nim":   os.Getenv("NVIDIA_API_KEY"),
+		"codestral":   os.Getenv("CODESTRAL_API_KEY"),
+		"nvidia_nim":  os.Getenv("NVIDIA_API_KEY"),
 	}
+
 	// Debug: count configured API keys
 	keyCount := 0
 	for _, v := range apiKeys {
@@ -86,13 +89,14 @@ func onReady() {
 		}
 	}
 	log.Printf("API keys configured: %d/%d providers have keys", keyCount, len(apiKeys))
+
 	benchmarker := engine.NewBenchmarker(apiKeys, 100, eventLogger)
 
 	// Initialize Configuration
-	cfgPath := "litellm-config.yaml"
+	cfgPath := "freellm-config.yaml"
 	cfg, err := config.LoadConfig(cfgPath)
 	if err != nil {
-		log.Printf("Warning: litellm-config.yaml not found, using defaults: %v", err)
+		log.Printf("Warning: freellm-config.yaml not found, using defaults: %v", err)
 		cfg = &config.Config{Port: 4000}
 	}
 
@@ -100,7 +104,6 @@ func onReady() {
 	config.WatchConfig(cfgPath, func(newCfg *config.Config) {
 		log.Println("Applying new configuration...")
 		cfg = newCfg
-
 		// Update Engine Base URLs
 		if newCfg.Providers != nil {
 			for p, pcfg := range newCfg.Providers {
@@ -122,17 +125,19 @@ func onReady() {
 	if proxyPort == 0 {
 		proxyPort = 4000
 	}
-	if envPort := os.Getenv("GO_PROXY_PORT"); envPort != "" {
+	if envPort := os.Getenv("FREELLM_PORT"); envPort != "" {
 		if p, err := strconv.Atoi(envPort); err == nil && p > 0 {
 			proxyPort = p
-			log.Printf("Using GO_PROXY_PORT=%d from environment", proxyPort)
+			log.Printf("Using FREELLM_PORT=%d from environment", proxyPort)
 		}
 	}
+
 	gateway := proxy.NewGateway(10, database) // Max 10 active requests
 	gateway.RestoreQueue()
+
 	go func() {
 		addr := fmt.Sprintf(":%d", proxyPort)
-		log.Printf("Starting LiteLLM Proxy on %s", addr)
+		log.Printf("Starting FreeLLM Proxy on %s", addr)
 		if err := http.ListenAndServe(addr, gateway); err != nil {
 			log.Printf("Proxy failed: %v", err)
 		}
@@ -160,24 +165,31 @@ func onReady() {
 			ctx := context.Background()
 			now := time.Now()
 			timeSinceFull := now.Sub(lastFullRefresh)
+
 			if timeSinceFull >= fullRefreshInterval || lastFullRefresh.IsZero() {
 				// Full refresh: benchmark all candidates
 				log.Println("Full refresh: benchmarking all candidates...")
-				notify("LiteLLM Sync", "Full model discovery started...")
+				mStatus.SetTitle("Status: Syncing...")
+				notify("FreeLLM Sync", "Full model discovery started...")
+
 				candidates := benchmarker.FetchModels(ctx, database)
 				log.Printf("Discovered %d model candidates", len(candidates))
+
 				ranked := benchmarker.RunBenchmark(ctx, candidates, database)
 				gateway.UpdateModels(ranked)
 				uiServer.UpdateModels(ranked)
+
 				for _, m := range ranked {
 					db.UpdateModelPricing(database, m.ID, m.Provider, m.PromptPrice, m.CompletionPrice)
 				}
+
 				topModel := "none"
 				if len(ranked) > 0 {
 					topModel = ranked[0].ID
 					notify("Sync Complete", fmt.Sprintf("Top Model: %s (%.2fs)", topModel, ranked[0].Latency))
 				}
 				db.LogActivity(database, "Sync Complete", topModel, fmt.Sprintf("Ranked %d models", len(ranked)))
+				mStatus.SetTitle(fmt.Sprintf("Status: %d models live", len(ranked)))
 				lastFullRefresh = time.Now()
 			} else {
 				// Quick pulse: re-check only top models
@@ -193,6 +205,7 @@ func onReady() {
 					}
 				}
 			}
+
 			select {
 			case <-refreshTrigger:
 			case <-time.After(pulseInterval):
@@ -234,12 +247,10 @@ func onReady() {
 			if len(models) == 0 {
 				continue
 			}
-
 			top := models[0]
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			_, err := benchmarker.MeasureLatency(ctx, top.ID, top.Provider)
 			cancel()
-
 			if err != nil {
 				if time.Now().Before(startupGrace) {
 					continue
@@ -251,7 +262,6 @@ func onReady() {
 			} else {
 				failCount = 0
 			}
-
 			if failCount >= 3 {
 				log.Println("Proactive health threshold reached. Triggering refresh...")
 				db.LogActivity(database, "Fallback Triggered", top.ID, "Triggering refresh due to consecutive health failures")
@@ -268,7 +278,7 @@ func onReady() {
 		for {
 			select {
 			case <-mOpen.ClickedCh:
-				log.Println("Opening LLM Interface...")
+				log.Println("Opening Chat Interface...")
 				open.Run(fmt.Sprintf("http://localhost:%d", proxyPort))
 			case <-mDashboard.ClickedCh:
 				log.Println("Opening Dashboard...")
@@ -277,7 +287,8 @@ func onReady() {
 				log.Println("Opening Settings...")
 				open.Run("http://localhost:8080#config-tab")
 			case <-mRefresh.ClickedCh:
-				log.Println("Refreshing...")
+				log.Println("Refreshing models...")
+				mStatus.SetTitle("Status: Refreshing...")
 				select {
 				case refreshTrigger <- true:
 				default:

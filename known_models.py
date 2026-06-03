@@ -9,7 +9,7 @@ always ranked correctly.
 Update this dictionary as new frontier/free models are discovered.
 """
 
-# key: litellm_model string (as it appears in config/API calls)
+# key: freellm_model string (as it appears in config/API calls)
 # values: params (billions), ctx (tokens), provider
 
 KNOWN_MODELS = {
@@ -134,15 +134,15 @@ KNOWN_MODELS = {
 }
 
 
-def lookup(litellm_model: str) -> dict | None:
-    """Look up a model by its full litellm model string.
+def lookup(freellm_model: str) -> dict | None:
+    """Look up a model by its full freellm model string.
 
     Tries: exact match, then stripping provider prefix, then tail match.
     Returns {"params": int, "ctx": int, "provider": str} or None.
     """
     # Exact match
-    if litellm_model in KNOWN_MODELS:
-        return KNOWN_MODELS[litellm_model]
+    if freellm_model in KNOWN_MODELS:
+        return KNOWN_MODELS[freellm_model]
 
     # Try stripping provider prefixes
     for prefix in ("openrouter/", "nvidia_nim/", "github/", "groq/",
@@ -151,8 +151,8 @@ def lookup(litellm_model: str) -> dict | None:
                    "mistral/", "codestral/", "cohere/", "sambanova/",
                    "fireworks/", "hyperbolic/", "nebius/", "cloudflare/",
                    "opencode_zen/"):
-        if litellm_model.startswith(prefix):
-            stripped = litellm_model[len(prefix):]
+        if freellm_model.startswith(prefix):
+            stripped = freellm_model[len(prefix):]
             if stripped in KNOWN_MODELS:
                 return KNOWN_MODELS[stripped]
             # Try the reverse: the stripped name might match a key that uses
@@ -162,25 +162,25 @@ def lookup(litellm_model: str) -> dict | None:
                     return info
 
     # Tail match: model_id ends with a known key
-    model_tail = litellm_model.split("/")[-1] if "/" in litellm_model else litellm_model
+    model_tail = freellm_model.split("/")[-1] if "/" in freellm_model else freellm_model
     for known_id, info in KNOWN_MODELS.items():
         known_tail = known_id.split("/")[-1] if "/" in known_id else known_id
         if model_tail == known_tail:
             return info
-        if litellm_model.endswith(known_tail):
+        if freellm_model.endswith(known_tail):
             return info
 
     return None
 
 
-def add_model(litellm_model: str, params: int, ctx: int, provider: str):
+def add_model(freellm_model: str, params: int, ctx: int, provider: str):
     """Add or update a model in the known models dict at runtime."""
-    KNOWN_MODELS[litellm_model] = {"params": params, "ctx": ctx, "provider": provider}
+    KNOWN_MODELS[freellm_model] = {"params": params, "ctx": ctx, "provider": provider}
 
 
-def remove_model(litellm_model: str):
+def remove_model(freellm_model: str):
     """Remove a model from the known models dict at runtime."""
-    KNOWN_MODELS.pop(litellm_model, None)
+    KNOWN_MODELS.pop(freellm_model, None)
 
 
 def all_models() -> dict:

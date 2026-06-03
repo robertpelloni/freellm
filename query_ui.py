@@ -9,7 +9,7 @@ class QueryUI:
     def __init__(self, settings):
         self.settings = settings
         self.root = tk.Tk()
-        self.root.title("LiteLLM Quick Query")
+        self.root.title("FreeLLM Quick Query")
         self.root.geometry("600x500")
 
         self.create_widgets()
@@ -62,7 +62,7 @@ class QueryUI:
         threading.Thread(target=self._perform_query, args=(prompt,), daemon=True).start()
 
     def _perform_query(self, prompt):
-        url = "http://localhost:4000/v1/chat/completions" # Default LiteLLM port
+        url = "http://localhost:4000/v1/chat/completions" # Default FreeLLM port
         payload = {
             "model": "free-llm", # The model name we set in config.yaml
             "messages": [{"role": "user", "content": prompt}],
@@ -93,7 +93,7 @@ class QueryUI:
                         except:
                             pass
         except Exception as e:
-            self._append_text(f"\nFailed to connect to LiteLLM: {e}\n")
+            self._append_text(f"\nFailed to connect to FreeLLM: {e}\n")
         finally:
             self.root.after(0, lambda: self.send_btn.config(state='normal'))
 

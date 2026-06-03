@@ -8,7 +8,7 @@
 - Embedded Web Dashboard with Chart.js analytics and WebSocket log streaming.
 - Health check endpoints (`/health`, `/health/liveness`, `/health/readiness`).
 - Side-by-side Model Comparison UI.
-- Integrated `litellm` as a submodule for architecture parity.
+- Integrated `freellm` as a submodule for architecture parity.
 
 ### Fixed
 - Fixed closure capture issues in `cmd/app/main.go` that prevented compilation.

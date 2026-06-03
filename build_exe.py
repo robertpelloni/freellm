@@ -3,7 +3,7 @@ import sys
 import os
 
 def build():
-    print("Building LiteLLM Control Panel...")
+    print("Building FreeLLM...")
 
     # Ensure dependencies are installed
     # subprocess.check_call([sys.executable, "-m", "pip", "install", "pystray", "httpx", "ruamel.yaml", "pyinstaller", "Pillow"])
@@ -12,7 +12,7 @@ def build():
         "pyinstaller",
         "--noconsole",
         "--onefile",
-        "--name", "LiteLLMControlPanel",
+        "--name", "FreeLLM",
         "--clean",
         "main.py"
     ]

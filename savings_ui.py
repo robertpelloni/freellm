@@ -6,7 +6,7 @@ class SavingsDashboardUI:
     def __init__(self, app_instance=None):
         self.app = app_instance
         self.root = tk.Tk()
-        self.root.title("LiteLLM Control Panel - Cost Savings")
+        self.root.title("FreeLLM - Cost Savings")
         self.root.geometry("800x500")
 
         self.create_widgets()

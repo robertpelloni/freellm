@@ -20,9 +20,9 @@ func SetStartWithWindows(enabled bool) error {
 		if err != nil {
 			return err
 		}
-		return key.SetStringValue("LiteLLMControlPanel", exePath)
+		return key.SetStringValue("FreeLLM", exePath)
 	} else {
-		return key.DeleteValue("LiteLLMControlPanel")
+		return key.DeleteValue("FreeLLM")
 	}
 }
 
@@ -33,6 +33,6 @@ func IsStartWithWindowsEnabled() bool {
 	}
 	defer key.Close()
 
-	_, _, err = key.GetStringValue("LiteLLMControlPanel")
+	_, _, err = key.GetStringValue("FreeLLM")
 	return err == nil
 }

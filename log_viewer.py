@@ -7,7 +7,7 @@ class LogViewer:
         self.process_mgr = process_mgr
         self.engine = engine
         self.root = tk.Tk()
-        title = "LiteLLM Process Logs" if process_mgr else "Model Engine Benchmarking Logs"
+        title = "FreeLLM Process Logs" if process_mgr else "Model Engine Benchmarking Logs"
         self.root.title(title)
         self.root.geometry("900x700")
 

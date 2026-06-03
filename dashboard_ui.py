@@ -8,7 +8,7 @@ class DashboardUI:
     def __init__(self, app_instance):
         self.app = app_instance
         self.root = tk.Tk()
-        self.root.title("LiteLLM Control Panel - Dashboard")
+        self.root.title("FreeLLM - Dashboard")
         self.root.geometry("1000x600")
         self.create_widgets()
         self.running = True

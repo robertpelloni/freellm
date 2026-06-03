@@ -1,4 +1,4 @@
-# Roadmap: LiteLLM Control Panel (Go Edition)
+# Roadmap: FreeLLM (Go Edition)
 
 ## Milestone 11: Go Core & Data Layer
 - [x] Initialize Go module and project structure.

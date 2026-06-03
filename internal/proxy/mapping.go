@@ -6,7 +6,7 @@ import (
 )
 
 func TransformRequestBody(provider string, openaiBody []byte) ([]byte, error) {
-	// First, sanitize the request body (LiteLLM parity)
+	// First, sanitize the request body (FreeLLM parity)
 	sanitized, _ := sanitizeRequest(provider, openaiBody)
 	openaiBody = sanitized
 

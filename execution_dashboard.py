@@ -7,7 +7,7 @@ class ExecutionDashboardUI:
     def __init__(self, app_instance):
         self.app = app_instance
         self.root = tk.Tk()
-        self.root.title("LiteLLM Control Panel - Protocol Execution")
+        self.root.title("FreeLLM - Protocol Execution")
         self.root.geometry("900x600")
 
         self.create_widgets()

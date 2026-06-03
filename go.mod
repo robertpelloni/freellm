@@ -1,4 +1,4 @@
-module github.com/robertpelloni/litellm_control_panel
+module github.com/robertpelloni/freellm
 
 go 1.24.0
 

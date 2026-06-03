@@ -43,7 +43,7 @@ _atexit2.register(_debug_exit)
 
 
 # ── Single-instance enforcement ──────────────────────────────────────────────
-LOCK_FILE = os.path.join(tempfile.gettempdir(), "litellm_control_panel.lock")
+LOCK_FILE = os.path.join(tempfile.gettempdir(), "freellm.lock")
 
 
 def _is_pid_our_app(pid):
@@ -98,7 +98,7 @@ def _kill_process_tree(pid):
 
 
 def _kill_port_4000():
-    """Kill any process listening on port 4000 (orphaned LiteLLM)."""
+    """Kill any process listening on port 4000 (orphaned FreeLLM)."""
     try:
         if sys.platform == "win32":
             import subprocess as sp, ctypes
@@ -124,13 +124,13 @@ def _kill_port_4000():
 
 
 def enforce_single_instance():
-    """Kill any existing instance (and orphaned LiteLLM) and take over the lock.
+    """Kill any existing instance (and orphaned FreeLLM) and take over the lock.
 
     On startup, this function:
     1. Reads the PID from the lock file
     2. Verifies the PID is actually our app (not a reused PID)
     3. Kills the old instance with its entire process tree
-    4. Kills any orphaned LiteLLM process on port 4000
+    4. Kills any orphaned FreeLLM process on port 4000
     5. Writes our own PID to the lock file
     6. Registers cleanup handlers
     """
@@ -153,7 +153,7 @@ def enforce_single_instance():
         # PID exists but isn't our app - it was reused. Just take the lock.
         print(f"Lock file PID {old_pid} is no longer our app. Taking over.")
 
-    # Also kill any orphaned LiteLLM on port 4000
+    # Also kill any orphaned FreeLLM on port 4000
     _kill_port_4000()
 
     # Write our PID to the lock file
@@ -165,13 +165,13 @@ def enforce_single_instance():
     atexit.register(lambda: os.remove(LOCK_FILE) if os.path.exists(LOCK_FILE) else None)
 
 
-# The actual LiteLLM config used by the system
+# The actual FreeLLM config used by the system
 HERMES_CONFIG_PATH = os.path.join(
-    os.path.expanduser("~"), ".hermes", "litellm-config.yaml"
+    os.path.expanduser("~"), ".hermes", "freellm-config.yaml"
 )
 
 
-class LiteLLMControlPanel:
+class FreeLLM:
     def __init__(self):
         self.settings = settings_ui.load_settings()
         self.last_benchmark_time = None
@@ -180,7 +180,7 @@ class LiteLLMControlPanel:
 
         # Use the hermes config path by default, allow override in settings
         self.config_path = self.settings.get("CONFIG_PATH", HERMES_CONFIG_PATH)
-        self.process_mgr = process_manager.LiteLLMProcess(config_path=self.config_path)
+        self.process_mgr = process_manager.FreeLLMProcess(config_path=self.config_path)
 
         # Load API keys: settings first, then fall back to environment variables
         # Filter out empty API keys to avoid "Illegal header value" errors
@@ -292,7 +292,7 @@ class LiteLLMControlPanel:
             self.ranked_models = db_rankings
 
     def _load_models_from_config(self):
-        """Read the existing LiteLLM config and populate ranked_models from it.
+        """Read the existing FreeLLM config and populate ranked_models from it.
         This gives instant startup without needing to benchmark first."""
         try:
             entries = config_manager.get_model_entries(self.config_path)
@@ -353,7 +353,7 @@ class LiteLLMControlPanel:
 
         return image
 
-    def notify(self, message, title="LiteLLM Router"):
+    def notify(self, message, title="FreeLLM"):
         if not self.icon or not self.settings.get("ENABLE_NOTIFICATIONS", True):
             return
         self.icon.notify(message, title)
@@ -362,15 +362,15 @@ class LiteLLMControlPanel:
         if not self.icon:
             return
         color = "gray"
-        tooltip = "LiteLLM Router"
+        tooltip = "FreeLLM"
         traffic = self.process_mgr.is_traffic_active()
 
         if self.is_working:
             color = "blue"
-            tooltip = "LiteLLM Router (Working...)"
+            tooltip = "FreeLLM (Working...)"
         elif not self.is_online:
             color = "gray"
-            tooltip = "LiteLLM Router (Offline)"
+            tooltip = "FreeLLM (Offline)"
         elif self.ranked_models:
             best = self.ranked_models[0]
             best_latency = best.get("latency", 0)
@@ -395,7 +395,7 @@ class LiteLLMControlPanel:
 
     def on_quit(self, icon, item):
         self.running = False
-        if self.settings.get("AUTO_MANAGE_LITELLM", True):
+        if self.settings.get("AUTO_MANAGE_FREELLM", True):
             self.process_mgr.stop()
         icon.stop()
 
@@ -483,7 +483,7 @@ class LiteLLMControlPanel:
     def open_docs(self, icon=None, item=None):
         import webbrowser
 
-        webbrowser.open("https://docs.litellm.ai/")
+        webbrowser.open("https://docs.freellm.ai/")
 
     def copy_active_model(self, icon=None, item=None):
         if self.ranked_models:
@@ -497,10 +497,10 @@ class LiteLLMControlPanel:
             r.destroy()
             self.notify(f"Copied {self.ranked_models[0]['id']} to clipboard.")
 
-    def get_litellm_env(self):
-        """Prepare environment variables for the LiteLLM child process.
+    def get_freellm_env(self):
+        """Prepare environment variables for the FreeLLM child process.
         Ensures API keys from settings (or env) are propagated so
-        litellm can actually authenticate with providers.
+        freellm can actually authenticate with providers.
         """
         import os as _os
 
@@ -532,28 +532,28 @@ class LiteLLMControlPanel:
                 env[env_var] = val
         return env
 
-    def launch_litellm(self, icon, item):
-        success = self.process_mgr.start(env=self.get_litellm_env())
+    def launch_freellm(self, icon, item):
+        success = self.process_mgr.start(env=self.get_freellm_env())
         if success:
-            self.notify("LiteLLM Proxy started successfully.", "Process Update")
+            self.notify("FreeLLM Proxy started successfully.", "Process Update")
         else:
-            self.notify("Failed to start LiteLLM Proxy.", "Process Error")
+            self.notify("Failed to start FreeLLM Proxy.", "Process Error")
         self.update_tray_status()
         return success
 
-    def stop_litellm(self, icon, item):
+    def stop_freellm(self, icon, item):
         success = self.process_mgr.stop()
         if success:
-            self.notify("LiteLLM Proxy stopped.", "Process Update")
+            self.notify("FreeLLM Proxy stopped.", "Process Update")
         self.update_tray_status()
         return success
 
-    def restart_litellm(self, icon, item):
-        success = self.process_mgr.restart(env=self.get_litellm_env())
+    def restart_freellm(self, icon, item):
+        success = self.process_mgr.restart(env=self.get_freellm_env())
         if success:
-            self.notify("LiteLLM Proxy restarted.", "Process Update")
+            self.notify("FreeLLM Proxy restarted.", "Process Update")
         else:
-            self.notify("Failed to restart LiteLLM Proxy.", "Process Error")
+            self.notify("Failed to restart FreeLLM Proxy.", "Process Error")
         self.update_tray_status()
         return success
 
@@ -972,7 +972,7 @@ class LiteLLMControlPanel:
         )
         menu_items.append(
             item(
-                f"LiteLLM: {status_text} | Primary: {active_model_name}",
+                f"FreeLLM: {status_text} | Primary: {active_model_name}",
                 lambda: None,
                 enabled=False,
             )
@@ -1001,16 +1001,16 @@ class LiteLLMControlPanel:
         menu_items.append(item("System Status", self.show_status))
         menu_items.append(pystray.Menu.SEPARATOR)
 
-        # 2. LiteLLM Session Control
+        # 2. FreeLLM Session Control
         control_items = [
-            item("Start Proxy", self.launch_litellm, enabled=not is_running),
-            item("Stop Proxy", self.stop_litellm, enabled=is_running),
-            item("Restart Proxy", self.restart_litellm, enabled=is_running),
+            item("Start Proxy", self.launch_freellm, enabled=not is_running),
+            item("Stop Proxy", self.stop_freellm, enabled=is_running),
+            item("Restart Proxy", self.restart_freellm, enabled=is_running),
             item("View Proxy Logs", self.show_logs),
             item("View Engine Logs", self.show_engine_logs),
             item("View Config", self.view_config),
         ]
-        menu_items.append(item("LiteLLM Control", pystray.Menu(*control_items)))
+        menu_items.append(item("FreeLLM Control", pystray.Menu(*control_items)))
 
         # 3. Model Rankings — Primary group
         primary_items = []
@@ -1122,8 +1122,8 @@ class LiteLLMControlPanel:
             item("Clear Blacklist", self.maintenance_clear_blacklist),
             item("Reset Provider Stats", self.maintenance_reset_stats),
             item("Cleanup Old Probes (>90d)", self.maintenance_cleanup_probes),
-            item("Backup LiteLLM Config", self.maintenance_backup_config),
-            item("Restore LiteLLM Config", self.maintenance_restore_config),
+            item("Backup FreeLLM Config", self.maintenance_backup_config),
+            item("Restore FreeLLM Config", self.maintenance_restore_config),
         )
         menu_items.append(item("Maintenance", maintenance_menu))
 
@@ -1133,7 +1133,7 @@ class LiteLLMControlPanel:
         return pystray.Menu(*menu_items)
 
     async def monitor_active_model(self):
-        """Monitors the active LiteLLM model health and tracks load stability."""
+        """Monitors the active FreeLLM model health and tracks load stability."""
         consecutive_failures = 0
         last_metrics_time = time.time()
         _startup_grace = time.time() + 30  # Skip health checks for 30s after app start
@@ -1156,14 +1156,14 @@ class LiteLLMControlPanel:
                 conn.close()
 
             is_running = self.process_mgr.is_running()
-            auto_manage = self.settings.get("AUTO_MANAGE_LITELLM", True)
+            auto_manage = self.settings.get("AUTO_MANAGE_FREELLM", True)
             if is_running:
-                # Give LiteLLM a grace period on first health check
+                # Give FreeLLM a grace period on first health check
                 if consecutive_failures == 0:
                     await asyncio.sleep(15)
                 if not self.process_mgr.check_health():
                     consecutive_failures += 1
-                    print(f"LiteLLM health check failed ({consecutive_failures}/3)")
+                    print(f"FreeLLM health check failed ({consecutive_failures}/3)")
                     active_id = (
                         self.ranked_models[0]["id"] if self.ranked_models else "Unknown"
                     )
@@ -1184,22 +1184,22 @@ class LiteLLMControlPanel:
                         "Triggering refresh due to consecutive health failures",
                     )
                     self.notify(
-                        "LiteLLM health check failed multiple times. Triggering fallback...",
+                        "FreeLLM health check failed multiple times. Triggering fallback...",
                         "Health Alert",
                     )
                     await self.refresh_logic(auto_pilot=self.auto_pilot)
                     consecutive_failures = 0
             elif auto_manage:
                 if time.time() < _startup_grace:
-                    # During startup grace period, LiteLLM may still be binding
+                    # During startup grace period, FreeLLM may still be binding
                     await asyncio.sleep(5)
                 else:
-                    print("LiteLLM process stopped unexpectedly. Attempting restart...")
+                    print("FreeLLM process stopped unexpectedly. Attempting restart...")
                     self.notify(
-                        "LiteLLM process stopped. Attempting restart...",
+                        "FreeLLM process stopped. Attempting restart...",
                         "Process Alert",
                     )
-                    self.process_mgr.start(env=self.get_litellm_env())
+                    self.process_mgr.start(env=self.get_freellm_env())
                     await asyncio.sleep(60)
 
     async def background_worker(self):
@@ -1264,18 +1264,18 @@ class LiteLLMControlPanel:
             print(f"Critical error in async loop: {e}")
 
     def run(self):
-        # Start LiteLLM if configured
-        if self.settings.get("AUTO_MANAGE_LITELLM", True):
-            self.process_mgr.start(env=self.get_litellm_env())
+        # Start FreeLLM if configured
+        if self.settings.get("AUTO_MANAGE_FREELLM", True):
+            self.process_mgr.start(env=self.get_freellm_env())
 
         # Start background thread
         threading.Thread(target=self.run_async_loop, daemon=True).start()
 
         # Set tray icon
         self.icon = pystray.Icon(
-            "LiteLLM",
+            "FreeLLM",
             self.create_image(64, 64, "gray"),
-            "LiteLLM Router",
+            "FreeLLM",
             menu=self.build_menu(),
         )
 
@@ -1296,12 +1296,12 @@ class LiteLLMControlPanel:
         except Exception as e:
             print(f"Tray icon error: {e}")
         # Keep app alive even if tray icon fails
-        print("Tray icon stopped. Keeping process alive for LiteLLM...")
+        print("Tray icon stopped. Keeping process alive for FreeLLM...")
         while self.running:
             time.sleep(5)
 
 
 if __name__ == "__main__":
     enforce_single_instance()
-    app = LiteLLMControlPanel()
+    app = FreeLLM()
     app.run()
