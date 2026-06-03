@@ -111,22 +111,51 @@ func ApplyRankedModels(ranked []engine.ModelCandidate, cfgPath string, primaryCo
 
 	primaryGroup := "free-llm"
 	fallbackGroup := "free-llm-fallback"
+	plainGroup := "free-llm-plain"
+
+	// Split models into tool-compatible and non-tool groups
+	noToolProviders := map[string]bool{
+		"nvidia": true, "nvidia_nim": true, "cerebras": true,
+		"cloudflare": true, "deepinfra": true,
+	}
+	var toolCompatible []engine.ModelCandidate
+	var plainOnly []engine.ModelCandidate
+	for _, m := range ranked {
+		if noToolProviders[m.Provider] {
+			plainOnly = append(plainOnly, m)
+		} else {
+			toolCompatible = append(toolCompatible, m)
+		}
+	}
+	log.Printf("Group split: %d tool-compatible, %d plain-only", len(toolCompatible), len(plainOnly))
 
 	// Build primary group with provider diversity (max 2 per provider)
 	maxPerProvider := 2
 	primarySet := map[int]bool{}
 	providerCount := map[string]int{}
-	for i, m := range ranked {
+	for i, m := range toolCompatible {
 		if providerCount[m.Provider] < maxPerProvider && len(primarySet) < primaryCount {
 			primarySet[i] = true
 			providerCount[m.Provider]++
 		}
 	}
 
-	for i, m := range ranked {
-		group := fallbackGroup
+	// Assign groups: tool-compatible -> primary/fallback, plain -> plainGroup
+	toolPrimaryIDs := map[string]bool{}
+	for i, m := range toolCompatible {
 		if primarySet[i] {
+			toolPrimaryIDs[m.ID] = true
+		}
+	}
+
+	for _, m := range ranked {
+		var group string
+		if noToolProviders[m.Provider] {
+			group = plainGroup
+		} else if toolPrimaryIDs[m.ID] {
 			group = primaryGroup
+		} else {
+			group = fallbackGroup
 		}
 
 		timeout := 30
@@ -179,7 +208,8 @@ func ApplyRankedModels(ranked []engine.ModelCandidate, cfgPath string, primaryCo
 			entry.ModelInfo["supports_function_calling"] = false
 		}
 
-		// For nvidia_nim/nvidia: set supported_params to exclude tools
+		// For nvidia_nim/nvidia: set supported_params to exclude tools
+
 		if m.Provider == "nvidia_nim" || m.Provider == "nvidia" {
 			entry.LiteLLMParams["supported_params"] = []string{
 				"max_tokens", "temperature", "top_p", "frequency_penalty",
