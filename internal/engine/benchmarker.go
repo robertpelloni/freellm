@@ -92,7 +92,7 @@ func (b *Benchmarker) FetchModels(ctx context.Context, database *sql.DB) []Model
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 
-	providers := []string{"openrouter", "groq", "deepinfra", "cerebras", "github", "huggingface", "nvidia", "ollama", "lm_studio", "mistral", "codestral", "cohere", "sambanova", "fireworks", "hyperbolic", "cloudflare", "opencode_zen"}
+	providers := []string{"openrouter", "groq", "deepinfra", "cerebras", "github", "huggingface", "nvidia", "nvidia_nim", "ollama", "lm_studio", "mistral", "codestral", "cohere", "sambanova", "fireworks", "hyperbolic", "cloudflare", "opencode_zen"}
 
 	for _, p := range providers {
 		if IsDeadProvider(p) { continue }
@@ -208,6 +208,13 @@ func (b *Benchmarker) MeasureLatency(ctx context.Context, modelID, provider stri
 	apiKey := b.APIKeys[provider]
 	// NVIDIA uses same key
 	if provider == "nvidia" && apiKey == "" {
+	if provider == "nvidia_nim" {
+		if apiKey == "" {
+			apiKey = b.APIKeys["nvidia"]
+		}
+		// Strip nvidia_nim/ prefix for API call
+		modelID = strings.TrimPrefix(modelID, "nvidia_nim/")
+	}
 		apiKey = b.APIKeys["nvidia_nim"]
 	}
 
@@ -334,7 +341,7 @@ func (b *Benchmarker) getModelsURL(provider string) string {
 	case "github":
 		if base == "" { return "https://models.inference.ai.azure.com/models" }
 		return base
-	case "nvidia":
+	case "nvidia", "nvidia_nim":
 		if base == "" { return "https://integrate.api.nvidia.com/v1/models" }
 		return base + "/models"
 	case "mistral":
@@ -392,7 +399,7 @@ func (b *Benchmarker) getCompletionsURL(provider string) string {
 	case "github":
 		if base == "" { return "https://models.inference.ai.azure.com/chat/completions" }
 		return base + "/chat/completions"
-	case "nvidia":
+	case "nvidia", "nvidia_nim":
 		if base == "" { return "https://integrate.api.nvidia.com/v1/chat/completions" }
 		return base + "/chat/completions"
 	case "gemini":
