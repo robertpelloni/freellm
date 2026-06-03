@@ -7,16 +7,17 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/gen2brain/beeep"
 	"github.com/getlantern/systray"
-	"github.com/skratchdot/open-golang/open"
 	"github.com/robertpelloni/litellm_control_panel/internal/config"
 	"github.com/robertpelloni/litellm_control_panel/internal/db"
 	"github.com/robertpelloni/litellm_control_panel/internal/engine"
 	"github.com/robertpelloni/litellm_control_panel/internal/proxy"
 	"github.com/robertpelloni/litellm_control_panel/internal/ui"
+	"github.com/skratchdot/open-golang/open"
 )
 
 func notify(title, message string) {
@@ -58,16 +59,16 @@ func onReady() {
 	// Initialize Engine & Logger
 	eventLogger := engine.NewEventLogger(100, database)
 	apiKeys := map[string]string{
-		"openrouter": os.Getenv("OPENROUTER_API_KEY"),
-		"groq":       os.Getenv("GROQ_API_KEY"),
-		"github":     os.Getenv("GITHUB_TOKEN"),
-		"deepinfra":  os.Getenv("DEEPINFRA_API_KEY"),
-		"cerebras":   os.Getenv("CEREBRAS_API_KEY"),
+		"openrouter":  os.Getenv("OPENROUTER_API_KEY"),
+		"groq":        os.Getenv("GROQ_API_KEY"),
+		"github":      os.Getenv("GITHUB_TOKEN"),
+		"deepinfra":   os.Getenv("DEEPINFRA_API_KEY"),
+		"cerebras":    os.Getenv("CEREBRAS_API_KEY"),
 		"huggingface": os.Getenv("HUGGINGFACE_API_KEY"),
-		"nvidia":     os.Getenv("NVIDIA_NIM_API_KEY"),
-		"gemini":     os.Getenv("GEMINI_API_KEY"),
-		"anthropic":  os.Getenv("ANTHROPIC_API_KEY"),
-		"mistral":    os.Getenv("MISTRAL_API_KEY"),
+		"nvidia":      os.Getenv("NVIDIA_NIM_API_KEY"),
+		"gemini":      os.Getenv("GEMINI_API_KEY"),
+		"anthropic":   os.Getenv("ANTHROPIC_API_KEY"),
+		"mistral":     os.Getenv("MISTRAL_API_KEY"),
 	}
 	benchmarker := engine.NewBenchmarker(apiKeys, 100, eventLogger)
 
@@ -87,16 +88,30 @@ func onReady() {
 		// Update Engine Base URLs
 		if newCfg.Providers != nil {
 			for p, pcfg := range newCfg.Providers {
-				if pcfg.BaseURL != "" { benchmarker.BaseURLs[p] = pcfg.BaseURL }
-				if pcfg.ModelsURL != "" { benchmarker.BaseURLs[p+"_models"] = pcfg.ModelsURL }
-				if pcfg.Completions != "" { benchmarker.BaseURLs[p+"_completions"] = pcfg.Completions }
+				if pcfg.BaseURL != "" {
+					benchmarker.BaseURLs[p] = pcfg.BaseURL
+				}
+				if pcfg.ModelsURL != "" {
+					benchmarker.BaseURLs[p+"_models"] = pcfg.ModelsURL
+				}
+				if pcfg.Completions != "" {
+					benchmarker.BaseURLs[p+"_completions"] = pcfg.Completions
+				}
 			}
 		}
 	})
 
 	// Initialize Proxy Gateway
 	proxyPort := cfg.Port
-	if proxyPort == 0 { proxyPort = 4000 }
+	if proxyPort == 0 {
+		proxyPort = 4000
+	}
+	if envPort := os.Getenv("GO_PROXY_PORT"); envPort != "" {
+		if p, err := strconv.Atoi(envPort); err == nil && p > 0 {
+			proxyPort = p
+			log.Printf("Using GO_PROXY_PORT=%d from environment", proxyPort)
+		}
+	}
 	gateway := proxy.NewGateway(10, database) // Max 10 active requests
 	gateway.RestoreQueue()
 	go func() {
@@ -169,7 +184,6 @@ func onReady() {
 		}
 	}()
 
-
 	// Operational Stability Ticker
 	go func() {
 		ticker := time.NewTicker(60 * time.Second)
@@ -211,7 +225,9 @@ func onReady() {
 			cancel()
 
 			if err != nil {
-				if time.Now().Before(startupGrace) { continue }
+				if time.Now().Before(startupGrace) {
+					continue
+				}
 				failCount++
 				log.Printf("Health check failed for %s (%d/3): %v", top.ID, failCount, err)
 				db.LogActivity(database, "Health Check Failure", top.ID, fmt.Sprintf("Attempt %d/3 failed", failCount))
