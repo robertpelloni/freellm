@@ -382,9 +382,16 @@ func onReady() {
 			}
 
 			mEntry := parent.AddSubMenuItem(label, m.ID)
-			watchMenuItem(mEntry, "model_set_primary", m.ID)
 
-			// Skip (24h) — sub-action of this model entry
+			// --- Set as Primary ★ (clicking the model name itself also does this) ---
+			mSetPrimary := mEntry.AddSubMenuItem("★ Set as Primary", "Make "+m.ID+" the #1 model")
+			watchMenuItem(mSetPrimary, "model_set_primary", m.ID)
+
+			// --- Set as Fallback ---
+			mSetFallback := mEntry.AddSubMenuItem("↕ Set as Fallback", "Make "+m.ID+" the top fallback model")
+			watchMenuItem(mSetFallback, "model_set_fallback", m.ID)
+
+			// Skip (24h)
 			mSkip := mEntry.AddSubMenuItem("Skip (24h)", "Skip "+m.ID+" for 24 hours")
 			watchMenuItem(mSkip, "model_skip", m.ID)
 
@@ -752,6 +759,12 @@ func onReady() {
 				db.LogActivity(database, "Set Primary", action.data, "Manually set as primary model")
 				notify("FreeLLM", fmt.Sprintf("Primary set to: %s", action.data))
 				updateTrayStatus()
+
+			case "model_set_fallback":
+				log.Printf("Setting %s as fallback", action.data)
+				gateway.SetAsFallback(action.data)
+				db.LogActivity(database, "Set Fallback", action.data, "Manually set as fallback model")
+				notify("FreeLLM", fmt.Sprintf("Fallback set to: %s", action.data))
 
 			case "model_demote":
 				log.Printf("Demoting %s to fallback", action.data)

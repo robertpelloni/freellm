@@ -1,6 +1,6 @@
 {
-  "signature": "cmd/app/main.go::📐 Cascade errors in 3 neighbor file(s) — fix before finishing turn:\n<diagnostics file=\"internal/ui/server.go\" reason=\"fallback\">\n  line 16, col 2 rule=cascade:BrokenImport: could not import github.com/robertpelloni/litellm_control_panel/internal/db (missing metadata for im\n  line 17, col 2 rule=cascade:BrokenImport: could not import github.com/robertpelloni/litellm_control_panel/internal/engine (missing metadata fo\n</diagnostics>\n<diagnostics file=\"internal/engine/logger.go\" reason=\"fallback\">\n  line 9, col 2 rule=cascade:BrokenImport: could not import github.com/robertpelloni/litellm_control_panel/internal/db (missing metadata for im\n</diagnostics>\n<diagnostics file=\"internal/proxy/server.go\" reason=\"fallback\">\n  line 20, col 2 rule=cascade:BrokenImport: could not import github.com/robertpelloni/litellm_control_panel/internal/db (missing metadata for im\n  line 21, col 2 rule=cascade:BrokenImport: could not import github.com/robertpelloni/litellm_control_panel/internal/engine (missing\n... (truncated)",
-  "sessionId": "lens-mpxi685l-bb976342",
-  "projectSeqStart": 31,
-  "projectSeqEnd": 32
+  "signature": "internal/proxy/server.go::Unresolved from this turn — internal/proxy/server.go:\n🔴 STOP — 1 issue(s) must be fixed:\n  L216: undefined: bufio\n    💡 Fix: LSP quick fixes: Add import: \"bufio\"",
+  "sessionId": "lens-mpy79abn-3edfac8e",
+  "projectSeqStart": 43,
+  "projectSeqEnd": 44
 }
