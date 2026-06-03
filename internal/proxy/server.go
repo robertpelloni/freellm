@@ -97,8 +97,9 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if r.URL.Path == "/health" || r.URL.Path == "/health/liveness" {
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		w.Write([]byte(`{"status":"healthy"}`))
 		return
 	}
 	if r.URL.Path == "/health/readiness" {
@@ -106,11 +107,13 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		count := len(g.RankedModels)
 		g.mu.RUnlock()
 		if count > 0 {
+w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("READY"))
+			w.Write([]byte(`{"status":"ready"}`))
 		} else {
+w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusServiceUnavailable)
-			w.Write([]byte("NOT READY"))
+			w.Write([]byte(`{"status":"not_ready"}`))
 		}
 		return
 	}
