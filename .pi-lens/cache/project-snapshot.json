@@ -1,7 +1,7 @@
 {
   "version": 1,
   "projectRoot": "C:/Users/hyper/workspace/litellm_control_panel",
-  "generatedAt": "2026-06-03T12:15:03.462Z",
+  "generatedAt": "2026-06-03T13:47:22.514Z",
   "seq": 21,
   "files": {
     "C:/Users/hyper/workspace/litellm_control_panel/api_server.py": {
@@ -248,6 +248,20 @@
       "size": 7792,
       "imports": [],
       "lastSeq": 0
+    },
+    "C:/Users/hyper/workspace/litellm_control_panel/internal/icon/icon_windows.go": {
+      "path": "C:/Users/hyper/workspace/litellm_control_panel/internal/icon/icon_windows.go",
+      "mtimeMs": 1780491699196.2275,
+      "size": 203,
+      "imports": [],
+      "lastSeq": 0
+    },
+    "C:/Users/hyper/workspace/litellm_control_panel/internal/icon/icon_other.go": {
+      "path": "C:/Users/hyper/workspace/litellm_control_panel/internal/icon/icon_other.go",
+      "mtimeMs": 1780491769804.519,
+      "size": 151,
+      "imports": [],
+      "lastSeq": 0
     }
   },
   "symbols": {},
@@ -269,6 +283,8 @@
     "C:/Users/hyper/workspace/litellm_control_panel/internal/engine/benchmarker.go": [],
     "C:/Users/hyper/workspace/litellm_control_panel/internal/engine/known_models.go": [],
     "C:/Users/hyper/workspace/litellm_control_panel/internal/engine/logger.go": [],
+    "C:/Users/hyper/workspace/litellm_control_panel/internal/icon/icon_other.go": [],
+    "C:/Users/hyper/workspace/litellm_control_panel/internal/icon/icon_windows.go": [],
     "C:/Users/hyper/workspace/litellm_control_panel/internal/proxy/mapping.go": [],
     "C:/Users/hyper/workspace/litellm_control_panel/internal/proxy/server_test.go": [],
     "C:/Users/hyper/workspace/litellm_control_panel/internal/proxy/server.go": [],

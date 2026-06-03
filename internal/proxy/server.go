@@ -462,6 +462,7 @@ func (g *Gateway) sanitizeRequestBody(provider string, body []byte, hasTools boo
 			// ALWAYS strip reasoning_content - DeepSeek models add this and
 			// other providers reject it with "Extra inputs are not permitted"
 			delete(m, "reasoning_content")
+			delete(m, "reasoning")
 
 			// Fix null assistant content -> ""
 			if r, ok := m["role"].(string); ok && r == "assistant" {
@@ -611,6 +612,7 @@ func (g *Gateway) forwardRequest(client *http.Client, r *http.Request, model eng
 					if choice, ok := c.(map[string]interface{}); ok {
 						if msg, ok := choice["message"].(map[string]interface{}); ok {
 							delete(msg, "reasoning_content")
+						delete(msg, "reasoning")
 						}
 					}
 				}
@@ -628,6 +630,11 @@ func (g *Gateway) forwardRequest(client *http.Client, r *http.Request, model eng
 			rd["model"] = model.ID
 			respBody, _ = json.Marshal(rd)
 		}
+	}
+
+	// Strip Content-Length when we modify the response body (reasoning_content stripping, usage injection)
+	if !stream && resp.StatusCode == 200 {
+		resp.Header.Del("Content-Length")
 	}
 
 	return &ProxyResponse{

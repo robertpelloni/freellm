@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/robertpelloni/freellm/internal/config"
 	"github.com/robertpelloni/freellm/internal/db"
 	"github.com/robertpelloni/freellm/internal/engine"
+	"github.com/robertpelloni/freellm/internal/icon"
 	"github.com/robertpelloni/freellm/internal/proxy"
 	"github.com/robertpelloni/freellm/internal/ui"
 	"github.com/skratchdot/open-golang/open"
@@ -38,50 +40,89 @@ func main() {
 }
 
 func onReady() {
+	// --- Tray Icon & Title ---
+	systray.SetIcon(icon.Gray)
 	systray.SetTitle("FreeLLM")
-	systray.SetTooltip("FreeLLM - Free AI Model Router")
+	systray.SetTooltip("FreeLLM - Starting...")
 
-	mOpen := systray.AddMenuItem("Open Chat", "Open the LLM chat interface")
-	mDashboard := systray.AddMenuItem("Open Dashboard", "Open monitoring dashboard")
-	mSettings := systray.AddMenuItem("Settings", "Change settings")
-	systray.AddSeparator()
-	mRefresh := systray.AddMenuItem("Refresh Models", "Re-discover and benchmark models")
-	mStatus := systray.AddMenuItem("Status: Starting...", "Current status")
+	// --- Menu Structure (matches Python version) ---
+
+	// Status line (disabled, shows current state)
+	mStatus := systray.AddMenuItem("FreeLLM: Starting | Primary: None", "Current status")
 	mStatus.Disable()
+
 	systray.AddSeparator()
+
+	// Primary Actions
+	mOpen := systray.AddMenuItem("Open Chat Interface", "Open the LLM chat in browser")
+	mDashboard := systray.AddMenuItem("Open Dashboard", "Open monitoring dashboard")
+	mSettings := systray.AddMenuItem("Settings", "Open settings in browser")
+
+	systray.AddSeparator()
+
+	// Submenus
+	mControl := systray.AddMenuItem("FreeLLM Control", "Proxy control options")
+	mControlStart := mControl.AddSubMenuItem("Refresh Models", "Re-discover and benchmark all models")
+	mControlViewLogs := mControl.AddSubMenuItem("View Proxy Logs", "Open log viewer")
+	mControlViewConfig := mControl.AddSubMenuItem("View Config", "Open config editor")
+	mControlBackup := mControl.AddSubMenuItem("Backup Config", "Save current config to .bak")
+
+	systray.AddSeparator()
+
+	mMaintenance := systray.AddMenuItem("Maintenance", "System maintenance options")
+	mMaintClearSkips := mMaintenance.AddSubMenuItem("Clear Skip List", "Clear all manual model skips")
+	mMaintClearBlacklist := mMaintenance.AddSubMenuItem("Clear Blacklist", "Remove all blacklisted models")
+	mMaintResetStats := mMaintenance.AddSubMenuItem("Reset Provider Stats", "Reset all provider statistics")
+
+	systray.AddSeparator()
+
+	mStartup := systray.AddMenuItem("Start with Windows", "Launch on system startup")
+	mStartupEnable := mStartup.AddSubMenuItem("Enable", "Add to Windows startup")
+	mStartupDisable := mStartup.AddSubMenuItem("Disable", "Remove from Windows startup")
+
+	systray.AddSeparator()
+
+	mAutoPilot := systray.AddMenuItemCheckbox("Auto-Pilot Mode", "Automatically benchmark and route", true)
+	mRouting := systray.AddMenuItemCheckbox("Master Routing", "Enable request routing", true)
+
+	systray.AddSeparator()
+
+	mCopyModel := systray.AddMenuItem("Copy Active Model", "Copy primary model ID to clipboard")
+
+	systray.AddSeparator()
+
 	mQuit := systray.AddMenuItem("Quit", "Quit FreeLLM")
 
-	// Initialize Database
+	// --- Initialize Database ---
 	database, err := db.InitDB()
 	if err != nil {
 		log.Fatalf("Failed to init DB: %v", err)
 	}
 
-	// Initialize Engine & Logger
+	// --- Initialize Engine & Logger ---
 	eventLogger := engine.NewEventLogger(100, database)
 
 	apiKeys := map[string]string{
-		"openrouter":  os.Getenv("OPENROUTER_API_KEY"),
-		"groq":        os.Getenv("GROQ_API_KEY"),
-		"github":      os.Getenv("GITHUB_TOKEN"),
-		"deepinfra":   os.Getenv("DEEPINFRA_API_KEY"),
-		"cerebras":    os.Getenv("CEREBRAS_API_KEY"),
-		"huggingface": os.Getenv("HUGGINGFACE_API_KEY"),
-		"nvidia":      os.Getenv("NVIDIA_NIM_API_KEY"),
-		"gemini":      os.Getenv("GEMINI_API_KEY"),
-		"anthropic":   os.Getenv("ANTHROPIC_API_KEY"),
-		"mistral":     os.Getenv("MISTRAL_API_KEY"),
-		"cohere":      os.Getenv("COHERE_API_KEY"),
-		"sambanova":   os.Getenv("SAMBANOVA_API_KEY"),
-		"fireworks":   os.Getenv("FIREWORKS_API_KEY"),
-		"hyperbolic":  os.Getenv("HYPERBOLIC_API_KEY"),
-		"cloudflare":  os.Getenv("CLOUDFLARE_API_KEY"),
+		"openrouter":   os.Getenv("OPENROUTER_API_KEY"),
+		"groq":         os.Getenv("GROQ_API_KEY"),
+		"github":       os.Getenv("GITHUB_TOKEN"),
+		"deepinfra":    os.Getenv("DEEPINFRA_API_KEY"),
+		"cerebras":     os.Getenv("CEREBRAS_API_KEY"),
+		"huggingface":  os.Getenv("HUGGINGFACE_API_KEY"),
+		"nvidia":       os.Getenv("NVIDIA_NIM_API_KEY"),
+		"gemini":       os.Getenv("GEMINI_API_KEY"),
+		"anthropic":    os.Getenv("ANTHROPIC_API_KEY"),
+		"mistral":      os.Getenv("MISTRAL_API_KEY"),
+		"cohere":       os.Getenv("COHERE_API_KEY"),
+		"sambanova":    os.Getenv("SAMBANOVA_API_KEY"),
+		"fireworks":    os.Getenv("FIREWORKS_API_KEY"),
+		"hyperbolic":   os.Getenv("HYPERBOLIC_API_KEY"),
+		"cloudflare":   os.Getenv("CLOUDFLARE_API_KEY"),
 		"opencode_zen": os.Getenv("OPENCODE_ZEN_API_KEY"),
-		"codestral":   os.Getenv("CODESTRAL_API_KEY"),
-		"nvidia_nim":  os.Getenv("NVIDIA_API_KEY"),
+		"codestral":    os.Getenv("CODESTRAL_API_KEY"),
+		"nvidia_nim":   os.Getenv("NVIDIA_API_KEY"),
 	}
 
-	// Debug: count configured API keys
 	keyCount := 0
 	for _, v := range apiKeys {
 		if v != "" {
@@ -92,7 +133,7 @@ func onReady() {
 
 	benchmarker := engine.NewBenchmarker(apiKeys, 100, eventLogger)
 
-	// Initialize Configuration
+	// --- Initialize Configuration ---
 	cfgPath := "freellm-config.yaml"
 	cfg, err := config.LoadConfig(cfgPath)
 	if err != nil {
@@ -100,11 +141,9 @@ func onReady() {
 		cfg = &config.Config{Port: 4000}
 	}
 
-	// Hot-Reloading
 	config.WatchConfig(cfgPath, func(newCfg *config.Config) {
 		log.Println("Applying new configuration...")
 		cfg = newCfg
-		// Update Engine Base URLs
 		if newCfg.Providers != nil {
 			for p, pcfg := range newCfg.Providers {
 				if pcfg.BaseURL != "" {
@@ -120,7 +159,7 @@ func onReady() {
 		}
 	})
 
-	// Initialize Proxy Gateway
+	// --- Initialize Proxy Gateway ---
 	proxyPort := cfg.Port
 	if proxyPort == 0 {
 		proxyPort = 4000
@@ -132,7 +171,7 @@ func onReady() {
 		}
 	}
 
-	gateway := proxy.NewGateway(10, database) // Max 10 active requests
+	gateway := proxy.NewGateway(10, database)
 	gateway.RestoreQueue()
 
 	go func() {
@@ -143,7 +182,7 @@ func onReady() {
 		}
 	}()
 
-	// Initialize Web Dashboard
+	// --- Initialize Web Dashboard ---
 	uiServer := ui.NewUIServer(database, eventLogger, gateway)
 	go func() {
 		log.Println("Starting Web Dashboard on :8080")
@@ -152,13 +191,43 @@ func onReady() {
 		}
 	}()
 
-	// Background worker: Two-tier benchmarking cadence
-	// Tier 1: Quick pulse every 10 min (top 5 models only)
-	// Tier 2: Full refresh every 60 min (all candidates)
+	// --- State variables ---
+	routingEnabled := true
+	autoPilot := true
+
+	// --- Background Worker: Two-tier benchmarking ---
 	refreshTrigger := make(chan bool, 1)
 	fullRefreshInterval := 60 * time.Minute
 	pulseInterval := 10 * time.Minute
-	lastFullRefresh := time.Time{} // Zero time forces first cycle to be full refresh
+	lastFullRefresh := time.Time{}
+
+	// Function to update tray icon/tooltip based on model state
+	updateTrayStatus := func() {
+		models := gateway.GetModels()
+		if len(models) == 0 {
+			systray.SetIcon(icon.Gray)
+			systray.SetTooltip("FreeLLM - No models available")
+			mStatus.SetTitle("FreeLLM: Offline | Primary: None")
+			return
+		}
+		top := models[0]
+		lat := top.Latency
+
+		var primaryLabel string
+		if lat < 0.5 {
+			systray.SetIcon(icon.Green)
+			primaryLabel = fmt.Sprintf("%s (%.2fs)", top.ID, lat)
+		} else if lat < 1.5 {
+			systray.SetIcon(icon.Yellow)
+			primaryLabel = fmt.Sprintf("%s (%.2fs)", top.ID, lat)
+		} else {
+			systray.SetIcon(icon.Red)
+			primaryLabel = fmt.Sprintf("%s (%.2fs)", top.ID, lat)
+		}
+
+		systray.SetTooltip(fmt.Sprintf("FreeLLM - Primary: %s", primaryLabel))
+		mStatus.SetTitle(fmt.Sprintf("FreeLLM: Live | Primary: %s | %d models", primaryLabel, len(models)))
+	}
 
 	go func() {
 		for {
@@ -167,9 +236,9 @@ func onReady() {
 			timeSinceFull := now.Sub(lastFullRefresh)
 
 			if timeSinceFull >= fullRefreshInterval || lastFullRefresh.IsZero() {
-				// Full refresh: benchmark all candidates
 				log.Println("Full refresh: benchmarking all candidates...")
-				mStatus.SetTitle("Status: Syncing...")
+				systray.SetIcon(icon.Yellow)
+				mStatus.SetTitle("FreeLLM: Syncing...")
 				notify("FreeLLM Sync", "Full model discovery started...")
 
 				candidates := benchmarker.FetchModels(ctx, database)
@@ -189,21 +258,23 @@ func onReady() {
 					notify("Sync Complete", fmt.Sprintf("Top Model: %s (%.2fs)", topModel, ranked[0].Latency))
 				}
 				db.LogActivity(database, "Sync Complete", topModel, fmt.Sprintf("Ranked %d models", len(ranked)))
-				mStatus.SetTitle(fmt.Sprintf("Status: %d models live", len(ranked)))
 				lastFullRefresh = time.Now()
+				updateTrayStatus()
 			} else {
-				// Quick pulse: re-check only top models
-				currentModels := gateway.GetModels()
-				if len(currentModels) > 0 {
-					ranked, changed := benchmarker.QuickPulse(ctx, currentModels, 5, database)
-					if changed {
-						gateway.UpdateModels(ranked)
-						uiServer.UpdateModels(ranked)
-						log.Println("Quick pulse: rankings changed, config updated")
-					} else {
-						log.Println("Quick pulse: no changes")
+				if routingEnabled {
+					currentModels := gateway.GetModels()
+					if len(currentModels) > 0 {
+						ranked, changed := benchmarker.QuickPulse(ctx, currentModels, 5, database)
+						if changed {
+							gateway.UpdateModels(ranked)
+							uiServer.UpdateModels(ranked)
+							log.Println("Quick pulse: rankings changed, config updated")
+						} else {
+							log.Println("Quick pulse: no changes")
+						}
 					}
 				}
+				updateTrayStatus()
 			}
 
 			select {
@@ -213,7 +284,7 @@ func onReady() {
 		}
 	}()
 
-	// Operational Stability Ticker
+	// --- Operational Stability Ticker ---
 	go func() {
 		ticker := time.NewTicker(60 * time.Second)
 		for range ticker.C {
@@ -225,19 +296,21 @@ func onReady() {
 				tps := float64(totalTokens) / 60.0
 				db.LogStabilityMetric(database, float64(qpm), tps)
 			}
+			// Also update tray status every minute
+			updateTrayStatus()
 		}
 	}()
 
-	// Data Pruning Ticker (every 24h)
+	// --- Data Pruning Ticker (every 24h) ---
 	go func() {
 		ticker := time.NewTicker(24 * time.Hour)
 		for range ticker.C {
-			count, _ := db.PruneOldData(database, 30) // Keep 30 days
+			count, _ := db.PruneOldData(database, 30)
 			log.Printf("Pruned %d old metric/log records", count)
 		}
 	}()
 
-	// Proactive Health Monitor with startup grace period
+	// --- Proactive Health Monitor ---
 	go func() {
 		failCount := 0
 		startupGrace := time.Now().Add(30 * time.Second)
@@ -259,6 +332,7 @@ func onReady() {
 				log.Printf("Health check failed for %s (%d/3): %v", top.ID, failCount, err)
 				db.LogActivity(database, "Health Check Failure", top.ID, fmt.Sprintf("Attempt %d/3 failed", failCount))
 				notify("Health Alert", fmt.Sprintf("Health check failed for %s (%d/3)", top.ID, failCount))
+				systray.SetIcon(icon.Red)
 			} else {
 				failCount = 0
 			}
@@ -274,25 +348,98 @@ func onReady() {
 		}
 	}()
 
+	// --- Menu Click Handlers ---
 	go func() {
 		for {
 			select {
 			case <-mOpen.ClickedCh:
 				log.Println("Opening Chat Interface...")
 				open.Run(fmt.Sprintf("http://localhost:%d", proxyPort))
+
 			case <-mDashboard.ClickedCh:
 				log.Println("Opening Dashboard...")
 				open.Run("http://localhost:8080")
+
 			case <-mSettings.ClickedCh:
 				log.Println("Opening Settings...")
 				open.Run("http://localhost:8080#config-tab")
-			case <-mRefresh.ClickedCh:
+
+			case <-mControlStart.ClickedCh:
 				log.Println("Refreshing models...")
-				mStatus.SetTitle("Status: Refreshing...")
+				systray.SetIcon(icon.Yellow)
+				mStatus.SetTitle("FreeLLM: Refreshing...")
 				select {
 				case refreshTrigger <- true:
 				default:
 				}
+
+			case <-mControlViewLogs.ClickedCh:
+				log.Println("Opening logs...")
+				open.Run("http://localhost:8080#logs-tab")
+
+			case <-mControlViewConfig.ClickedCh:
+				log.Println("Opening config...")
+				open.Run("http://localhost:8080#config-tab")
+
+			case <-mControlBackup.ClickedCh:
+				log.Println("Backing up config...")
+				data, err := os.ReadFile(cfgPath)
+				if err == nil {
+					os.WriteFile(cfgPath+".bak", data, 0644)
+					notify("FreeLLM", "Config backed up to "+cfgPath+".bak")
+				}
+
+			case <-mMaintClearSkips.ClickedCh:
+				log.Println("Clearing skip list...")
+				db.ClearSkips(database)
+				notify("FreeLLM", "Skip list cleared")
+
+			case <-mMaintClearBlacklist.ClickedCh:
+				log.Println("Clearing blacklist...")
+				db.ClearBlacklist(database)
+				notify("FreeLLM", "Blacklist cleared")
+
+			case <-mMaintResetStats.ClickedCh:
+				log.Println("Resetting stats...")
+				db.ResetStats(database)
+				notify("FreeLLM", "All provider and model stats reset")
+
+			case <-mStartupEnable.ClickedCh:
+				log.Println("Enabling startup...")
+				config.SetStartWithWindows(true)
+				notify("FreeLLM", "Start with Windows enabled")
+
+			case <-mStartupDisable.ClickedCh:
+				log.Println("Disabling startup...")
+				config.SetStartWithWindows(false)
+				notify("FreeLLM", "Start with Windows disabled")
+
+			case <-mAutoPilot.ClickedCh:
+				autoPilot = !autoPilot
+				if autoPilot {
+					log.Println("Auto-Pilot enabled")
+				} else {
+					log.Println("Auto-Pilot disabled")
+				}
+
+			case <-mRouting.ClickedCh:
+				routingEnabled = !routingEnabled
+				if routingEnabled {
+					log.Println("Master Routing enabled")
+				} else {
+					log.Println("Master Routing disabled")
+				}
+
+			case <-mCopyModel.ClickedCh:
+				models := gateway.GetModels()
+				if len(models) > 0 {
+					modelID := models[0].ID
+					// Try to copy to clipboard via PowerShell
+					cmd := exec.Command("powershell", "-Command", fmt.Sprintf("Set-Clipboard -Value '%s'", modelID))
+					cmd.Run()
+					notify("FreeLLM", fmt.Sprintf("Copied: %s", modelID))
+				}
+
 			case <-mQuit.ClickedCh:
 				systray.Quit()
 				return
