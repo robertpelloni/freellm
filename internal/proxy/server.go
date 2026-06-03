@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"database/sql"
@@ -196,23 +197,125 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if resp.Stream != nil {
 		defer resp.Stream.Close()
 		if flusher, ok := w.(http.Flusher); ok {
-			buf := make([]byte, 4096)
-			for {
-				n, err := resp.Stream.Read(buf)
-				if n > 0 {
-					w.Write(buf[:n])
-					flusher.Flush()
-				}
-				if err != nil {
-					break
-				}
-			}
+			g.streamSSE(w, flusher, resp.Stream, resp.ModelID)
 		} else {
 			io.Copy(w, resp.Stream)
 		}
 		g.logUsage(resp.ModelID, nil, nil)
 	} else {
 		w.Write(resp.Body)
+	}
+}
+
+// streamSSE reads an SSE stream from upstream, sanitizes each chunk,
+// and forwards it to the client. It ensures proper [DONE] sentinel
+// and finish_reason even if the upstream drops unexpectedly.
+func (g *Gateway) streamSSE(w http.ResponseWriter, flusher http.Flusher, body io.ReadCloser, modelID string) {
+	// Strip Content-Length since we may modify chunks
+	w.Header().Del("Content-Length")
+
+	bufReader := bufio.NewReader(body)
+	sentFinishReason := false
+	sentDone := false
+
+	for {
+		line, err := bufReader.ReadString('\n')
+		if err != nil && line == "" {
+			break
+		}
+
+		line = strings.TrimRight(line, "\r\n")
+
+		if line == "" {
+			// Empty lines are SSE field separators — forward them
+			fmt.Fprintf(w, "\n")
+			flusher.Flush()
+			continue
+		}
+
+		if !strings.HasPrefix(line, "data: ") {
+			// Non-data lines (e.g. comments) — forward as-is
+			fmt.Fprintf(w, "%s\n", line)
+			flusher.Flush()
+			continue
+		}
+
+		data := line[6:]
+
+		if data == "[DONE]" {
+			sentDone = true
+			fmt.Fprintf(w, "data: [DONE]\n\n")
+			flusher.Flush()
+			continue
+		}
+
+		// Parse the JSON chunk to sanitize it
+		var chunk map[string]interface{}
+		if json.Unmarshal([]byte(data), &chunk) != nil {
+			// Not valid JSON — forward as-is
+			fmt.Fprintf(w, "%s\n", line)
+			flusher.Flush()
+			continue
+		}
+
+		// Strip reasoning/reasoning_content from delta messages
+		if choices, ok := chunk["choices"].([]interface{}); ok {
+			for _, c := range choices {
+				if choice, ok := c.(map[string]interface{}); ok {
+					if delta, ok := choice["delta"].(map[string]interface{}); ok {
+						delete(delta, "reasoning_content")
+						delete(delta, "reasoning")
+					}
+					// Check if this chunk has a finish_reason
+					if fr, ok := choice["finish_reason"]; ok && fr != nil && fr != "null" {
+						frStr := fmt.Sprintf("%v", fr)
+						if frStr != "" && frStr != "<nil>" {
+							sentFinishReason = true
+						}
+					}
+				}
+			}
+		}
+
+		// Set model name in chunk
+		chunk["model"] = modelID
+
+		// Re-serialize and forward
+		cleaned, err := json.Marshal(chunk)
+		if err != nil {
+			fmt.Fprintf(w, "%s\n", line)
+		} else {
+			fmt.Fprintf(w, "data: %s\n", string(cleaned))
+		}
+		fmt.Fprintf(w, "\n")
+		flusher.Flush()
+	}
+
+	// If the stream ended without [DONE] or without a finish_reason,
+	// synthesize them so the client doesn't hang or error.
+	if !sentFinishReason {
+		id := fmt.Sprintf("chatcmpl-%d", time.Now().UnixNano())
+		synthetic := map[string]interface{}{
+			"id":      id,
+			"object":  "chat.completion.chunk",
+			"created": time.Now().Unix(),
+			"model":   modelID,
+			"choices": []interface{}{
+				map[string]interface{}{
+					"index":         0,
+					"delta":         map[string]interface{}{},
+					"finish_reason": "stop",
+				},
+			},
+		}
+		synthJSON, _ := json.Marshal(synthetic)
+		fmt.Fprintf(w, "data: %s\n\n", string(synthJSON))
+		flusher.Flush()
+	}
+
+	if !sentDone {
+		fmt.Fprintf(w, "data: [DONE]\n\n")
+		flusher.Flush()
 	}
 }
 
