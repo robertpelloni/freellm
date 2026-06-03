@@ -842,3 +842,84 @@ func minInt(a, b int) int {
 	}
 	return b
 }
+
+// SetModelPrimary moves a model to position 0 (top of rankings)
+func (g *Gateway) SetModelPrimary(modelID string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	for i, m := range g.RankedModels {
+		if m.ID == modelID {
+			if i == 0 {
+				return
+			}
+			model := g.RankedModels[i]
+			copy(g.RankedModels[1:i+1], g.RankedModels[0:i])
+			g.RankedModels[0] = model
+			return
+			}
+		}
+}
+
+// PromoteModel moves a model from fallback into the primary group
+func (g *Gateway) PromoteModel(modelID string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	idx := -1
+	for i, m := range g.RankedModels {
+		if m.ID == modelID {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 || idx < g.PrimaryCount {
+		return // already primary or not found
+	}
+	// Swap with the last primary model
+	lastPrimary := g.PrimaryCount - 1
+	g.RankedModels[idx], g.RankedModels[lastPrimary] = g.RankedModels[lastPrimary], g.RankedModels[idx]
+}
+
+// DemoteModel moves a model from primary into the fallback group
+func (g *Gateway) DemoteModel(modelID string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	idx := -1
+	for i, m := range g.RankedModels {
+		if m.ID == modelID {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 || idx >= g.PrimaryCount {
+		return // already fallback or not found
+	}
+	// Swap with the first fallback model
+	firstFallback := g.PrimaryCount
+	if firstFallback < len(g.RankedModels) {
+		g.RankedModels[idx], g.RankedModels[firstFallback] = g.RankedModels[firstFallback], g.RankedModels[idx]
+	}
+}
+
+// MoveModelUp moves a model one position higher in the rankings
+func (g *Gateway) MoveModelUp(modelID string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	for i, m := range g.RankedModels {
+		if m.ID == modelID && i > 0 {
+			g.RankedModels[i], g.RankedModels[i-1] = g.RankedModels[i-1], g.RankedModels[i]
+			return
+		}
+	}
+}
+
+// MoveModelDown moves a model one position lower in the rankings
+func (g *Gateway) MoveModelDown(modelID string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	for i, m := range g.RankedModels {
+		if m.ID == modelID && i < len(g.RankedModels)-1 {
+			g.RankedModels[i], g.RankedModels[i+1] = g.RankedModels[i+1], g.RankedModels[i]
+			return
+		}
+	}
+}

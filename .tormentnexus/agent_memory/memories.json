@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "savedAt": "2026-06-03T03:26:56.997Z",
+  "savedAt": "2026-06-03T15:11:28.019Z",
   "memories": [
     {
       "id": "dd91cbaec29aa6e4",
@@ -40039,6 +40039,1473 @@
       },
       "createdAt": "2026-06-03T03:26:56.045Z",
       "accessedAt": "2026-06-03T03:26:56.045Z",
+      "accessCount": 0
+    },
+    {
+      "id": "5572ea355361b7f5",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "{ (tormentnexus) ended with status imported.\nWorking directory: C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs\nLog tail: \"user\": 0, | \"agent\": 0, | \"project\": 1343, | \"discovery\": 0, | \"decision\": 0, | \"progress\": 0, | \"warning\": 0, | \"fix\": 0 | }, | \"recentContext\": [], | \"notes\": \"Automatic background handoff\" | }",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "f4a2adf4-eba8-4050-9705-c79ae99f1b4b",
+        "sourcePath": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs/handoff_1780498783726.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "tormentnexus",
+          "imported"
+        ],
+        "sessionId": "imported:tormentnexus:600560daf39f",
+        "structuredSessionSummary": {
+          "sessionId": "imported:tormentnexus:600560daf39f",
+          "name": "{",
+          "cliType": "tormentnexus",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs",
+          "restartCount": 0,
+          "startedAt": 1780498783727.2996,
+          "stoppedAt": 1780499218988,
+          "lastActivityAt": 1780498783727.2996,
+          "logTail": [
+            "\"user\": 0,",
+            "\"agent\": 0,",
+            "\"project\": 1343,",
+            "\"discovery\": 0,",
+            "\"decision\": 0,",
+            "\"progress\": 0,",
+            "\"warning\": 0,",
+            "\"fix\": 0",
+            "},",
+            "\"recentContext\": [],",
+            "\"notes\": \"Automatic background handoff\"",
+            "}"
+          ],
+          "recordedAt": 1780499219020,
+          "contentHash": "session-127345596"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-03T15:06:59.024Z",
+      "accessedAt": "2026-06-03T15:06:59.024Z",
+      "accessCount": 0
+    },
+    {
+      "id": "fcd0b1b98ebf642c",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "{ (tormentnexus) ended with status imported.\nWorking directory: C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs\nLog tail: \"user\": 0, | \"agent\": 0, | \"project\": 1343, | \"discovery\": 0, | \"decision\": 0, | \"progress\": 0, | \"warning\": 0, | \"fix\": 0 | }, | \"recentContext\": [], | \"notes\": \"Automatic background handoff\" | }",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "4eab7e47-3d6f-45ef-b952-7e5010a8fa21",
+        "sourcePath": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs/handoff_1780498483720.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "tormentnexus",
+          "imported"
+        ],
+        "sessionId": "imported:tormentnexus:ed0210d10bfd",
+        "structuredSessionSummary": {
+          "sessionId": "imported:tormentnexus:ed0210d10bfd",
+          "name": "{",
+          "cliType": "tormentnexus",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs",
+          "restartCount": 0,
+          "startedAt": 1780498483720.893,
+          "stoppedAt": 1780499295048,
+          "lastActivityAt": 1780498483720.893,
+          "logTail": [
+            "\"user\": 0,",
+            "\"agent\": 0,",
+            "\"project\": 1343,",
+            "\"discovery\": 0,",
+            "\"decision\": 0,",
+            "\"progress\": 0,",
+            "\"warning\": 0,",
+            "\"fix\": 0",
+            "},",
+            "\"recentContext\": [],",
+            "\"notes\": \"Automatic background handoff\"",
+            "}"
+          ],
+          "recordedAt": 1780499295067,
+          "contentHash": "session-1637087005"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-03T15:08:15.068Z",
+      "accessedAt": "2026-06-03T15:08:15.068Z",
+      "accessCount": 0
+    },
+    {
+      "id": "939c1a3a0a2fd877",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "{ (tormentnexus) ended with status imported.\nWorking directory: C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs\nLog tail: \"user\": 0, | \"agent\": 0, | \"project\": 1343, | \"discovery\": 0, | \"decision\": 0, | \"progress\": 0, | \"warning\": 0, | \"fix\": 0 | }, | \"recentContext\": [], | \"notes\": \"Automatic background handoff\" | }",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "0860982e-5583-4c3a-9a5e-dd17ca65883d",
+        "sourcePath": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs/handoff_1780498183713.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "tormentnexus",
+          "imported"
+        ],
+        "sessionId": "imported:tormentnexus:bb84023ef2a4",
+        "structuredSessionSummary": {
+          "sessionId": "imported:tormentnexus:bb84023ef2a4",
+          "name": "{",
+          "cliType": "tormentnexus",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs",
+          "restartCount": 0,
+          "startedAt": 1780498183718.2266,
+          "stoppedAt": 1780499296103,
+          "lastActivityAt": 1780498183718.2266,
+          "logTail": [
+            "\"user\": 0,",
+            "\"agent\": 0,",
+            "\"project\": 1343,",
+            "\"discovery\": 0,",
+            "\"decision\": 0,",
+            "\"progress\": 0,",
+            "\"warning\": 0,",
+            "\"fix\": 0",
+            "},",
+            "\"recentContext\": [],",
+            "\"notes\": \"Automatic background handoff\"",
+            "}"
+          ],
+          "recordedAt": 1780499296121,
+          "contentHash": "session-1653699478"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-03T15:08:16.122Z",
+      "accessedAt": "2026-06-03T15:08:16.122Z",
+      "accessCount": 0
+    },
+    {
+      "id": "42ea94799c3de3ae",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "{ (tormentnexus) ended with status imported.\nWorking directory: C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs\nLog tail: \"user\": 0, | \"agent\": 0, | \"project\": 1343, | \"discovery\": 0, | \"decision\": 0, | \"progress\": 0, | \"warning\": 0, | \"fix\": 0 | }, | \"recentContext\": [], | \"notes\": \"Automatic background handoff\" | }",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "d527accd-efec-4ddc-ad1d-9227613a45fc",
+        "sourcePath": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs/handoff_1780497883706.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "tormentnexus",
+          "imported"
+        ],
+        "sessionId": "imported:tormentnexus:5137fd4dd80d",
+        "structuredSessionSummary": {
+          "sessionId": "imported:tormentnexus:5137fd4dd80d",
+          "name": "{",
+          "cliType": "tormentnexus",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs",
+          "restartCount": 0,
+          "startedAt": 1780497883708.0093,
+          "stoppedAt": 1780499297196,
+          "lastActivityAt": 1780497883708.0093,
+          "logTail": [
+            "\"user\": 0,",
+            "\"agent\": 0,",
+            "\"project\": 1343,",
+            "\"discovery\": 0,",
+            "\"decision\": 0,",
+            "\"progress\": 0,",
+            "\"warning\": 0,",
+            "\"fix\": 0",
+            "},",
+            "\"recentContext\": [],",
+            "\"notes\": \"Automatic background handoff\"",
+            "}"
+          ],
+          "recordedAt": 1780499297213,
+          "contentHash": "session-1715800540"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-03T15:08:17.214Z",
+      "accessedAt": "2026-06-03T15:08:17.214Z",
+      "accessCount": 0
+    },
+    {
+      "id": "786d138e6c8bb72c",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "{ (tormentnexus) ended with status imported.\nWorking directory: C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs\nLog tail: \"user\": 0, | \"agent\": 0, | \"project\": 1343, | \"discovery\": 0, | \"decision\": 0, | \"progress\": 0, | \"warning\": 0, | \"fix\": 0 | }, | \"recentContext\": [], | \"notes\": \"Automatic background handoff\" | }",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "93c19a1f-0766-4781-b4c9-b6172d816716",
+        "sourcePath": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs/handoff_1780497583692.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "tormentnexus",
+          "imported"
+        ],
+        "sessionId": "imported:tormentnexus:6af51cdb4820",
+        "structuredSessionSummary": {
+          "sessionId": "imported:tormentnexus:6af51cdb4820",
+          "name": "{",
+          "cliType": "tormentnexus",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs",
+          "restartCount": 0,
+          "startedAt": 1780497583693.7622,
+          "stoppedAt": 1780499298378,
+          "lastActivityAt": 1780497583693.7622,
+          "logTail": [
+            "\"user\": 0,",
+            "\"agent\": 0,",
+            "\"project\": 1343,",
+            "\"discovery\": 0,",
+            "\"decision\": 0,",
+            "\"progress\": 0,",
+            "\"warning\": 0,",
+            "\"fix\": 0",
+            "},",
+            "\"recentContext\": [],",
+            "\"notes\": \"Automatic background handoff\"",
+            "}"
+          ],
+          "recordedAt": 1780499298399,
+          "contentHash": "session-1528986027"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-03T15:08:18.400Z",
+      "accessedAt": "2026-06-03T15:08:18.400Z",
+      "accessCount": 0
+    },
+    {
+      "id": "8556bfc8e9d3e6c4",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "{ (tormentnexus) ended with status imported.\nWorking directory: C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs\nLog tail: \"user\": 0, | \"agent\": 0, | \"project\": 1343, | \"discovery\": 0, | \"decision\": 0, | \"progress\": 0, | \"warning\": 0, | \"fix\": 0 | }, | \"recentContext\": [], | \"notes\": \"Automatic background handoff\" | }",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "d79c066f-a173-44fd-ad11-c360036ef607",
+        "sourcePath": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs/handoff_1780497283678.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "tormentnexus",
+          "imported"
+        ],
+        "sessionId": "imported:tormentnexus:2d51c5a15bc3",
+        "structuredSessionSummary": {
+          "sessionId": "imported:tormentnexus:2d51c5a15bc3",
+          "name": "{",
+          "cliType": "tormentnexus",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs",
+          "restartCount": 0,
+          "startedAt": 1780497283679.5413,
+          "stoppedAt": 1780499299723,
+          "lastActivityAt": 1780497283679.5413,
+          "logTail": [
+            "\"user\": 0,",
+            "\"agent\": 0,",
+            "\"project\": 1343,",
+            "\"discovery\": 0,",
+            "\"decision\": 0,",
+            "\"progress\": 0,",
+            "\"warning\": 0,",
+            "\"fix\": 0",
+            "},",
+            "\"recentContext\": [],",
+            "\"notes\": \"Automatic background handoff\"",
+            "}"
+          ],
+          "recordedAt": 1780499299743,
+          "contentHash": "session-551355565"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-03T15:08:19.745Z",
+      "accessedAt": "2026-06-03T15:08:19.745Z",
+      "accessCount": 0
+    },
+    {
+      "id": "a975712514ef34cc",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "{ (tormentnexus) ended with status imported.\nWorking directory: C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs\nLog tail: \"user\": 0, | \"agent\": 0, | \"project\": 1343, | \"discovery\": 0, | \"decision\": 0, | \"progress\": 0, | \"warning\": 0, | \"fix\": 0 | }, | \"recentContext\": [], | \"notes\": \"Automatic background handoff\" | }",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "506d7b3c-1c05-42e2-a921-f5c20847c0c4",
+        "sourcePath": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs/handoff_1780496983671.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "tormentnexus",
+          "imported"
+        ],
+        "sessionId": "imported:tormentnexus:48d27e18f762",
+        "structuredSessionSummary": {
+          "sessionId": "imported:tormentnexus:48d27e18f762",
+          "name": "{",
+          "cliType": "tormentnexus",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs",
+          "restartCount": 0,
+          "startedAt": 1780496983672.5967,
+          "stoppedAt": 1780499301092,
+          "lastActivityAt": 1780496983672.5967,
+          "logTail": [
+            "\"user\": 0,",
+            "\"agent\": 0,",
+            "\"project\": 1343,",
+            "\"discovery\": 0,",
+            "\"decision\": 0,",
+            "\"progress\": 0,",
+            "\"warning\": 0,",
+            "\"fix\": 0",
+            "},",
+            "\"recentContext\": [],",
+            "\"notes\": \"Automatic background handoff\"",
+            "}"
+          ],
+          "recordedAt": 1780499301112,
+          "contentHash": "session-1073214891"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-03T15:08:21.113Z",
+      "accessedAt": "2026-06-03T15:08:21.113Z",
+      "accessCount": 0
+    },
+    {
+      "id": "b037a8236cf2a535",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "{ (tormentnexus) ended with status imported.\nWorking directory: C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs\nLog tail: \"user\": 0, | \"agent\": 0, | \"project\": 1343, | \"discovery\": 0, | \"decision\": 0, | \"progress\": 0, | \"warning\": 0, | \"fix\": 0 | }, | \"recentContext\": [], | \"notes\": \"Automatic background handoff\" | }",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "15670b6f-7b28-423f-afd1-d1835c516fae",
+        "sourcePath": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs/handoff_1780496683665.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "tormentnexus",
+          "imported"
+        ],
+        "sessionId": "imported:tormentnexus:66a2c05138dc",
+        "structuredSessionSummary": {
+          "sessionId": "imported:tormentnexus:66a2c05138dc",
+          "name": "{",
+          "cliType": "tormentnexus",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs",
+          "restartCount": 0,
+          "startedAt": 1780496683666.8452,
+          "stoppedAt": 1780499302391,
+          "lastActivityAt": 1780496683666.8452,
+          "logTail": [
+            "\"user\": 0,",
+            "\"agent\": 0,",
+            "\"project\": 1343,",
+            "\"discovery\": 0,",
+            "\"decision\": 0,",
+            "\"progress\": 0,",
+            "\"warning\": 0,",
+            "\"fix\": 0",
+            "},",
+            "\"recentContext\": [],",
+            "\"notes\": \"Automatic background handoff\"",
+            "}"
+          ],
+          "recordedAt": 1780499302412,
+          "contentHash": "session-1031086508"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-03T15:08:22.413Z",
+      "accessedAt": "2026-06-03T15:08:22.413Z",
+      "accessCount": 0
+    },
+    {
+      "id": "573346eacbca21cd",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "{ (tormentnexus) ended with status imported.\nWorking directory: C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs\nLog tail: \"user\": 0, | \"agent\": 0, | \"project\": 1343, | \"discovery\": 0, | \"decision\": 0, | \"progress\": 0, | \"warning\": 0, | \"fix\": 0 | }, | \"recentContext\": [], | \"notes\": \"Automatic background handoff\" | }",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "42403968-a64b-4ac8-9f43-a51e2ff0d89a",
+        "sourcePath": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs/handoff_1780496383650.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "tormentnexus",
+          "imported"
+        ],
+        "sessionId": "imported:tormentnexus:cf97e5d9aee5",
+        "structuredSessionSummary": {
+          "sessionId": "imported:tormentnexus:cf97e5d9aee5",
+          "name": "{",
+          "cliType": "tormentnexus",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs",
+          "restartCount": 0,
+          "startedAt": 1780496383651.602,
+          "stoppedAt": 1780499303729,
+          "lastActivityAt": 1780496383651.602,
+          "logTail": [
+            "\"user\": 0,",
+            "\"agent\": 0,",
+            "\"project\": 1343,",
+            "\"discovery\": 0,",
+            "\"decision\": 0,",
+            "\"progress\": 0,",
+            "\"warning\": 0,",
+            "\"fix\": 0",
+            "},",
+            "\"recentContext\": [],",
+            "\"notes\": \"Automatic background handoff\"",
+            "}"
+          ],
+          "recordedAt": 1780499303743,
+          "contentHash": "session-1876667390"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-03T15:08:23.744Z",
+      "accessedAt": "2026-06-03T15:08:23.744Z",
+      "accessCount": 0
+    },
+    {
+      "id": "cdf459a1e830a033",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "{ (tormentnexus) ended with status imported.\nWorking directory: C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs\nLog tail: \"user\": 0, | \"agent\": 0, | \"project\": 1343, | \"discovery\": 0, | \"decision\": 0, | \"progress\": 0, | \"warning\": 0, | \"fix\": 0 | }, | \"recentContext\": [], | \"notes\": \"Automatic background handoff\" | }",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "439321dc-6c53-46a3-9fa7-b5439b207724",
+        "sourcePath": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs/handoff_1780496083637.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "tormentnexus",
+          "imported"
+        ],
+        "sessionId": "imported:tormentnexus:7a4adc62ca8f",
+        "structuredSessionSummary": {
+          "sessionId": "imported:tormentnexus:7a4adc62ca8f",
+          "name": "{",
+          "cliType": "tormentnexus",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/handoffs",
+          "restartCount": 0,
+          "startedAt": 1780496083638.8186,
+          "stoppedAt": 1780499305094,
+          "lastActivityAt": 1780496083638.8186,
+          "logTail": [
+            "\"user\": 0,",
+            "\"agent\": 0,",
+            "\"project\": 1343,",
+            "\"discovery\": 0,",
+            "\"decision\": 0,",
+            "\"progress\": 0,",
+            "\"warning\": 0,",
+            "\"fix\": 0",
+            "},",
+            "\"recentContext\": [],",
+            "\"notes\": \"Automatic background handoff\"",
+            "}"
+          ],
+          "recordedAt": 1780499305112,
+          "contentHash": "session-1309928599"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-03T15:08:25.113Z",
+      "accessedAt": "2026-06-03T15:08:25.113Z",
+      "accessCount": 0
+    },
+    {
+      "id": "9721aaf7d3fe5da5",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "# Comprehensive List Ingestion & Directory Crawling Walkthrough (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43\nLog tail: > **Batch Validation was Blocked** | > The `parallel_batch_validator.mjs` script requires a predefined execution recipe (e.g., `npx -y @smithery/cli run <slug>`). Because the 4,000 newly discovered servers are raw GitHub URLs without standard execution configurations, they can | To resolve this blocker, I wrote a Python script (`generate_recipes_llm.py`) that leverages the local LMStudio instance (`gemma-4-e4b-uncensored-hauhaucs-aggressive` model). | - The script fetches the `README.md` from the raw GitHub API for each discovered server. | - It asks the LLM to parse the Markdown and output a strict JSON execution recipe (containing `command`, `args`, and `env`). | **Results**: In a test batch of 50 repositories, it successfully parsed and generated perfect execution recipes for 24 of them (e.g., `uv run dev`, `npx @smithery/cli playground`, `podman run ...`). The remaining 26 timed out because large | > [!TIP] | > **Performance Optimization** | > Processing all 4,000 servers locally via the LLM will take a few days at this speed (~100 seconds per server on average). If you wish to proceed with the entire catalog, we could run the script continuously in the background over the week",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "65b4b292-e155-4f5d-805f-3a52b8a821c0",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/walkthrough.md",
+        "sessionFormat": "md",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:d84dd42206cd",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:d84dd42206cd",
+          "name": "# Comprehensive List Ingestion & Directory Crawling Walkthrough",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43",
+          "restartCount": 0,
+          "startedAt": 1780494722006.6543,
+          "stoppedAt": 1780499306603,
+          "lastActivityAt": 1780494722006.6543,
+          "logTail": [
+            "> **Batch Validation was Blocked**",
+            "> The `parallel_batch_validator.mjs` script requires a predefined execution recipe (e.g., `npx -y @smithery/cli run <slug>`). Because the 4,000 newly discovered servers are raw GitHub URLs without standard execution configurations, they can",
+            "To resolve this blocker, I wrote a Python script (`generate_recipes_llm.py`) that leverages the local LMStudio instance (`gemma-4-e4b-uncensored-hauhaucs-aggressive` model).",
+            "- The script fetches the `README.md` from the raw GitHub API for each discovered server.",
+            "- It asks the LLM to parse the Markdown and output a strict JSON execution recipe (containing `command`, `args`, and `env`).",
+            "**Results**: In a test batch of 50 repositories, it successfully parsed and generated perfect execution recipes for 24 of them (e.g., `uv run dev`, `npx @smithery/cli playground`, `podman run ...`). The remaining 26 timed out because large",
+            "> [!TIP]",
+            "> **Performance Optimization**",
+            "> Processing all 4,000 servers locally via the LLM will take a few days at this speed (~100 seconds per server on average). If you wish to proceed with the entire catalog, we could run the script continuously in the background over the week"
+          ],
+          "recordedAt": 1780499306706,
+          "contentHash": "session-1653624046"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-03T15:08:26.707Z",
+      "accessedAt": "2026-06-03T15:08:26.707Z",
+      "accessCount": 0
+    },
+    {
+      "id": "bd268e7a84071026",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "I successfully expanded our internal MCP catalog by deeply ingesting the user's provided comprehensive research document and crawling various directory websites.",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "65b4b292-e155-4f5d-805f-3a52b8a821c0",
+        "sessionId": "imported:antigravity:d84dd42206cd",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/walkthrough.md",
+        "tags": [
+          "antigravity",
+          "memory",
+          "mcp"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-03T15:08:28.238Z",
+      "accessedAt": "2026-06-03T15:08:28.238Z",
+      "accessCount": 0
+    },
+    {
+      "id": "138744680ab9d733",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "- Total new servers discovered and logged in the database registry: **~4,070**.",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "65b4b292-e155-4f5d-805f-3a52b8a821c0",
+        "sessionId": "imported:antigravity:d84dd42206cd",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/walkthrough.md",
+        "tags": [
+          "antigravity",
+          "memory",
+          "database",
+          "mcp"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-03T15:08:29.532Z",
+      "accessedAt": "2026-06-03T15:08:29.532Z",
+      "accessCount": 0
+    },
+    {
+      "id": "7b4cbb3eb5580f78",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "> The `parallel_batch_validator.mjs` script requires a predefined execution recipe (e.g., `npx -y @smithery/cli run <slug>`). Because the 4,000 newly discovered servers are raw GitHub URLs without standard execution configurations, they can",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "65b4b292-e155-4f5d-805f-3a52b8a821c0",
+        "sessionId": "imported:antigravity:d84dd42206cd",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/walkthrough.md",
+        "tags": [
+          "antigravity",
+          "instruction",
+          "mcp",
+          "ui"
+        ],
+        "section": "instructions",
+        "memoryKind": "instruction",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-03T15:08:30.903Z",
+      "accessedAt": "2026-06-03T15:08:30.903Z",
+      "accessCount": 0
+    },
+    {
+      "id": "fe85cc2d361d3001",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "- The script fetches the `README.md` from the raw GitHub API for each discovered server.",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "65b4b292-e155-4f5d-805f-3a52b8a821c0",
+        "sessionId": "imported:antigravity:d84dd42206cd",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/walkthrough.md",
+        "tags": [
+          "antigravity",
+          "memory",
+          "mcp"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-03T15:08:32.308Z",
+      "accessedAt": "2026-06-03T15:08:32.308Z",
+      "accessCount": 0
+    },
+    {
+      "id": "d698ae8e99798605",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "**Results**: In a test batch of 50 repositories, it successfully parsed and generated perfect execution recipes for 24 of them (e.g., `uv run dev`, `npx @smithery/cli playground`, `podman run ...`). The remaining 26 timed out because large",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "65b4b292-e155-4f5d-805f-3a52b8a821c0",
+        "sessionId": "imported:antigravity:d84dd42206cd",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/walkthrough.md",
+        "tags": [
+          "antigravity",
+          "instruction",
+          "validation"
+        ],
+        "section": "instructions",
+        "memoryKind": "instruction",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-03T15:08:33.674Z",
+      "accessedAt": "2026-06-03T15:08:33.674Z",
+      "accessCount": 0
+    },
+    {
+      "id": "92397cac72d0d39a",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "# Comprehensive List Ingestion & Directory Crawling Walkthrough ## What I accomplished I successfully expanded our internal MCP catalog by deeply ingesting the user's provided comprehensive research document and crawling",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "65b4b292-e155-4f5d-805f-3a52b8a821c0",
+        "sessionId": "imported:antigravity:d84dd42206cd",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/walkthrough.md",
+        "tags": [
+          "antigravity",
+          "memory",
+          "mcp"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-03T15:08:35.083Z",
+      "accessedAt": "2026-06-03T15:08:35.083Z",
+      "accessCount": 0
+    },
+    {
+      "id": "5ff7d11bcd6dc291",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "# LLM-Based MCP Recipe Generation (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43\nLog tail: # LLM-Based MCP Recipe Generation | - `[x]` Write `generate_recipes_llm.py` to fetch READMEs and query LMStudio. | - `[x]` Execute the script to generate recipes for the discovered GitHub repositories. | - `[x]` Update `walkthrough.md`.",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "ab7452ba-7077-4a33-97ad-be200297b7fb",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/task.md",
+        "sessionFormat": "md",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:8cc87bd1de5c",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:8cc87bd1de5c",
+          "name": "# LLM-Based MCP Recipe Generation",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43",
+          "restartCount": 0,
+          "startedAt": 1780494701319.8076,
+          "stoppedAt": 1780499316446,
+          "lastActivityAt": 1780494701319.8076,
+          "logTail": [
+            "# LLM-Based MCP Recipe Generation",
+            "- `[x]` Write `generate_recipes_llm.py` to fetch READMEs and query LMStudio.",
+            "- `[x]` Execute the script to generate recipes for the discovered GitHub repositories.",
+            "- `[x]` Update `walkthrough.md`."
+          ],
+          "recordedAt": 1780499316480,
+          "contentHash": "session-1303715144"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-03T15:08:36.481Z",
+      "accessedAt": "2026-06-03T15:08:36.481Z",
+      "accessCount": 0
+    },
+    {
+      "id": "89987cbb333cbe80",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "- `[x]` Execute the script to generate recipes for the discovered GitHub repositories.",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "ab7452ba-7077-4a33-97ad-be200297b7fb",
+        "sessionId": "imported:antigravity:8cc87bd1de5c",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/task.md",
+        "tags": [
+          "antigravity",
+          "memory"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-03T15:08:37.877Z",
+      "accessedAt": "2026-06-03T15:08:37.877Z",
+      "accessCount": 0
+    },
+    {
+      "id": "c8f2225df494ad4b",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Task list for using LMStudio to generate recipes. (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43\nLog tail: Task list for using LMStudio to generate recipes.",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "a2b80d44-9990-4c76-9a5f-fbbab519d2eb",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/task.md.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:25c01918035e",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:25c01918035e",
+          "name": "Task list for using LMStudio to generate recipes.",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43",
+          "restartCount": 0,
+          "startedAt": 1780488567676.5168,
+          "stoppedAt": 1780499319174,
+          "lastActivityAt": 1780488567676.5168,
+          "logTail": [
+            "Task list for using LMStudio to generate recipes."
+          ],
+          "recordedAt": 1780499319194,
+          "contentHash": "session-1362196571"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-03T15:08:39.195Z",
+      "accessedAt": "2026-06-03T15:08:39.195Z",
+      "accessCount": 0
+    },
+    {
+      "id": "8b726ad593a0fda8",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Implementation plan for using LMStudio to parse README files and generate build recipes. (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43\nLog tail: Implementation plan for using LMStudio to parse README files and generate build recipes.",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "e9445922-a3ac-439d-8f4d-c5e9ff8ace4f",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/implementation_plan.md.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:1572621eac2e",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:1572621eac2e",
+          "name": "Implementation plan for using LMStudio to parse README files and generate build recipes.",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43",
+          "restartCount": 0,
+          "startedAt": 1780488535864.7397,
+          "stoppedAt": 1780499320354,
+          "lastActivityAt": 1780488535864.7397,
+          "logTail": [
+            "Implementation plan for using LMStudio to parse README files and generate build recipes."
+          ],
+          "recordedAt": 1780499320366,
+          "contentHash": "session-888127252"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-03T15:08:40.366Z",
+      "accessedAt": "2026-06-03T15:08:40.366Z",
+      "accessCount": 0
+    },
+    {
+      "id": "e8e1044f1a6bc8ad",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "# LLM-Based MCP Recipe Generation (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43\nLog tail: 2. Fetches their `README.md` using `raw.githubusercontent.com`. | 3. Constructs an LLM prompt containing the README text, asking the model to output a strict JSON payload with `command`, `args`, and `env` mappings. | 4. Calls the local LMStudio API endpoint. | 5. Parses the LLM's JSON response and inserts it into `published_mcp_config_recipes` so the batch validator can run it! | ## Verification Plan | ### Automated Tests | - I will run the script on a batch of 10 servers and inspect the generated JSON recipes in the database to ensure the LLM is following the schema correctly without hallucinations. | ### Manual Verification | - We can review the output for a few complex servers to ensure the LLM successfully parses Python venv commands vs Node.js npm install commands.",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "6e1ade1b-b939-4d61-a3b3-819a46bf37ac",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/implementation_plan.md",
+        "sessionFormat": "md",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:2b11cdd35a49",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:2b11cdd35a49",
+          "name": "# LLM-Based MCP Recipe Generation",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43",
+          "restartCount": 0,
+          "startedAt": 1780488535862.749,
+          "stoppedAt": 1780499388961,
+          "lastActivityAt": 1780488535862.749,
+          "logTail": [
+            "2. Fetches their `README.md` using `raw.githubusercontent.com`.",
+            "3. Constructs an LLM prompt containing the README text, asking the model to output a strict JSON payload with `command`, `args`, and `env` mappings.",
+            "4. Calls the local LMStudio API endpoint.",
+            "5. Parses the LLM's JSON response and inserts it into `published_mcp_config_recipes` so the batch validator can run it!",
+            "## Verification Plan",
+            "### Automated Tests",
+            "- I will run the script on a batch of 10 servers and inspect the generated JSON recipes in the database to ensure the LLM is following the schema correctly without hallucinations.",
+            "### Manual Verification",
+            "- We can review the output for a few complex servers to ensure the LLM successfully parses Python venv commands vs Node.js npm install commands."
+          ],
+          "recordedAt": 1780499389029,
+          "contentHash": "session-1879549560"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-03T15:09:49.030Z",
+      "accessedAt": "2026-06-03T15:09:49.030Z",
+      "accessCount": 0
+    },
+    {
+      "id": "15da232c3ed00f3c",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "The goal is to automatically deduce the build and launch commands for the 4,000+ newly discovered GitHub repositories by having our local LMStudio LLM read their `README.md` files and extract the instructions.",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "6e1ade1b-b939-4d61-a3b3-819a46bf37ac",
+        "sessionId": "imported:antigravity:2b11cdd35a49",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/implementation_plan.md",
+        "tags": [
+          "antigravity",
+          "memory",
+          "validation",
+          "ui"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-03T15:09:50.207Z",
+      "accessedAt": "2026-06-03T15:09:50.207Z",
+      "accessCount": 0
+    },
+    {
+      "id": "a63f7201075cab9b",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "> Hitting the GitHub raw content API for 4,000 repositories could hit rate limits if done too quickly. I will add a small delay or use a GitHub token if available. Furthermore, running 4,000 context-heavy inference requests through a local",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "6e1ade1b-b939-4d61-a3b3-819a46bf37ac",
+        "sessionId": "imported:antigravity:2b11cdd35a49",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/implementation_plan.md",
+        "tags": [
+          "antigravity",
+          "instruction",
+          "memory",
+          "ui"
+        ],
+        "section": "instructions",
+        "memoryKind": "instruction",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-03T15:09:51.265Z",
+      "accessedAt": "2026-06-03T15:09:51.265Z",
+      "accessCount": 0
+    },
+    {
+      "id": "264a527c7fdc27e3",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "> 2. Is your LMStudio server running at the default `http://localhost:1234/v1`?",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "6e1ade1b-b939-4d61-a3b3-819a46bf37ac",
+        "sessionId": "imported:antigravity:2b11cdd35a49",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/implementation_plan.md",
+        "tags": [
+          "antigravity",
+          "memory",
+          "networking",
+          "mcp"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-03T15:09:52.371Z",
+      "accessedAt": "2026-06-03T15:09:52.371Z",
+      "accessCount": 0
+    },
+    {
+      "id": "4723d89c2b043696",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "### [NEW] [generate_recipes_llm.py](file:///c:/Users/hyper/workspace/borg/scratch/generate_recipes_llm.py)",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "6e1ade1b-b939-4d61-a3b3-819a46bf37ac",
+        "sessionId": "imported:antigravity:2b11cdd35a49",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/implementation_plan.md",
+        "tags": [
+          "antigravity",
+          "memory"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-03T15:09:53.466Z",
+      "accessedAt": "2026-06-03T15:09:53.466Z",
+      "accessCount": 0
+    },
+    {
+      "id": "7d3d816868cee055",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "1. Queries the database for all `discovered` servers that do not yet have an entry in `published_mcp_config_recipes`.",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "6e1ade1b-b939-4d61-a3b3-819a46bf37ac",
+        "sessionId": "imported:antigravity:2b11cdd35a49",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/implementation_plan.md",
+        "tags": [
+          "antigravity",
+          "instruction",
+          "database",
+          "mcp"
+        ],
+        "section": "instructions",
+        "memoryKind": "instruction",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-03T15:09:54.859Z",
+      "accessedAt": "2026-06-03T15:09:54.859Z",
+      "accessCount": 0
+    },
+    {
+      "id": "a8ef9089a1d1fc3e",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "2. Fetches their `README.md` using `raw.githubusercontent.com`.",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "6e1ade1b-b939-4d61-a3b3-819a46bf37ac",
+        "sessionId": "imported:antigravity:2b11cdd35a49",
+        "path": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/implementation_plan.md",
+        "tags": [
+          "antigravity",
+          "memory"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-03T15:09:56.267Z",
+      "accessedAt": "2026-06-03T15:09:56.267Z",
+      "accessCount": 0
+    },
+    {
+      "id": "a0f59b3b74fa8e9a",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "Walkthrough of the comprehensive list ingestion and directory scraping. (antigravity) ended with status imported.\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43\nLog tail: Walkthrough of the comprehensive list ingestion and directory scraping.",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "antigravity",
+        "importedSessionId": "bf5d4da6-f2da-4586-8962-80035c2d0bd3",
+        "sourcePath": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/walkthrough.md.metadata.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "antigravity",
+          "imported"
+        ],
+        "sessionId": "imported:antigravity:d449be46bcd0",
+        "structuredSessionSummary": {
+          "sessionId": "imported:antigravity:d449be46bcd0",
+          "name": "Walkthrough of the comprehensive list ingestion and directory scraping.",
+          "cliType": "antigravity",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43",
+          "restartCount": 0,
+          "startedAt": 1780488287829.0889,
+          "stoppedAt": 1780499397803,
+          "lastActivityAt": 1780488287829.0889,
+          "logTail": [
+            "Walkthrough of the comprehensive list ingestion and directory scraping."
+          ],
+          "recordedAt": 1780499397820,
+          "contentHash": "session-450694152"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-03T15:09:57.821Z",
+      "accessedAt": "2026-06-03T15:09:57.821Z",
+      "accessCount": 0
+    },
+    {
+      "id": "2921d21e780b81c4",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "*\u0002��#\u0000\u0001\u0001\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0001\u0007version\u00011\u0000 (claude-code) ended with status imported.\nWorking directory: C:/Users/hyper/AppData/Roaming/Claude/Session Storage\nLog tail: � \u0000\u0001'\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000�� | � \u0000\u0001'\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u001e�u�b\u0000\u0001'\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0001 next-map-id\u000291\u0001Anamespace-d2d51c9d_5c36_484f_9904_e6bc98c8c626-https://claude.ai/\u000290z�(Kd\u0000\u0001)\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0001 next-map-id\u000292\u0001Cnamespace-d2d51c9d_5c36_484f_9904_e6bc98c8c626-https://a.claude.ai/\u000291\"{m� \u0000\u0001+\u0002\u0000\u0000\u0000 | Y\u0000\u0001/\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0001$map-92-SSS-shouldShowDesktopTutorial\bt\u0000r\u0000u\u0000e\u0000\u0001\u0013map-92-_dd_prev_p4n\bt\u0000r\u0000u\u0000e\u00005Cq}d\u0000\u00011\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0001 next-map-id\u000294\u0001Cnamespace-b6f795ab_0b6c_4a25_baf3_4ad0a777dfe9-https://a.claude.ai/\u000293*�2\"\u0000\u00013\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0001\u0000\u0000\u0000\u0000\u0014map-92-intercom-testN",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "claude-code",
+        "importedSessionId": "96338cd1-fe8d-45d7-afcc-c91157d36821",
+        "sourcePath": "C:/Users/hyper/AppData/Roaming/Claude/Session Storage/000003.log",
+        "sessionFormat": "log",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "claude-code",
+          "imported"
+        ],
+        "sessionId": "imported:claude-code:fb928bd18a47",
+        "structuredSessionSummary": {
+          "sessionId": "imported:claude-code:fb928bd18a47",
+          "name": "*\u0002��#\u0000\u0001\u0001\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0001\u0007version\u00011\u0000",
+          "cliType": "claude-code",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/AppData/Roaming/Claude/Session Storage",
+          "restartCount": 0,
+          "startedAt": 1780465350172.7317,
+          "stoppedAt": 1780499399270,
+          "lastActivityAt": 1780465350172.7317,
+          "logTail": [
+            "� \u0000\u0001'\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000��",
+            "� \u0000\u0001'\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u001e�u�b\u0000\u0001'\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0001 next-map-id\u000291\u0001Anamespace-d2d51c9d_5c36_484f_9904_e6bc98c8c626-https://claude.ai/\u000290z�(Kd\u0000\u0001)\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0001 next-map-id\u000292\u0001Cnamespace-d2d51c9d_5c36_484f_9904_e6bc98c8c626-https://a.claude.ai/\u000291\"{m� \u0000\u0001+\u0002\u0000\u0000\u0000",
+            "Y\u0000\u0001/\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0001$map-92-SSS-shouldShowDesktopTutorial\bt\u0000r\u0000u\u0000e\u0000\u0001\u0013map-92-_dd_prev_p4n\bt\u0000r\u0000u\u0000e\u00005Cq}d\u0000\u00011\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0001 next-map-id\u000294\u0001Cnamespace-b6f795ab_0b6c_4a25_baf3_4ad0a777dfe9-https://a.claude.ai/\u000293*�2\"\u0000\u00013\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0001\u0000\u0000\u0000\u0000\u0014map-92-intercom-testN"
+          ],
+          "recordedAt": 1780499399365,
+          "contentHash": "session-1378888785"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-03T15:09:59.366Z",
+      "accessedAt": "2026-06-03T15:09:59.366Z",
+      "accessCount": 0
+    },
+    {
+      "id": "9285ce7244d9a50d",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "map-21-_mf\u0000 map-21-id8Z\u00169b\u0000\u0001�\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0001 next-map-id\u000223\u0001Anamespace-49c23fff_edec_43d9_9a2e_c10a859ab393-https://claude.ai/\u000222�q4�=\u0000\u0001�\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0001\u0000\u0000\u0000\u0001$map-22-SSS-shouldShowDesktopTutorial",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "claude-code",
+        "importedSessionId": "96338cd1-fe8d-45d7-afcc-c91157d36821",
+        "sessionId": "imported:claude-code:fb928bd18a47",
+        "path": "C:/Users/hyper/AppData/Roaming/Claude/Session Storage/000003.log",
+        "tags": [
+          "claude-code",
+          "instruction",
+          "networking"
+        ],
+        "section": "instructions",
+        "memoryKind": "instruction",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-03T15:10:00.961Z",
+      "accessedAt": "2026-06-03T15:10:00.961Z",
+      "accessCount": 0
+    },
+    {
+      "id": "3fe53f40daab7d04",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "f\u0000a\u0000l\u0000s\u0000e\u00006K��\"\u0000\u0001�\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0001\u0000\u0000\u0000\u0000\u0014map-28-intercom-test�,W�b\u0000\u0001�\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0001 next-map-id\u000230\u0001Anamespace-2b0d9911_4f4f_424b_99ee_ef4bfbba32b5-https://claude.ai/\u000229A˻\u0012=\u0000\u0001�\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0001\u0000\u0000\u0000\u0001$map-29-SSS-shouldShowDesktopTutorial",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "claude-code",
+        "importedSessionId": "96338cd1-fe8d-45d7-afcc-c91157d36821",
+        "sessionId": "imported:claude-code:fb928bd18a47",
+        "path": "C:/Users/hyper/AppData/Roaming/Claude/Session Storage/000003.log",
+        "tags": [
+          "claude-code",
+          "instruction",
+          "networking",
+          "validation"
+        ],
+        "section": "instructions",
+        "memoryKind": "instruction",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-03T15:10:02.392Z",
+      "accessedAt": "2026-06-03T15:10:02.392Z",
+      "accessCount": 0
+    },
+    {
+      "id": "845314a651bc33c3",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "f\u0000a\u0000l\u0000s\u0000e\u0000\u0017>��\"\u0000\u0001�\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0001\u0000\u0000\u0000\u0000\u0014map-29-intercom-test �1%b\u0000\u0001�\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0001 next-map-id\u000231\u0001Anamespace-bef62ca3_e463_4697_8849_ca3df3de05c2-https://claude.ai/\u000230����S\u0000\u0001�\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0001$map-30-SSS-shouldShowDesktopTutorial",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "claude-code",
+        "importedSessionId": "96338cd1-fe8d-45d7-afcc-c91157d36821",
+        "sessionId": "imported:claude-code:fb928bd18a47",
+        "path": "C:/Users/hyper/AppData/Roaming/Claude/Session Storage/000003.log",
+        "tags": [
+          "claude-code",
+          "instruction",
+          "networking",
+          "validation"
+        ],
+        "section": "instructions",
+        "memoryKind": "instruction",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-03T15:10:03.837Z",
+      "accessedAt": "2026-06-03T15:10:03.837Z",
+      "accessCount": 0
+    },
+    {
+      "id": "9c2b7afca87f952f",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "f\u0000a\u0000l\u0000s\u0000e\u0000\u0000\u0014map-33-intercom-test�\u0000�� \u0000\u0001�\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000�\u0000�� \u0000\u0001�\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u00000|�7u\u0000\u0001�\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000Anamespace-a88845b9_45ca_44fa_a55f_7f0ace8f77fe-https://claude.ai/\u0000$map-33-SSS-shouldShowDesktopTutorial��;�b\u0000\u0001�\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0001 next-map-id\u000235\u0001Anamespace",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "claude-code",
+        "importedSessionId": "96338cd1-fe8d-45d7-afcc-c91157d36821",
+        "sessionId": "imported:claude-code:fb928bd18a47",
+        "path": "C:/Users/hyper/AppData/Roaming/Claude/Session Storage/000003.log",
+        "tags": [
+          "claude-code",
+          "instruction",
+          "networking",
+          "validation"
+        ],
+        "section": "instructions",
+        "memoryKind": "instruction",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-03T15:10:05.317Z",
+      "accessedAt": "2026-06-03T15:10:05.317Z",
+      "accessCount": 0
+    },
+    {
+      "id": "f1abcac0ad40f012",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "f\u0000a\u0000l\u0000s\u0000e\u0000\u0000\u0014map-34-intercom-test1�E \u0000\u0001�\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u00001�E \u0000\u0001�\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000����u\u0000\u0001�\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000Anamespace-4bc077e9_b8b2_43bd_8089_6943483d5d3a-https://claude.ai/\u0000$map-34-SSS-shouldShowDesktopTutorial!rHXb\u0000\u0001�\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0001 next-map-id\u000236\u0001Anamespace-1",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "claude-code",
+        "importedSessionId": "96338cd1-fe8d-45d7-afcc-c91157d36821",
+        "sessionId": "imported:claude-code:fb928bd18a47",
+        "path": "C:/Users/hyper/AppData/Roaming/Claude/Session Storage/000003.log",
+        "tags": [
+          "claude-code",
+          "instruction",
+          "networking",
+          "validation"
+        ],
+        "section": "instructions",
+        "memoryKind": "instruction",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-03T15:10:06.852Z",
+      "accessedAt": "2026-06-03T15:10:06.852Z",
+      "accessCount": 0
+    },
+    {
+      "id": "27c22a9e7566e9e9",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "f\u0000a\u0000l\u0000s\u0000e\u0000\u0000\u0014map-35-intercom-test��\u0006� \u0000\u0001�\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000��\u0006� \u0000\u0001�\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000`?o�u\u0000\u0001�\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000Anamespace-16138b95_f484_4162_8c69_92abc8001d7b-https://claude.ai/\u0000$map-35-SSS-shouldShowDesktopTutorial^��b\u0000\u0001�\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0001 next-map-id\u000237\u0001Anamespace-",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "claude-code",
+        "importedSessionId": "96338cd1-fe8d-45d7-afcc-c91157d36821",
+        "sessionId": "imported:claude-code:fb928bd18a47",
+        "path": "C:/Users/hyper/AppData/Roaming/Claude/Session Storage/000003.log",
+        "tags": [
+          "claude-code",
+          "instruction",
+          "networking",
+          "validation"
+        ],
+        "section": "instructions",
+        "memoryKind": "instruction",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-03T15:10:08.325Z",
+      "accessedAt": "2026-06-03T15:10:08.325Z",
+      "accessCount": 0
+    },
+    {
+      "id": "98f0d2b2c6e7c5fb",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "{ (tormentnexus) ended with status imported.\nWorking directory: C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/agent_memory\nLog tail: \"validation\" | ], | \"section\": \"instructions\", | \"memoryKind\": \"instruction\", | \"extractionSource\": \"heuristic\" | }, | \"createdAt\": \"2026-06-03T15:10:05.317Z\", | \"accessedAt\": \"2026-06-03T15:10:05.317Z\", | \"accessCount\": 0 | } | ]",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "81ece077-370d-4a7b-a51a-2aaa900e2635",
+        "sourcePath": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/agent_memory/memories.json",
+        "sessionFormat": "json",
+        "section": "general",
+        "tags": [
+          "session-summary",
+          "tormentnexus",
+          "imported"
+        ],
+        "sessionId": "imported:tormentnexus:e200e4fbac27",
+        "structuredSessionSummary": {
+          "sessionId": "imported:tormentnexus:e200e4fbac27",
+          "name": "{",
+          "cliType": "tormentnexus",
+          "status": "imported",
+          "workingDirectory": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/agent_memory",
+          "restartCount": 0,
+          "startedAt": 1780457217028.0784,
+          "stoppedAt": 1780499409746,
+          "lastActivityAt": 1780457217028.0784,
+          "logTail": [
+            "\"validation\"",
+            "],",
+            "\"section\": \"instructions\",",
+            "\"memoryKind\": \"instruction\",",
+            "\"extractionSource\": \"heuristic\"",
+            "},",
+            "\"createdAt\": \"2026-06-03T15:10:05.317Z\",",
+            "\"accessedAt\": \"2026-06-03T15:10:05.317Z\",",
+            "\"accessCount\": 0",
+            "}",
+            "]"
+          ],
+          "recordedAt": 1780499410110,
+          "contentHash": "session-1278339681"
+        },
+        "memoryKind": "session_summary"
+      },
+      "createdAt": "2026-06-03T15:10:10.111Z",
+      "accessedAt": "2026-06-03T15:10:10.111Z",
+      "accessCount": 0
+    },
+    {
+      "id": "882a9e2c6b6febe0",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "\"content\": \"Surgically search and destroy exactly the corrupted httpx library files using os.walk in cache (antigravity) ended with status imported.\\nWorking directory: C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f337",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "81ece077-370d-4a7b-a51a-2aaa900e2635",
+        "sessionId": "imported:tormentnexus:e200e4fbac27",
+        "path": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/agent_memory/memories.json",
+        "tags": [
+          "tormentnexus",
+          "memory",
+          "networking"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-03T15:10:11.662Z",
+      "accessedAt": "2026-06-03T15:10:11.662Z",
+      "accessCount": 0
+    },
+    {
+      "id": "43cf48395e591891",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "\"source\": \"session_import\",",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "81ece077-370d-4a7b-a51a-2aaa900e2635",
+        "sessionId": "imported:tormentnexus:e200e4fbac27",
+        "path": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/agent_memory/memories.json",
+        "tags": [
+          "tormentnexus",
+          "memory",
+          "networking"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-03T15:10:13.165Z",
+      "accessedAt": "2026-06-03T15:10:13.165Z",
+      "accessCount": 0
+    },
+    {
+      "id": "43beac98837d7a0d",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "\"importedSessionId\": \"a1d481e2-fc18-4428-af5c-aede2d9e1d0f\",",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "81ece077-370d-4a7b-a51a-2aaa900e2635",
+        "sessionId": "imported:tormentnexus:e200e4fbac27",
+        "path": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/agent_memory/memories.json",
+        "tags": [
+          "tormentnexus",
+          "memory",
+          "networking"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-03T15:10:14.418Z",
+      "accessedAt": "2026-06-03T15:10:14.418Z",
+      "accessCount": 0
+    },
+    {
+      "id": "e19d72dcc5410255",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "\"sourcePath\": \"C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch/surgical_search_and_destroy.py.metadata.json\",",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "81ece077-370d-4a7b-a51a-2aaa900e2635",
+        "sessionId": "imported:tormentnexus:e200e4fbac27",
+        "path": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/agent_memory/memories.json",
+        "tags": [
+          "tormentnexus",
+          "memory"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-03T15:10:15.638Z",
+      "accessedAt": "2026-06-03T15:10:15.638Z",
+      "accessCount": 0
+    },
+    {
+      "id": "0de48113f71120c9",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "\"sessionId\": \"imported:antigravity:d2e0ca1d6df2\",",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "81ece077-370d-4a7b-a51a-2aaa900e2635",
+        "sessionId": "imported:tormentnexus:e200e4fbac27",
+        "path": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/agent_memory/memories.json",
+        "tags": [
+          "tormentnexus",
+          "memory",
+          "networking"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-03T15:11:23.014Z",
+      "accessedAt": "2026-06-03T15:11:23.014Z",
+      "accessCount": 0
+    },
+    {
+      "id": "26d6f131194722f6",
+      "type": "long_term",
+      "namespace": "project",
+      "content": "\"workingDirectory\": \"C:/Users/hyper/.gemini/antigravity/brain/e88bac4f-e064-4c4b-bf5f-17f3373dac43/scratch\",",
+      "metadata": {
+        "source": "session_import",
+        "sourceTool": "tormentnexus",
+        "importedSessionId": "81ece077-370d-4a7b-a51a-2aaa900e2635",
+        "sessionId": "imported:tormentnexus:e200e4fbac27",
+        "path": "C:/Users/hyper/workspace/litellm_control_panel/.tormentnexus/agent_memory/memories.json",
+        "tags": [
+          "tormentnexus",
+          "memory"
+        ],
+        "section": "general",
+        "memoryKind": "memory",
+        "extractionSource": "heuristic"
+      },
+      "createdAt": "2026-06-03T15:11:24.339Z",
+      "accessedAt": "2026-06-03T15:11:24.339Z",
       "accessCount": 0
     }
   ]
