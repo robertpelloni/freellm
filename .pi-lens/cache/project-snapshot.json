@@ -1,8 +1,8 @@
 {
   "version": 1,
   "projectRoot": "C:/Users/hyper/workspace/litellm_control_panel",
-  "generatedAt": "2026-06-03T13:47:22.514Z",
-  "seq": 21,
+  "generatedAt": "2026-06-03T15:06:53.467Z",
+  "seq": 38,
   "files": {
     "C:/Users/hyper/workspace/litellm_control_panel/api_server.py": {
       "path": "C:/Users/hyper/workspace/litellm_control_panel/api_server.py",
@@ -314,13 +314,13 @@
     "scanRoot": "C:\\Users\\hyper\\workspace\\litellm_control_panel",
     "projectRoot": "C:\\Users\\hyper\\workspace\\litellm_control_panel",
     "canWarmCaches": true,
-    "sourceFileCount": 21
+    "sourceFileCount": 37
   },
   "languageProfile": {
     "present": {
-      "jsts": false,
+      "jsts": true,
       "python": true,
-      "go": false,
+      "go": true,
       "rust": false,
       "cxx": false,
       "cmake": false,
@@ -354,12 +354,18 @@
       "nix": false,
       "toml": false
     },
-    "configured": {},
+    "configured": {
+      "go": true
+    },
     "counts": {
-      "python": 21
+      "python": 21,
+      "go": 15,
+      "jsts": 1
     },
     "detectedKinds": [
-      "python"
+      "jsts",
+      "python",
+      "go"
     ]
   }
 }
