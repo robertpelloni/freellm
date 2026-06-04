@@ -389,7 +389,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 	// Phase 1: Try ALL candidates in order
 	var lastErr error
 	for i, model := range attemptOrder {
-		sanitized := g.sanitizeRequestBody(model.Provider, body, hasTools)
+		sanitized := g.sanitizeRequestBody(model.Provider, body, hasTools, model.ID)
 		mc := &http.Client{Timeout: 60 * time.Second}
 		if i < g.PrimaryCount {
 			mc.Timeout = 45 * time.Second
@@ -424,7 +424,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 	maxRetry := minInt(len(retryModels), 3)
 	for i := 0; i < maxRetry; i++ {
 		model := retryModels[i]
-		sanitized := g.sanitizeRequestBody(model.Provider, body, hasTools)
+		sanitized := g.sanitizeRequestBody(model.Provider, body, hasTools, model.ID)
 		proxyResp := g.forwardRequest(client, job.Request, model, sanitized)
 		if proxyResp.Err == nil && proxyResp.Status < 400 {
 			g.onSuccess(job, model, proxyResp, body)
@@ -549,8 +549,31 @@ func (g *Gateway) autoRecoverCircuitBreakers() {
 // - ALWAYS strips unsupported params per provider
 // - For no-tool providers: strips tools/tool_choice/tool messages/tool_calls
 // - Sets null assistant content to ""
+// isReasoningModel detects models that produce reasoning/thinking tokens.
+// These models split max_tokens between thinking and content, so low limits
+// cause empty responses (all tokens consumed by thinking).
+func isReasoningModel(modelID string) bool {
+	lower := strings.ToLower(modelID)
+	// DeepSeek R1 and V3+ produce reasoning tokens
+	if strings.Contains(lower, "deepseek-r") || strings.Contains(lower, "deepseek-v") || strings.Contains(lower, "deepseek-v4") {
+		return true
+	}
+	// OpenAI o-series reasoning models
+	if strings.Contains(lower, "/o1-") || strings.Contains(lower, "/o3-") || strings.Contains(lower, "/o4-") {
+		return true
+	}
+	if strings.HasPrefix(lower, "o1-") || strings.HasPrefix(lower, "o3-") || strings.HasPrefix(lower, "o4-") {
+		return true
+	}
+	// Other known reasoning models
+	if strings.Contains(lower, "reason") || strings.Contains(lower, "thinking") {
+		return true
+	}
+	return false
+}
+
 // - Sets default max_tokens if not provided
-func (g *Gateway) sanitizeRequestBody(provider string, body []byte, hasTools bool) []byte {
+func (g *Gateway) sanitizeRequestBody(provider string, body []byte, hasTools bool, resolvedModelID string) []byte {
 	noTool := map[string]bool{
 		"nvidia_nim": true,
 		"nvidia":     true,
@@ -623,9 +646,27 @@ func (g *Gateway) sanitizeRequestBody(provider string, body []byte, hasTools boo
 		delete(payload, "top_logprobs")
 	}
 
-	// Set default max_tokens if not provided
-	if _, ok := payload["max_tokens"]; !ok {
-		payload["max_tokens"] = 4096
+	// Smart max_tokens handling for reasoning vs non-reasoning models
+	// Use the resolved model ID (e.g. "deepseek-v4-flash-free") not the alias ("free-llm")
+	isReasoning := isReasoningModel(resolvedModelID)
+	if mt, ok := payload["max_tokens"]; ok {
+		// User provided max_tokens - check if it's too low for reasoning models
+		if isReasoning {
+			if mtFloat, ok := mt.(float64); ok && mtFloat < 2048 {
+				// Reasoning models split tokens between thinking and content.
+				// Low max_tokens causes all tokens to be spent on thinking,
+				// leaving 0 for content. Boost to safe minimum.
+				delete(payload, "max_tokens")
+			}
+		}
+	} else {
+		// No max_tokens provided - set a generous default
+		if isReasoning {
+			// Reasoning models need headroom for thinking + content
+			payload["max_tokens"] = 8192
+		} else {
+			payload["max_tokens"] = 4096
+		}
 	}
 
 	if out, err := json.Marshal(payload); err == nil {
