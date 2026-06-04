@@ -560,32 +560,52 @@ func onReady() {
 
 	go func() {
 		failCount := 0
-		startupGrace := time.Now().Add(30 * time.Second)
+		startupGrace := time.Now().Add(60 * time.Second)
 		for {
 			time.Sleep(1 * time.Minute)
 			models := gateway.GetModels()
 			if len(models) == 0 {
 				continue
 			}
-			top := models[0]
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			_, err := benchmarker.MeasureLatency(ctx, top.ID, top.Provider)
-			cancel()
-			if err != nil {
+
+			// Check top 3 models, not just #1
+			topCheck := 3
+			if len(models) < topCheck {
+				topCheck = len(models)
+			}
+			allHealthy := false
+			var lastErr error
+			for i := 0; i < topCheck; i++ {
+				m := models[i]
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				_, err := benchmarker.MeasureLatency(ctx, m.ID, m.Provider)
+				cancel()
+				if err == nil {
+					allHealthy = true
+					break
+				}
+				lastErr = err
+			}
+
+			if !allHealthy {
 				if time.Now().Before(startupGrace) {
 					continue
 				}
 				failCount++
-				log.Printf("Health check failed for %s (%d/3): %v", top.ID, failCount, err)
+				top := models[0]
+				log.Printf("Health check failed for top %d models (%d/3): %v", topCheck, failCount, lastErr)
 				db.LogActivity(database, "Health Check Failure", top.ID, fmt.Sprintf("Attempt %d/3 failed", failCount))
-				notify("Health Alert", fmt.Sprintf("Health check failed for %s (%d/3)", top.ID, failCount))
+				if failCount == 1 {
+					notify("Health Alert", fmt.Sprintf("Health check failed for %s (%d/3)", top.ID, failCount))
+				}
 				systray.SetIcon(icon.Red)
 			} else {
 				failCount = 0
 			}
+
 			if failCount >= 3 {
 				log.Println("Proactive health threshold reached. Triggering refresh...")
-				db.LogActivity(database, "Fallback Triggered", top.ID, "Consecutive health failures")
+				db.LogActivity(database, "Fallback Triggered", models[0].ID, "Consecutive health failures")
 				select {
 				case refreshTrigger <- true:
 				default:

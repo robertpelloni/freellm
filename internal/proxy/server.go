@@ -37,6 +37,8 @@ type Gateway struct {
 	preflightCache   map[string]preflightEntry
 	preflightCacheMu sync.RWMutex
 	cbRecoveryMu     sync.Mutex
+	cbLogMu        sync.Mutex
+	cbLogTime      time.Time
 }
 
 type preflightEntry struct {
@@ -406,18 +408,20 @@ func (g *Gateway) processJob(job *RequestJob) {
 			lastErr = fmt.Errorf("%s: status %d", model.ID, proxyResp.Status)
 		}
 		if i < len(attemptOrder)-1 {
-			time.Sleep(200 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond)
 		}
 	}
 
 	// Phase 2: Auto-recover circuit breakers and retry top 5
-	log.Println("[ROUTER] All models failed in phase 1, auto-recovering and retrying...")
+	if time.Since(g.cbLogTime) > 5*time.Minute {
+			log.Println("[ROUTER] All models failed in phase 1, auto-recovering and retrying top 3...")
+		}
 	g.autoRecoverCircuitBreakers()
 	retryModels := g.filterCandidates(allModels)
 	if len(retryModels) == 0 {
 		retryModels = allModels
 	}
-	maxRetry := minInt(len(retryModels), 5)
+	maxRetry := minInt(len(retryModels), 3)
 	for i := 0; i < maxRetry; i++ {
 		model := retryModels[i]
 		sanitized := g.sanitizeRequestBody(model.Provider, body, hasTools)
@@ -518,7 +522,13 @@ func (g *Gateway) filterCandidates(all engine.RankedModels) []engine.ModelCandid
 		}
 	}
 	if len(valid) < len(all) {
-		log.Printf("[ROUTER] Circuit breaker filtered %d/%d models", len(all)-len(valid), len(all))
+		// Rate-limit this log to once per 5 minutes
+		g.cbLogMu.Lock()
+		if time.Since(g.cbLogTime) > 5*time.Minute {
+			log.Printf("[ROUTER] Circuit breaker filtered %d/%d models", len(all)-len(valid), len(all))
+			g.cbLogTime = time.Now()
+		}
+		g.cbLogMu.Unlock()
 	}
 	return valid
 }

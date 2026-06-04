@@ -387,8 +387,15 @@ func RecordFailure(db *sql.DB, modelID string) error {
 	db.QueryRow("SELECT failure_count FROM model_history WHERE model_id = ?", modelID).Scan(&currentFailures)
 
 	newFailures := currentFailures + 1
-	// Exponential backoff: 2^failures * 30 minutes
-	cooldownMinutes := (1 << newFailures) * 30
+	// Exponential backoff: 2^failures * 3 minutes (capped at 48 min)
+	maxF := newFailures
+	if maxF > 4 {
+		maxF = 4
+	}
+	cooldownMinutes := (1 << maxF) * 3
+	if cooldownMinutes > 48 {
+		cooldownMinutes = 48
+	}
 	retryAfter := time.Now().Add(time.Duration(cooldownMinutes) * time.Minute)
 
 	_, err := db.Exec("UPDATE model_history SET failure_count = ?, retry_after = ?, last_failure = ? WHERE model_id = ?",
