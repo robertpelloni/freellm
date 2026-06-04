@@ -1,6 +1,7 @@
 package db
 
 import (
+	"strings"
 	"database/sql"
 	"fmt"
 	"time"
@@ -218,6 +219,25 @@ func SkipModel(db *sql.DB, modelID string, hours int) error {
 }
 
 func BlacklistModel(db *sql.DB, modelID string) error {
+	_, err := db.Exec("UPDATE model_history SET is_blacklisted = 1 WHERE model_id = ?", modelID)
+	return err
+}
+
+// AutoBlacklistPermanentErrors blacklists a model if the error is permanent (401, 402, 404).
+// It ensures the model_history row exists first.
+func AutoBlacklistPermanentErrors(db *sql.DB, modelID, provider, errMsg string) error {
+	// Check if this is a permanent error
+	lower := strings.ToLower(errMsg)
+	isPermanent := strings.Contains(lower, "error 401") ||
+		strings.Contains(lower, "error 402") ||
+		strings.Contains(lower, "error 403") ||
+		(strings.Contains(lower, "error 404") && !strings.Contains(lower, "rate_limit"))
+	if !isPermanent {
+		return nil
+	}
+	// Ensure model_history row exists
+	db.Exec(`INSERT OR IGNORE INTO model_history (model_id, provider_name, is_blacklisted, failure_count)
+		VALUES (?, ?, 1, 0)`, modelID, provider)
 	_, err := db.Exec("UPDATE model_history SET is_blacklisted = 1 WHERE model_id = ?", modelID)
 	return err
 }

@@ -158,6 +158,7 @@ var DeadProviders = map[string]bool{
     "together": true,
     "gemini": true,
     "nebius": true,
+	"huggingface": true,
 }
 
 func IsDeadProvider(provider string) bool {
@@ -170,24 +171,41 @@ func IsDeadProvider(provider string) bool {
 }
 
 var GlobalExclusions = []string{
-    "-base",
-    "dummy",
-    "whisper",
-    "orpheus",
-    "flux",
-    "prompt-guard",
-    "compound",
-    "lyria",
-    "dall",
-    "sdxl",
-    "stable-diffusion",
-    "midjourney",
-    "canopylabs",
-    "tts",
-    "asr",
-    "image-gen",
-    "embed",
-    "nomic-embed", "nomic-embed-text", "text-embedding",
+	"-base",
+	"dummy",
+	"whisper",
+	"orpheus",
+	"flux",
+	"prompt-guard",
+	"compound",
+	"lyria",
+	"dall",
+	"sdxl",
+	"stable-diffusion",
+	"midjourney",
+	"canopylabs",
+	"tts",
+	"asr",
+	"image-gen",
+	"embed",
+	"nomic-embed",
+	"nomic-embed-text",
+	"text-embedding",
+	// Non-chat model types
+	"ocr",
+	"voxtral",
+	"moderation",
+	"nemotron-parse",
+	"nemoretriever",
+	"bge-m3",
+	"deplot",
+	"kosmos-2",
+	"nvclip",
+	"nemotron-4-340b-reward",
+	"reward",
+	"ai-synthetic-video",
+	"phi-3-vision",
+	"labs-",
 }
 
 func IsExcluded(modelID string) bool {
@@ -201,7 +219,7 @@ func IsExcluded(modelID string) bool {
 // StreamTimeoutProviders need longer streaming timeouts.
 var StreamTimeoutProviders = map[string]bool{
     "nvidia_nim": true, "nvidia": true, "openrouter": true,
-    "huggingface": true, "sambanova": true,
+    "sambanova": true,
 }
 
 func NeedsStreamTimeout(provider string) bool {

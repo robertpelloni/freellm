@@ -92,7 +92,7 @@ func (b *Benchmarker) FetchModels(ctx context.Context, database *sql.DB) []Model
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 
-	providers := []string{"openrouter", "groq", "deepinfra", "cerebras", "github", "huggingface", "nvidia", "nvidia_nim", "ollama", "lm_studio", "mistral", "codestral", "cohere", "sambanova", "fireworks", "hyperbolic", "cloudflare", "opencode_zen"}
+	providers := []string{"openrouter", "groq", "deepinfra", "cerebras", "github", "nvidia", "nvidia_nim", "ollama", "lm_studio", "mistral", "codestral", "cohere", "sambanova", "fireworks", "hyperbolic", "cloudflare", "opencode_zen"}
 
 	for _, p := range providers {
 		if IsDeadProvider(p) { continue }
@@ -190,7 +190,12 @@ func (b *Benchmarker) fetchProviderModels(ctx context.Context, provider string) 
 			completionPrice, _ = pricing["completion"].(float64)
 		}
 
-		models = append(models, ModelCandidate{
+		// Skip paid models from providers that list pricing (e.g. OpenRouter)
+			// Free models have both prices = 0; paid models have non-zero prices.
+			if promptPrice > 0 || completionPrice > 0 {
+				continue
+			}
+			models = append(models, ModelCandidate{
 			ID:              id,
 			Provider:        provider,
 			Parameters:      params,
@@ -636,6 +641,10 @@ func (b *Benchmarker) RunBenchmark(ctx context.Context, candidates []ModelCandid
 
 			if dbConn != nil {
 				db.RecordProbe(dbConn, m.ID, m.Provider, lat, success, errMsg, m.Score, m.ContextLength, m.Parameters)
+				// Auto-blacklist models with permanent errors (401, 402, 404)
+				if !success {
+					db.AutoBlacklistPermanentErrors(dbConn, m.ID, m.Provider, errMsg)
+				}
 			}
 		}(m)
 	}
