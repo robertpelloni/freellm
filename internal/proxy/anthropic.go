@@ -853,6 +853,17 @@ func (g *Gateway) streamAnthropicSSE(w http.ResponseWriter, body io.ReadCloser, 
 			continue
 		}
 
+		// Migrate reasoning/reasoning_content to content (cerebras reasoning models)
+		if rc, ok := delta["reasoning_content"].(string); ok && rc != "" {
+			if existing, ok := delta["content"].(string); !ok || existing == "" {
+				delta["content"] = rc
+			}
+		}
+		if r, ok := delta["reasoning"].(string); ok && r != "" {
+			if existing, ok := delta["content"].(string); !ok || existing == "" {
+				delta["content"] = r
+			}
+		}
 		// Handle content delta
 		if content, ok := delta["content"].(string); ok && content != "" {
 			textDelta := anthropicSSEContentBlockDelta{
@@ -982,6 +993,17 @@ func (g *Gateway) collectAndTranslateStream(w http.ResponseWriter, body io.ReadC
 		delta, ok := choice["delta"].(map[string]interface{})
 		if !ok {
 			continue
+		}
+		// Migrate reasoning/reasoning_content to content (cerebras reasoning models)
+		if rc, ok := delta["reasoning_content"].(string); ok && rc != "" {
+			if existing, ok := delta["content"].(string); !ok || existing == "" {
+				delta["content"] = rc
+			}
+		}
+		if r, ok := delta["reasoning"].(string); ok && r != "" {
+			if existing, ok := delta["content"].(string); !ok || existing == "" {
+				delta["content"] = r
+			}
 		}
 		if content, ok := delta["content"].(string); ok {
 			fullText.WriteString(content)
