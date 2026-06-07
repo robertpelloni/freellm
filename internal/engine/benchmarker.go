@@ -312,7 +312,7 @@ func (b *Benchmarker) MeasureLatency(ctx context.Context, modelID, provider stri
 
 	// Strip provider prefix from model name for API payload
 	apiModelID := modelID
-	for _, prefix := range []string{"nvidia_nim/", "nvidia/", "gemini/", "siliconflow/", "together/", "novita/", "nebius/", "deepseek/", "ai21/"} {
+	for _, prefix := range []string{"nvidia_nim/", "nvidia/", "gemini/", "siliconflow/", "together/", "novita/", "nebius/", "deepseek/", "ai21/", "replicate/", "dashscope/", "minimax/", "moonshot/", "stepfun/", "zhipu/"} {
 		apiModelID = strings.TrimPrefix(apiModelID, prefix)
 	}
 if provider == "gemini" {

@@ -1095,6 +1095,18 @@ func (g *Gateway) getProviderURL(modelID, provider string) string {
 		return "https://api.deepseek.com/v1/chat/completions"
 	case "ai21":
 		return "https://api.ai21.com/v1/chat/completions"
+	case "replicate":
+		return "https://api.replicate.com/v1/chat/completions"
+	case "dashscope":
+		return "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+	case "minimax":
+		return "https://api.minimax.chat/v1/chat/completions"
+	case "moonshot":
+		return "https://api.moonshot.cn/v1/chat/completions"
+	case "stepfun":
+		return "https://api.stepfun.com/v1/chat/completions"
+	case "zhipu":
+		return "https://open.bigmodel.cn/api/paas/v1/chat/completions"
 	}
 	return ""
 }
@@ -1152,6 +1164,18 @@ func (g *Gateway) getAPIKey(provider string) string {
 		return os.Getenv("DEEPSEEK_API_KEY")
 	case "ai21":
 		return os.Getenv("AI21_API_KEY")
+	case "replicate":
+		return os.Getenv("REPLICATE_API_TOKEN")
+	case "dashscope":
+		return os.Getenv("DASHSCOPE_API_KEY")
+	case "minimax":
+		return os.Getenv("MINIMAX_API_KEY")
+	case "moonshot":
+		return os.Getenv("MOONSHOT_API_KEY")
+	case "stepfun":
+		return os.Getenv("STEPFUN_API_KEY")
+	case "zhipu":
+		return os.Getenv("ZHIPU_API_KEY")
 		}
 	return ""
 }
