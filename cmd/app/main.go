@@ -118,6 +118,11 @@ func onReady() {
 		"moonshot":     os.Getenv("MOONSHOT_API_KEY"),
 		"stepfun":      os.Getenv("STEPFUN_API_KEY"),
 		"zhipu":        os.Getenv("ZHIPU_API_KEY"),
+		"internlm":     os.Getenv("INTERNLM_API_KEY"),
+		"arcee":        os.Getenv("ARCEE_API_KEY"),
+		"perplexity":   os.Getenv("PERPLEXITY_API_KEY"),
+		"xai":          os.Getenv("XAI_API_KEY"),
+		"hunyuan":      os.Getenv("HUNYUAN_API_KEY"),
 	}
 
 	keyCount := 0
@@ -166,6 +171,21 @@ func onReady() {
 	benchmarker.BaseURLs["zhipu"] = "https://open.bigmodel.cn/api/paas/v1"
 	benchmarker.BaseURLs["zhipu_models"] = "https://open.bigmodel.cn/api/paas/v1/models"
 	benchmarker.BaseURLs["zhipu_completions"] = "https://open.bigmodel.cn/api/paas/v1/chat/completions"
+	benchmarker.BaseURLs["internlm"] = "https://internlm-chat.intern-ai.org.cn/v1"
+	benchmarker.BaseURLs["internlm_models"] = "https://internlm-chat.intern-ai.org.cn/v1/models"
+	benchmarker.BaseURLs["internlm_completions"] = "https://internlm-chat.intern-ai.org.cn/v1/chat/completions"
+	benchmarker.BaseURLs["arcee"] = "https://api.arcee.ai/v1"
+	benchmarker.BaseURLs["arcee_models"] = "https://api.arcee.ai/v1/models"
+	benchmarker.BaseURLs["arcee_completions"] = "https://api.arcee.ai/v1/chat/completions"
+	benchmarker.BaseURLs["perplexity"] = "https://api.perplexity.ai/v1"
+	benchmarker.BaseURLs["perplexity_models"] = "https://api.perplexity.ai/v1/models"
+	benchmarker.BaseURLs["perplexity_completions"] = "https://api.perplexity.ai/v1/chat/completions"
+	benchmarker.BaseURLs["xai"] = "https://api.x.ai/v1"
+	benchmarker.BaseURLs["xai_models"] = "https://api.x.ai/v1/models"
+	benchmarker.BaseURLs["xai_completions"] = "https://api.x.ai/v1/chat/completions"
+	benchmarker.BaseURLs["hunyuan"] = "https://api.hunyuan.cloud.tencent.com/v1"
+	benchmarker.BaseURLs["hunyuan_models"] = "https://api.hunyuan.cloud.tencent.com/v1/models"
+	benchmarker.BaseURLs["hunyuan_completions"] = "https://api.hunyuan.cloud.tencent.com/v1/chat/completions"
 
 	cfgPath := "freellm-config.yaml"
 	cfg, err := config.LoadConfig(cfgPath)

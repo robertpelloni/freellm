@@ -1107,6 +1107,16 @@ func (g *Gateway) getProviderURL(modelID, provider string) string {
 		return "https://api.stepfun.com/v1/chat/completions"
 	case "zhipu":
 		return "https://open.bigmodel.cn/api/paas/v1/chat/completions"
+	case "internlm":
+		return "https://internlm-chat.intern-ai.org.cn/v1/chat/completions"
+	case "arcee":
+		return "https://api.arcee.ai/v1/chat/completions"
+	case "perplexity":
+		return "https://api.perplexity.ai/v1/chat/completions"
+	case "xai":
+		return "https://api.x.ai/v1/chat/completions"
+	case "hunyuan":
+		return "https://api.hunyuan.cloud.tencent.com/v1/chat/completions"
 	}
 	return ""
 }
@@ -1176,6 +1186,16 @@ func (g *Gateway) getAPIKey(provider string) string {
 		return os.Getenv("STEPFUN_API_KEY")
 	case "zhipu":
 		return os.Getenv("ZHIPU_API_KEY")
+	case "internlm":
+		return os.Getenv("INTERNLM_API_KEY")
+	case "arcee":
+		return os.Getenv("ARCEE_API_KEY")
+	case "perplexity":
+		return os.Getenv("PERPLEXITY_API_KEY")
+	case "xai":
+		return os.Getenv("XAI_API_KEY")
+	case "hunyuan":
+		return os.Getenv("HUNYUAN_API_KEY")
 		}
 	return ""
 }

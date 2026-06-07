@@ -43,6 +43,11 @@ $env:MINIMAX_API_KEY = $env:MINIMAX_API_KEY
 $env:MOONSHOT_API_KEY = $env:MOONSHOT_API_KEY
 $env:STEPFUN_API_KEY = $env:STEPFUN_API_KEY
 $env:ZHIPU_API_KEY = $env:ZHIPU_API_KEY
+$env:INTERNLM_API_KEY = $env:INTERNLM_API_KEY
+$env:ARCEE_API_KEY = $env:ARCEE_API_KEY
+$env:PERPLEXITY_API_KEY = $env:PERPLEXITY_API_KEY
+$env:XAI_API_KEY = $env:XAI_API_KEY
+$env:HUNYUAN_API_KEY = $env:HUNYUAN_API_KEY
 
 Write-Host "FreeLLM proxy environment configured."
 Write-Host "  OpenAI:      $env:OPENAI_BASE_URL"
