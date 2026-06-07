@@ -1072,6 +1072,18 @@ func (g *Gateway) getProviderURL(modelID, provider string) string {
 		return "https://generativelanguage.googleapis.com/v1beta/models/" + modelID + ":streamGenerateContent"
 		case "openai":
 		return "https://api.openai.com/v1/chat/completions"
+	case "siliconflow":
+		return "https://api.siliconflow.cn/v1/chat/completions"
+	case "together":
+		return "https://api.together.xyz/v1/chat/completions"
+	case "novita":
+		return "https://api.novita.ai/v3/chat/completions"
+	case "nebius":
+		return "https://api.studio.nebius.ai/v1/chat/completions"
+	case "deepseek":
+		return "https://api.deepseek.com/v1/chat/completions"
+	case "ai21":
+		return "https://api.ai21.com/v1/chat/completions"
 	}
 	return ""
 }
@@ -1117,6 +1129,18 @@ func (g *Gateway) getAPIKey(provider string) string {
 		return os.Getenv("ANTHROPIC_API_KEY")
 	case "gemini":
 		return os.Getenv("GEMINI_API_KEY")
+	case "siliconflow":
+		return os.Getenv("SILICONFLOW_API_KEY")
+	case "together":
+		return os.Getenv("TOGETHER_API_KEY")
+	case "novita":
+		return os.Getenv("NOVITA_API_KEY")
+	case "nebius":
+		return os.Getenv("NEBIUS_API_KEY")
+	case "deepseek":
+		return os.Getenv("DEEPSEEK_API_KEY")
+	case "ai21":
+		return os.Getenv("AI21_API_KEY")
 		}
 	return ""
 }
@@ -1161,6 +1185,8 @@ func (g *Gateway) handleModels(w http.ResponseWriter, r *http.Request) {
 			{"claude-3-5-sonnet-20241022", "model", time.Now().Unix(), "freellm"},
 			{"claude-3-7-sonnet-20250219", "model", time.Now().Unix(), "freellm"},
 			{"claude-sonnet-4-20250514", "model", time.Now().Unix(), "freellm"},
+			{"claude-opus-4-20250514", "model", time.Now().Unix(), "freellm"},
+			{"claude-haiku-4-20250514", "model", time.Now().Unix(), "freellm"},
 			{"claude-3-5-haiku-20241022", "model", time.Now().Unix(), "freellm"},
 			{"gemini-3-flash", "model", time.Now().Unix(), "freellm"},
 			{"gemini-3.5-flash", "model", time.Now().Unix(), "freellm"},

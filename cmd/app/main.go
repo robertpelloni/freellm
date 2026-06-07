@@ -105,7 +105,13 @@ func onReady() {
 		"cloudflare":   os.Getenv("CLOUDFLARE_API_KEY"),
 		"opencode_zen": os.Getenv("OPENCODE_ZEN_API_KEY"),
 		"codestral":    os.Getenv("CODESTRAL_API_KEY"),
-		"nvidia_nim":   os.Getenv("NVIDIA_API_KEY"),
+		"nvidia_nim": os.Getenv("NVIDIA_API_KEY"),
+		"siliconflow": os.Getenv("SILICONFLOW_API_KEY"),
+		"together": os.Getenv("TOGETHER_API_KEY"),
+		"novita": os.Getenv("NOVITA_API_KEY"),
+		"nebius": os.Getenv("NEBIUS_API_KEY"),
+		"deepseek": os.Getenv("DEEPSEEK_API_KEY"),
+		"ai21": os.Getenv("AI21_API_KEY"),
 	}
 
 	keyCount := 0
@@ -117,6 +123,25 @@ func onReady() {
 	log.Printf("API keys configured: %d/%d providers have keys", keyCount, len(apiKeys))
 
 	benchmarker := engine.NewBenchmarker(apiKeys, 100, eventLogger)
+	// Hardcoded provider BaseURLs for benchmarking (config can override)
+	benchmarker.BaseURLs["siliconflow"] = "https://api.siliconflow.cn/v1"
+	benchmarker.BaseURLs["siliconflow_models"] = "https://api.siliconflow.cn/v1/models"
+	benchmarker.BaseURLs["siliconflow_completions"] = "https://api.siliconflow.cn/v1/chat/completions"
+	benchmarker.BaseURLs["together"] = "https://api.together.xyz/v1"
+	benchmarker.BaseURLs["together_models"] = "https://api.together.xyz/v1/models"
+	benchmarker.BaseURLs["together_completions"] = "https://api.together.xyz/v1/chat/completions"
+	benchmarker.BaseURLs["novita"] = "https://api.novita.ai/v3"
+	benchmarker.BaseURLs["novita_models"] = "https://api.novita.ai/v3/model"
+	benchmarker.BaseURLs["novita_completions"] = "https://api.novita.ai/v3/chat/completions"
+	benchmarker.BaseURLs["nebius"] = "https://api.studio.nebius.ai/v1"
+	benchmarker.BaseURLs["nebius_models"] = "https://api.studio.nebius.ai/v1/models"
+	benchmarker.BaseURLs["nebius_completions"] = "https://api.studio.nebius.ai/v1/chat/completions"
+	benchmarker.BaseURLs["deepseek"] = "https://api.deepseek.com/v1"
+	benchmarker.BaseURLs["deepseek_models"] = "https://api.deepseek.com/v1/models"
+	benchmarker.BaseURLs["deepseek_completions"] = "https://api.deepseek.com/v1/chat/completions"
+	benchmarker.BaseURLs["ai21"] = "https://api.ai21.com/v1"
+	benchmarker.BaseURLs["ai21_models"] = "https://api.ai21.com/v1/models"
+	benchmarker.BaseURLs["ai21_completions"] = "https://api.ai21.com/v1/chat/completions"
 
 	cfgPath := "freellm-config.yaml"
 	cfg, err := config.LoadConfig(cfgPath)
@@ -464,15 +489,17 @@ func onReady() {
 		} else {
 			systray.SetIcon(icon.Red)
 		}
+		topLatStr := "?"
+		if lat > 0 { topLatStr = fmt.Sprintf("%.2fs", lat) }
 		// Show last-used model in tray title (what was actually routed)
 		if lastModel != "" {
 			systray.SetTitle(fmt.Sprintf("FreeLLM: %s", lastModel))
-			systray.SetTooltip(fmt.Sprintf("FreeLLM - Last: %s (%s) | Top: %s (%.2fs)", lastModel, lastProvider, top.ID, lat))
+			systray.SetTooltip(fmt.Sprintf("FreeLLM - Last: %s (%s) | Top: %s (%s)", lastModel, lastProvider, top.ID, topLatStr))
 			mStatus.SetTitle(fmt.Sprintf("FreeLLM: Live | Last: %s (%s) | Top: %s | %d models", lastModel, lastProvider, top.ID, len(models)))
 		} else {
 			systray.SetTitle(fmt.Sprintf("FreeLLM: %s", top.ID))
-			systray.SetTooltip(fmt.Sprintf("FreeLLM - Primary: %s (%.2fs)", top.ID, lat))
-			mStatus.SetTitle(fmt.Sprintf("FreeLLM: Live | Primary: %s (%.2fs) | %d models", top.ID, lat, len(models)))
+			systray.SetTooltip(fmt.Sprintf("FreeLLM - Primary: %s (%s)", top.ID, topLatStr))
+			mStatus.SetTitle(fmt.Sprintf("FreeLLM: Live | Primary: %s (%s) | %d models", top.ID, topLatStr, len(models)))
 		}
 	}
 
@@ -521,7 +548,9 @@ func onReady() {
 					topModel := "none"
 					if len(ranked) > 0 {
 						topModel = ranked[0].ID
-						notify("Sync Complete", fmt.Sprintf("Top Model: %s (%.2fs)", topModel, ranked[0].Latency))
+						syncLatStr := "?"
+			if ranked[0].Latency > 0 { syncLatStr = fmt.Sprintf("%.2fs", ranked[0].Latency) }
+			notify("Sync Complete", fmt.Sprintf("Top Model: %s (%s)", topModel, syncLatStr))
 					}
 					db.LogActivity(database, "Sync Complete", topModel, fmt.Sprintf("Ranked %d models", len(ranked)))
 					// Send results back to main loop for safe systray updates

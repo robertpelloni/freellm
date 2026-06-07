@@ -122,6 +122,7 @@ func (g *Gateway) handleAnthropicMessages(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	log.Printf("[ANTHROPIC] Request model=%s stream=%v messages=%d tools=%d", aReq.Model, aReq.Stream, len(aReq.Messages), len(aReq.Tools))
 	if aReq.Model == "" || len(aReq.Messages) == 0 {
 		writeAnthropicError(w, 400, "invalid_request_error", "model and messages are required")
 		return

@@ -312,7 +312,7 @@ func (b *Benchmarker) MeasureLatency(ctx context.Context, modelID, provider stri
 
 	// Strip provider prefix from model name for API payload
 	apiModelID := modelID
-	for _, prefix := range []string{"nvidia_nim/", "nvidia/", "gemini/"} {
+	for _, prefix := range []string{"nvidia_nim/", "nvidia/", "gemini/", "siliconflow/", "together/", "novita/", "nebius/", "deepseek/", "ai21/"} {
 		apiModelID = strings.TrimPrefix(apiModelID, prefix)
 	}
 if provider == "gemini" {
@@ -670,7 +670,7 @@ func (b *Benchmarker) QuickPulse(ctx context.Context, ranked RankedModels, topN 
 			if absF(newScore-oldScore) > 0.3 { updated = true }
 			RecordProbe(database, m.ID, m.Provider, r.lat, true, newScore, m.ContextLength, m.Parameters)
 		} else {
-			m.Latency = 99.0
+			m.Latency = 0
 			m.Score = -10.0
 			updated = true
 			b.log(fmt.Sprintf("  Pulse: %s (%s): FAILED", m.ID, m.Provider))
@@ -748,7 +748,7 @@ if success {
     }
 } else {
     // Failed benchmarks still appear in model list with a low score
-    m.Latency = 30.0 // assume worst latency
+    m.Latency = 0 // no valid measurement
     m.Score = 0.1    // very low score
     m.LastBenchmark = time.Now()
 }

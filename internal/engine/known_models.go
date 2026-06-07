@@ -36,6 +36,28 @@ var KnownModels = map[string]ModelSpec{
 	"openrouter/deepseek/deepseek-v4-flash": {Params: 671, Ctx: 65536, Provider: "openrouter"},
 	"openrouter/deepseek/deepseek-chat-v3-0324": {Params: 671, Ctx: 65536, Provider: "openrouter"},
 	"openrouter/deepseek/deepseek-v3.1-terminus": {Params: 671, Ctx: 131072, Provider: "openrouter"},
+	// SiliconFlow free models
+	"siliconflow/deepseek-ai/DeepSeek-V3": {Params: 671, Ctx: 65536, Provider: "siliconflow"},
+	"siliconflow/Qwen/Qwen3-235B-A22B": {Params: 235, Ctx: 131072, Provider: "siliconflow"},
+	"siliconflow/meta-llama/Llama-4-Scout-17B-16E": {Params: 109, Ctx: 10000000, Provider: "siliconflow"},
+	"siliconflow/google/gemma-4-27b-it": {Params: 27, Ctx: 256000, Provider: "siliconflow"},
+	// Together AI free models
+	"together/meta-llama/Llama-4-Scout-17B-16E-Instruct": {Params: 109, Ctx: 10000000, Provider: "together"},
+	"together/Qwen/Qwen3-235B-A22B": {Params: 235, Ctx: 131072, Provider: "together"},
+	"together/deepseek-ai/DeepSeek-V3": {Params: 671, Ctx: 65536, Provider: "together"},
+	// Novita AI free models
+	"novita/deepseek/deepseek-v4-flash": {Params: 671, Ctx: 131072, Provider: "novita"},
+	"novita/qwen/qwen3-235b-a22b": {Params: 235, Ctx: 131072, Provider: "novita"},
+	"novita/meta-llama/llama-4-scout-17b-16e-instruct": {Params: 109, Ctx: 10000000, Provider: "novita"},
+	// Nebius AI free models
+	"nebius/Qwen/Qwen3-235B-A22B": {Params: 235, Ctx: 131072, Provider: "nebius"},
+	"nebius/deepseek-ai/DeepSeek-V3": {Params: 671, Ctx: 65536, Provider: "nebius"},
+	"nebius/meta-llama/Llama-4-Scout-17B-16E-Instruct": {Params: 109, Ctx: 10000000, Provider: "nebius"},
+	// DeepSeek Platform direct
+	"deepseek/deepseek-chat": {Params: 671, Ctx: 65536, Provider: "deepseek"},
+	"deepseek/deepseek-reasoner": {Params: 671, Ctx: 65536, Provider: "deepseek"},
+	// AI21 Labs
+	"ai21/jamba-1.6-large": {Params: 396, Ctx: 256000, Provider: "ai21"},
 }
 
 func LookupKnownModel(modelID string) (ModelSpec, bool) {
