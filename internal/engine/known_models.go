@@ -58,6 +58,32 @@ var KnownModels = map[string]ModelSpec{
 	"deepseek/deepseek-reasoner": {Params: 671, Ctx: 65536, Provider: "deepseek"},
 	// AI21 Labs
 	"ai21/jamba-1.6-large": {Params: 396, Ctx: 256000, Provider: "ai21"},
+	// Replicate models
+	"replicate/meta/llama-4-scout-17b-16e-instruct": {Params: 109, Ctx: 10000000, Provider: "replicate"},
+	"replicate/deepseek-ai/deepseek-v4": {Params: 685, Ctx: 128000, Provider: "replicate"},
+	"replicate/qwen/qwen3-235b-a22b": {Params: 235, Ctx: 128000, Provider: "replicate"},
+	// DashScope (Qwen/Alibaba) models
+	"dashscope/qwen3.6-max": {Params: 235, Ctx: 1000000, Provider: "dashscope"},
+	"dashscope/qwen3.6-plus": {Params: 235, Ctx: 1000000, Provider: "dashscope"},
+	"dashscope/qwen3-235b-a22b": {Params: 235, Ctx: 128000, Provider: "dashscope"},
+	"dashscope/qwen-plus": {Params: 235, Ctx: 128000, Provider: "dashscope"},
+	"dashscope/qwen-turbo": {Params: 72, Ctx: 128000, Provider: "dashscope"},
+	"dashscope/deepseek-v4": {Params: 685, Ctx: 128000, Provider: "dashscope"},
+	"dashscope/deepseek-v4-flash": {Params: 685, Ctx: 1000000, Provider: "dashscope"},
+	// MiniMax models
+	"minimax/MiniMax-M3": {Params: 456, Ctx: 1000000, Provider: "minimax"},
+	"minimax/minimax-m3": {Params: 456, Ctx: 1000000, Provider: "minimax"},
+	// Moonshot (Kimi) models
+	"moonshot/moonshot-v1-128k": {Params: 200, Ctx: 128000, Provider: "moonshot"},
+	"moonshot/moonshot-v1-32k": {Params: 200, Ctx: 32000, Provider: "moonshot"},
+	"moonshot/kimi-k2.6": {Params: 1000, Ctx: 128000, Provider: "moonshot"},
+	// StepFun models
+	"stepfun/step-3.7-flash": {Params: 200, Ctx: 128000, Provider: "stepfun"},
+	"stepfun/step-3.7-flash-15b": {Params: 15, Ctx: 128000, Provider: "stepfun"},
+	// Zhipu AI (GLM) models
+	"zhipu/glm-5.1": {Params: 744, Ctx: 128000, Provider: "zhipu"},
+	"zhipu/glm-4-plus": {Params: 130, Ctx: 128000, Provider: "zhipu"},
+	"zhipu/glm-4-flash": {Params: 130, Ctx: 128000, Provider: "zhipu"},
 }
 
 func LookupKnownModel(modelID string) (ModelSpec, bool) {

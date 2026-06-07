@@ -112,6 +112,12 @@ func onReady() {
 		"nebius": os.Getenv("NEBIUS_API_KEY"),
 		"deepseek": os.Getenv("DEEPSEEK_API_KEY"),
 		"ai21": os.Getenv("AI21_API_KEY"),
+		"replicate":    os.Getenv("REPLICATE_API_TOKEN"),
+		"dashscope":    os.Getenv("DASHSCOPE_API_KEY"),
+		"minimax":      os.Getenv("MINIMAX_API_KEY"),
+		"moonshot":     os.Getenv("MOONSHOT_API_KEY"),
+		"stepfun":      os.Getenv("STEPFUN_API_KEY"),
+		"zhipu":        os.Getenv("ZHIPU_API_KEY"),
 	}
 
 	keyCount := 0
@@ -142,6 +148,24 @@ func onReady() {
 	benchmarker.BaseURLs["ai21"] = "https://api.ai21.com/v1"
 	benchmarker.BaseURLs["ai21_models"] = "https://api.ai21.com/v1/models"
 	benchmarker.BaseURLs["ai21_completions"] = "https://api.ai21.com/v1/chat/completions"
+	benchmarker.BaseURLs["replicate"] = "https://api.replicate.com/v1"
+	benchmarker.BaseURLs["replicate_models"] = "https://api.replicate.com/v1/models"
+	benchmarker.BaseURLs["replicate_completions"] = "https://api.replicate.com/v1/chat/completions"
+	benchmarker.BaseURLs["dashscope"] = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+	benchmarker.BaseURLs["dashscope_models"] = "https://dashscope.aliyuncs.com/compatible-mode/v1/models"
+	benchmarker.BaseURLs["dashscope_completions"] = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+	benchmarker.BaseURLs["minimax"] = "https://api.minimax.chat/v1"
+	benchmarker.BaseURLs["minimax_models"] = "https://api.minimax.chat/v1/models"
+	benchmarker.BaseURLs["minimax_completions"] = "https://api.minimax.chat/v1/chat/completions"
+	benchmarker.BaseURLs["moonshot"] = "https://api.moonshot.cn/v1"
+	benchmarker.BaseURLs["moonshot_models"] = "https://api.moonshot.cn/v1/models"
+	benchmarker.BaseURLs["moonshot_completions"] = "https://api.moonshot.cn/v1/chat/completions"
+	benchmarker.BaseURLs["stepfun"] = "https://api.stepfun.com/v1"
+	benchmarker.BaseURLs["stepfun_models"] = "https://api.stepfun.com/v1/models"
+	benchmarker.BaseURLs["stepfun_completions"] = "https://api.stepfun.com/v1/chat/completions"
+	benchmarker.BaseURLs["zhipu"] = "https://open.bigmodel.cn/api/paas/v1"
+	benchmarker.BaseURLs["zhipu_models"] = "https://open.bigmodel.cn/api/paas/v1/models"
+	benchmarker.BaseURLs["zhipu_completions"] = "https://open.bigmodel.cn/api/paas/v1/chat/completions"
 
 	cfgPath := "freellm-config.yaml"
 	cfg, err := config.LoadConfig(cfgPath)

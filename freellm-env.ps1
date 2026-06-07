@@ -36,6 +36,14 @@ $env:NOVITA_API_KEY = $env:NOVITA_API_KEY
 $env:NEBIUS_API_KEY = $env:NEBIUS_API_KEY
 $env:DEEPSEEK_API_KEY = $env:DEEPSEEK_API_KEY
 $env:AI21_API_KEY = $env:AI21_API_KEY
+# === Additional providers (from awesome-free-models v2) ===
+$env:REPLICATE_API_TOKEN = $env:REPLICATE_API_TOKEN
+$env:DASHSCOPE_API_KEY = $env:DASHSCOPE_API_KEY
+$env:MINIMAX_API_KEY = $env:MINIMAX_API_KEY
+$env:MOONSHOT_API_KEY = $env:MOONSHOT_API_KEY
+$env:STEPFUN_API_KEY = $env:STEPFUN_API_KEY
+$env:ZHIPU_API_KEY = $env:ZHIPU_API_KEY
+
 Write-Host "FreeLLM proxy environment configured."
 Write-Host "  OpenAI:      $env:OPENAI_BASE_URL"
 Write-Host "  Anthropic:   $env:ANTHROPIC_BASE_URL"
