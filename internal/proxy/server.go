@@ -23,22 +23,31 @@ import (
 )
 
 type Gateway struct {
-	RankedModels     engine.RankedModels
-	mu               sync.RWMutex
-	Queue            chan *RequestJob
-	HighPriQueue     chan *RequestJob
-	MaxActive        int
-	DB               *sql.DB
-	PrimaryCount     int
-	Cache            map[string][]byte
-	cacheMu          sync.RWMutex
-	Redis            *redis.Client
-	Client           *http.Client
-	preflightCache   map[string]preflightEntry
+	Port int
+	RankedModels engine.RankedModels
+	mu sync.RWMutex
+	Queue chan *RequestJob
+	HighPriQueue chan *RequestJob
+	MaxActive int
+	DB *sql.DB
+	PrimaryCount int
+	Cache map[string][]byte
+	cacheMu sync.RWMutex
+	cooldownMu sync.Mutex
+	providerCooldown map[string]time.Time // provider -> cooldown until
+	providerSems     map[string]chan struct{} // per-provider concurrency semaphores
+	upstreamSem      chan struct{}             // global upstream request limiter
+	Redis *redis.Client
+	Client *http.Client
+	preflightCache map[string]preflightEntry
 	preflightCacheMu sync.RWMutex
-	cbRecoveryMu     sync.Mutex
-	cbLogMu        sync.Mutex
-	cbLogTime      time.Time
+	cbRecoveryMu sync.Mutex
+	cbLogMu sync.Mutex
+	cbLogTime time.Time
+	webaiConvMu sync.RWMutex
+	webaiConversations map[string]string
+	LastUsedModel string
+	LastUsedProvider string
 }
 
 type preflightEntry struct {
@@ -54,24 +63,28 @@ type RequestJob struct {
 }
 
 type ProxyResponse struct {
-	Status  int
-	Body    []byte
-	Header  http.Header
-	Err     error
-	Stream  io.ReadCloser
+	Status int
+	Body []byte
+	Header http.Header
+	Err error
+	Stream io.ReadCloser
 	ModelID string
+	Provider string
 }
 
-func NewGateway(maxActive int, database *sql.DB) *Gateway {
+func NewGateway(maxActive int, database *sql.DB, port int) *Gateway {
 	g := &Gateway{
-		Queue:          make(chan *RequestJob, 1000),
-		HighPriQueue:   make(chan *RequestJob, 100),
-		MaxActive:      maxActive,
-		DB:             database,
-		PrimaryCount:   10,
-		Cache:          make(map[string][]byte),
-		Client:         &http.Client{Timeout: 120 * time.Second},
+		Port: port,
+		Queue: make(chan *RequestJob, 20),
+		HighPriQueue: make(chan *RequestJob, 200),
+		MaxActive: 10,
+		DB: database,
+		PrimaryCount: 10,
+		Cache: make(map[string][]byte),
+		providerCooldown: make(map[string]time.Time),
+		Client: &http.Client{Timeout: 30 * time.Second},
 		preflightCache: make(map[string]preflightEntry),
+		webaiConversations: make(map[string]string),
 	}
 	go g.workerLoop()
 	return g
@@ -120,8 +133,16 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	if r.URL.Path == "/v1/models" {
+	if r.URL.Path == "/v1/models" || strings.HasPrefix(r.URL.Path, "/v1/models/") {
 		g.handleModels(w, r)
+		return
+	}
+	if r.URL.Path == "/v1/messages" {
+		g.handleAnthropicMessages(w, r)
+		return
+	}
+	if r.URL.Path == "/v1/responses" {
+		g.handleResponsesAPI(w, r)
 		return
 	}
 	if r.URL.Path != "/v1/chat/completions" {
@@ -171,21 +192,13 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	job := &RequestJob{Request: r, Response: make(chan *ProxyResponse, 1), Ctx: ctx, DBID: dbID}
-	queue := g.Queue
-	if r.Header.Get("X-FreeLLM-Priority") == "high" {
-		queue = g.HighPriQueue
-	}
+	// Bypass queue: call processJob directly for immediate processing
+	// This avoids queue congestion from background agent traffic
+	go g.processJob(job)
 
-	select {
-	case queue <- job:
-	case <-ctx.Done():
-		if dbID > 0 {
-			db.DequeueRequest(g.DB, dbID)
-		}
-		return
-	}
-
+	log.Printf("[PROXY] Waiting for job response...")
 	resp := <-job.Response
+	log.Printf("[PROXY] Got response, err=%v status=%d", resp.Err, resp.Status)
 	if resp.Err != nil {
 		writeJSONError(w, http.StatusBadGateway, resp.Err.Error(), "server_error", "proxy")
 		return
@@ -326,6 +339,17 @@ func (g *Gateway) workerLoop() {
 		return
 	}
 	sem := make(chan struct{}, g.MaxActive)
+
+	// Start 5 reserved high-priority workers that bypass the semaphore
+	for i := 0; i < 5; i++ {
+		go func() {
+			for {
+				job := <-g.HighPriQueue
+				g.processJob(job)
+			}
+		}()
+	}
+
 	for {
 		var job *RequestJob
 		select {
@@ -345,6 +369,11 @@ func (g *Gateway) workerLoop() {
 }
 
 // processJob: GUARANTEED DELIVERY routing engine
+// isTransientError returns true for HTTP status codes that are not the model's fault
+func isTransientError(status int) bool {
+	return status == 413 || status == 429 || status == 402 || status == 408 || status == 503
+}
+
 func (g *Gateway) processJob(job *RequestJob) {
 	g.mu.RLock()
 	allModels := g.RankedModels
@@ -383,32 +412,156 @@ func (g *Gateway) processJob(job *RequestJob) {
 
 	client := g.Client
 	if client == nil {
-		client = &http.Client{Timeout: 120 * time.Second}
+		client = &http.Client{Timeout: 30 * time.Second}
 	}
 
-	// Phase 1: Try ALL candidates in order
-	var lastErr error
-	for i, model := range attemptOrder {
-		sanitized := g.sanitizeRequestBody(model.Provider, body, hasTools, model.ID)
-		mc := &http.Client{Timeout: 60 * time.Second}
-		if i < g.PrimaryCount {
-			mc.Timeout = 45 * time.Second
+	if len(attemptOrder) > 0 {
+		top3 := make([]string, 0, 3)
+		for i := 0; i < 3 && i < len(attemptOrder); i++ {
+			top3 = append(top3, attemptOrder[i].ID+"("+attemptOrder[i].Provider+")="+fmt.Sprintf("%.1f", attemptOrder[i].Score))
 		}
+		log.Printf("[ROUTER] attemptOrder top3 (hasTools=%v, toolM=%d, plainM=%d): %v", hasTools, len(toolModels), len(plainModels), top3)
+	}
+	// Phase 1: Concurrent fan-out for top candidates, then sequential fallback
+	var lastErr error
+	
+	// Fan-out: race top N models concurrently with provider diversity
+	// Group nvidia/nvidia_nim together (same API endpoint, shared rate limit)
+	providerGroup := func(p string) string {
+		if p == "nvidia" || p == "nvidia_nim" { return "nvidia_group" }
+		return p
+	}
+	// Check active cooldowns
+	g.cooldownMu.Lock()
+	now := time.Now()
+	activeCooldowns := make(map[string]bool)
+	for prov, until := range g.providerCooldown {
+		if now.Before(until) {
+			activeCooldowns[prov] = true
+		} else {
+			delete(g.providerCooldown, prov)
+		}
+	}
+	g.cooldownMu.Unlock()
+	fanOutModels := make([]engine.ModelCandidate, 0, 3)
+	seenGroups := make(map[string]bool)
+	for _, m := range attemptOrder {
+		grp := providerGroup(m.Provider)
+		if activeCooldowns[m.Provider] { continue } // Skip providers on cooldown
+		if !seenGroups[grp] && len(fanOutModels) < 3 {
+			fanOutModels = append(fanOutModels, m)
+			seenGroups[grp] = true
+		}
+	}
+	// Always include at least one model from known-working providers
+	// even if their scores are low (they may have been reduced by failed benchmarks)
+	knownWorking := map[string]string{
+		"nvidia":    "qwen/qwen3.5-397b-a17b",
+		"sambanova": "DeepSeek-V3.1",
+		"cerebras":  "zai-glm-4.7",
+		"mistral":   "mistral-large-latest",
+	}
+	includedGroups := make(map[string]bool)
+	for _, m := range fanOutModels {
+		includedGroups[providerGroup(m.Provider)] = true
+	}
+	for prov, modelID := range knownWorking {
+		grp := providerGroup(prov)
+		if includedGroups[grp] || activeCooldowns[prov] {
+			continue
+		}
+		if len(fanOutModels) >= 5 {
+			break
+		}
+		// Find this model in allModels (not just attemptOrder, since it might have been filtered)
+		for _, m := range allModels {
+			if m.ID == modelID && m.Provider == prov {
+				if m.Score < 0 { m.Score = 0.5 } // Give it a minimum score
+				fanOutModels = append(fanOutModels, m)
+				includedGroups[grp] = true
+				break
+			}
+		}
+	}
+	fanOutSize := len(fanOutModels)
+	log.Printf("[ROUTER] Fan-out %d models (diverse providers) from %d candidates, top3: %v", fanOutSize, len(attemptOrder), func() []string {
+		names := make([]string, 0, fanOutSize)
+		for i := 0; i < fanOutSize && i < len(fanOutModels); i++ {
+			names = append(names, fanOutModels[i].ID+"("+fanOutModels[i].Provider+")")
+		}
+		return names
+	}())
+	if fanOutSize > 0 {
+		type fanResult struct {
+			model engine.ModelCandidate
+			resp  *ProxyResponse
+		}
+		fanCh := make(chan fanResult, fanOutSize)
+		for i := 0; i < fanOutSize; i++ {
+			model := fanOutModels[i]
+			sanitized := g.sanitizeRequestBody(model.Provider, body, hasTools, model.ID)
+			go func(m engine.ModelCandidate, s []byte) {
+				// Per-provider rate limiting with 429 backoff
+				if sem, ok := g.providerSems[m.Provider]; ok {
+					sem <- struct{}{} // acquire slot
+					defer func() {
+						// If this request got 429, hold the slot for 5s to prevent hammering
+						// The cooldown check in filterCandidates will also prevent re-queueing
+						time.Sleep(5 * time.Second)
+						<-sem
+					}()
+				}
+				mc := &http.Client{Timeout: 3 * time.Second}
+				fanCh <- fanResult{model: m, resp: g.forwardRequest(mc, job.Request, m, s)}
+			}(model, sanitized)
+		}
+		// Wait for first success or all failures
+		fanFailCount := 0
+		for fanFailCount < fanOutSize {
+			result := <-fanCh
+			log.Printf("[ROUTER] Fan-out result: %s(%s) err=%v status=%d", result.model.ID, result.model.Provider, result.resp.Err, result.resp.Status)
+			// Set provider cooldown on 429 or timeout
+			if result.resp.Status == 429 || result.resp.Err != nil {
+				g.cooldownMu.Lock()
+				g.providerCooldown[result.model.Provider] = time.Now().Add(10 * time.Second)
+				g.cooldownMu.Unlock()
+				log.Printf("[ROUTER] Provider %s on cooldown for 10s (status=%d)", result.model.Provider, result.resp.Status)
+			}
+			if result.resp.Err == nil && result.resp.Status < 400 {
+				g.onSuccess(job, result.model, result.resp, body)
+				return
+			}
+			// Don't count transient errors as model failures
+			if g.DB != nil && !isTransientError(result.resp.Status) {
+				db.RecordFailure(g.DB, result.model.ID)
+			}
+			if result.resp.Err != nil {
+				lastErr = result.resp.Err
+			} else {
+				lastErr = fmt.Errorf("%s: status %d", result.model.ID, result.resp.Status)
+			}
+			fanFailCount++
+		}
+	}
+	
+	// Sequential fallback for remaining candidates
+	for i := fanOutSize; i < len(attemptOrder); i++ {
+		model := attemptOrder[i]
+		sanitized := g.sanitizeRequestBody(model.Provider, body, hasTools, model.ID)
+		mc := &http.Client{Timeout: 3 * time.Second}
 		proxyResp := g.forwardRequest(mc, job.Request, model, sanitized)
 		if proxyResp.Err == nil && proxyResp.Status < 400 {
 			g.onSuccess(job, model, proxyResp, body)
 			return
 		}
-		if g.DB != nil {
+		// Don't count transient errors as model failures
+		if g.DB != nil && !isTransientError(proxyResp.Status) {
 			db.RecordFailure(g.DB, model.ID)
 		}
 		if proxyResp.Err != nil {
 			lastErr = proxyResp.Err
 		} else {
 			lastErr = fmt.Errorf("%s: status %d", model.ID, proxyResp.Status)
-		}
-		if i < len(attemptOrder)-1 {
-			time.Sleep(50 * time.Millisecond)
 		}
 	}
 
@@ -468,7 +621,7 @@ func (g *Gateway) classifyRequest(body []byte) (hasTools bool, toolModels []engi
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return false, nil, nil
 	}
-	if _, ok := payload["tools"]; ok {
+			if _, ok := payload["tools"]; ok {
 		hasTools = true
 	}
 	if tc, ok := payload["tool_choice"]; ok && tc != nil && tc != "none" {
@@ -487,10 +640,8 @@ func (g *Gateway) classifyRequest(body []byte) (hasTools bool, toolModels []engi
 		}
 	}
 
+	log.Printf("[ROUTER] classifyRequest: hasTools=%v", hasTools)
 	noTool := map[string]bool{
-		"nvidia_nim": true,
-		"nvidia":     true,
-		"cerebras":   true,
 		"cloudflare": true,
 		"deepinfra":  true,
 	}
@@ -508,27 +659,70 @@ func (g *Gateway) classifyRequest(body []byte) (hasTools bool, toolModels []engi
 
 // filterCandidates removes circuit-broken models
 func (g *Gateway) filterCandidates(all engine.RankedModels) []engine.ModelCandidate {
-	if g.DB == nil {
-		return all
+	skipProvider := map[string]bool{"webai": true, "ollama": true, "lm_studio": true}
+	valid := make([]engine.ModelCandidate, 0, len(all))
+	skipped := 0
+	// Check provider cooldowns
+	g.cooldownMu.Lock()
+	now := time.Now()
+	activeCooldowns := make(map[string]bool)
+	for prov, until := range g.providerCooldown {
+		if now.Before(until) {
+			activeCooldowns[prov] = true
+		} else {
+			delete(g.providerCooldown, prov)
+		}
 	}
-	blocked, _ := db.GetCircuitBreakerList(g.DB)
-	if len(blocked) == 0 {
-		return all
+	g.cooldownMu.Unlock()
+
+	// Apply score floor: models with large parameters should never have negative scores
+	// This prevents benchmark failures (429/timeout) from permanently sinking good models
+	for i := range all {
+		if all[i].Score < 0 && all[i].Parameters > 0 {
+			minScore := (float64(min(all[i].Parameters, 405)) / 100.0) * 0.2
+			all[i].Score = minScore
+		}
 	}
-	var valid []engine.ModelCandidate
+
 	for _, m := range all {
-		if !blocked[m.ID] && !blocked[m.Provider+"/"+m.ID] {
-			valid = append(valid, m)
+		if m.Score < 0 {
+			skipped++
+			continue
+		}
+		if skipProvider[m.Provider] {
+			skipped++
+			continue
+		}
+		if activeCooldowns[m.Provider] {
+			skipped++
+			continue
+		}
+		if g.getAPIKey(m.Provider) == "" {
+			skipped++
+			continue
+		}
+		if g.DB != nil {
+			blocked, _ := db.GetCircuitBreakerList(g.DB)
+			if blocked[m.ID] || blocked[m.Provider+"/"+m.ID] {
+				skipped++
+				continue
+			}
+		}
+		valid = append(valid, m)
+	}
+	nvidiaCount := 0
+	for _, m := range all {
+		if m.Provider == "nvidia" || m.Provider == "nvidia_nim" {
+			nvidiaCount++
 		}
 	}
-	if len(valid) < len(all) {
-		// Rate-limit this log to once per 5 minutes
-		g.cbLogMu.Lock()
-		if time.Since(g.cbLogTime) > 5*time.Minute {
-			log.Printf("[ROUTER] Circuit breaker filtered %d/%d models", len(all)-len(valid), len(all))
-			g.cbLogTime = time.Now()
+	log.Printf("[ROUTER] filterCandidates: %d/%d valid (skipped %d, nvidiaInAll=%d)", len(valid), len(all), skipped, nvidiaCount)
+	if len(valid) > 0 {
+		top3 := make([]string, 0, 3)
+		for i := 0; i < 3 && i < len(valid); i++ {
+			top3 = append(top3, valid[i].ID+"("+valid[i].Provider+")="+fmt.Sprintf("%.1f", valid[i].Score))
 		}
-		g.cbLogMu.Unlock()
+		log.Printf("[ROUTER] filterCandidates top3: %v", top3)
 	}
 	return valid
 }
@@ -575,9 +769,6 @@ func isReasoningModel(modelID string) bool {
 // - Sets default max_tokens if not provided
 func (g *Gateway) sanitizeRequestBody(provider string, body []byte, hasTools bool, resolvedModelID string) []byte {
 	noTool := map[string]bool{
-		"nvidia_nim": true,
-		"nvidia":     true,
-		"cerebras":   true,
 		"cloudflare": true,
 		"deepinfra":  true,
 	}
@@ -597,6 +788,17 @@ func (g *Gateway) sanitizeRequestBody(provider string, body []byte, hasTools boo
 			}
 			// ALWAYS strip reasoning_content - DeepSeek models add this and
 			// other providers reject it with "Extra inputs are not permitted"
+			// Migrate reasoning to content if content is empty
+			if rc, ok := m["reasoning_content"].(string); ok && rc != "" {
+				if existing, ok := m["content"].(string); !ok || existing == "" {
+					m["content"] = rc
+				}
+			}
+			if r, ok := m["reasoning"].(string); ok && r != "" {
+				if existing, ok := m["content"].(string); !ok || existing == "" {
+					m["content"] = r
+				}
+			}
 			delete(m, "reasoning_content")
 			delete(m, "reasoning")
 
@@ -707,6 +909,40 @@ func (g *Gateway) PreFlightCheck(model engine.ModelCandidate) bool {
 }
 
 // forwardRequest sends the request to a specific provider
+// wrapWebAIStream wraps an SSE stream from the WebAI provider to capture
+// conversation_id from chunks for auto-continuation of future requests.
+// It passes all data through unchanged; only extracts the conversation_id.
+func (g *Gateway) wrapWebAIStream(body io.ReadCloser, modelForAPI string) io.ReadCloser {
+	pr, pw := io.Pipe()
+	go func() {
+		defer body.Close()
+		defer pw.Close()
+		bufReader := bufio.NewReader(body)
+		for {
+			line, err := bufReader.ReadString('\n')
+			if err != nil && line == "" {
+				break
+			}
+			// Try to extract conversation_id from data lines
+			trimmed := strings.TrimRight(line, "\r\n")
+			if strings.HasPrefix(trimmed, "data: ") && trimmed != "data: [DONE]" {
+				data := trimmed[6:]
+				var chunk map[string]interface{}
+				if json.Unmarshal([]byte(data), &chunk) == nil {
+					if cid, ok := chunk["conversation_id"].(string); ok && cid != "" {
+						g.webaiConvMu.Lock()
+						g.webaiConversations[modelForAPI] = cid
+						g.webaiConvMu.Unlock()
+					}
+				}
+			}
+			pw.Write([]byte(line))
+		}
+	}()
+	return pr
+}
+
+
 func (g *Gateway) forwardRequest(client *http.Client, r *http.Request, model engine.ModelCandidate, body []byte) *ProxyResponse {
 	var payload map[string]interface{}
 	if err := json.Unmarshal(body, &payload); err != nil {
@@ -719,6 +955,17 @@ func (g *Gateway) forwardRequest(client *http.Client, r *http.Request, model eng
 		modelForAPI = strings.TrimPrefix(modelForAPI, "nvidia_nim/")
 	}
 	payload["model"] = modelForAPI
+
+	// WebAI: auto-inject conversation_id for continuity
+	if model.Provider == "webai" {
+		if _, hasCid := payload["conversation_id"]; !hasCid {
+			g.webaiConvMu.RLock()
+			if lastCid, ok := g.webaiConversations[modelForAPI]; ok && lastCid != "" {
+				payload["conversation_id"] = lastCid
+			}
+			g.webaiConvMu.RUnlock()
+		}
+	}
 
 	stream, _ := payload["stream"].(bool)
 	newBody, _ := json.Marshal(payload)
@@ -743,13 +990,24 @@ func (g *Gateway) forwardRequest(client *http.Client, r *http.Request, model eng
 	}
 
 	if stream && resp.StatusCode == http.StatusOK {
+		if model.Provider == "webai" {
+			return &ProxyResponse{
+				Status:   resp.StatusCode,
+				Header:   resp.Header,
+				Stream:   g.wrapWebAIStream(resp.Body, modelForAPI),
+				ModelID:  model.ID,
+				Provider: model.Provider,
+			}
+		}
 		return &ProxyResponse{
-			Status:  resp.StatusCode,
-			Header:  resp.Header,
-			Stream:  resp.Body,
-			ModelID: model.ID,
+			Status:   resp.StatusCode,
+			Header:   resp.Header,
+			Stream:   resp.Body,
+			ModelID:  model.ID,
+			Provider: model.Provider,
 		}
 	}
+
 	defer resp.Body.Close()
 
 	respBody, _ := io.ReadAll(resp.Body)
@@ -765,7 +1023,18 @@ func (g *Gateway) forwardRequest(client *http.Client, r *http.Request, model eng
 				for _, c := range choices {
 					if choice, ok := c.(map[string]interface{}); ok {
 						if msg, ok := choice["message"].(map[string]interface{}); ok {
-							delete(msg, "reasoning_content")
+							// Migrate reasoning to content if content is empty
+						if rc, ok := msg["reasoning_content"].(string); ok && rc != "" {
+							if existing, ok := msg["content"].(string); !ok || existing == "" {
+								msg["content"] = rc
+							}
+						}
+						if r, ok := msg["reasoning"].(string); ok && r != "" {
+							if existing, ok := msg["content"].(string); !ok || existing == "" {
+								msg["content"] = r
+							}
+						}
+						delete(msg, "reasoning_content")
 						delete(msg, "reasoning")
 						}
 					}
@@ -782,6 +1051,16 @@ func (g *Gateway) forwardRequest(client *http.Client, r *http.Request, model eng
 			}
 			// Set model name in response
 			rd["model"] = model.ID
+
+			// WebAI: extract and store conversation_id for auto-continuation
+			if model.Provider == "webai" {
+				if cid, ok := rd["conversation_id"].(string); ok && cid != "" {
+					g.webaiConvMu.Lock()
+					g.webaiConversations[modelForAPI] = cid
+					g.webaiConvMu.Unlock()
+				}
+			}
+
 			respBody, _ = json.Marshal(rd)
 		}
 	}
@@ -843,6 +1122,10 @@ func (g *Gateway) getProviderURL(modelID, provider string) string {
 		return "https://api.anthropic.com/v1/messages"
 	case "gemini":
 		return "https://generativelanguage.googleapis.com/v1beta/models/" + modelID + ":streamGenerateContent"
+	case "webai":
+		return "http://localhost:6969/v1/chat/completions"
+	case "openai":
+		return "https://api.openai.com/v1/chat/completions"
 	}
 	return ""
 }
@@ -888,6 +1171,8 @@ func (g *Gateway) getAPIKey(provider string) string {
 		return os.Getenv("ANTHROPIC_API_KEY")
 	case "gemini":
 		return os.Getenv("GEMINI_API_KEY")
+	case "webai":
+		return os.Getenv("WEBAI_API_KEY")
 	}
 	return ""
 }
@@ -922,6 +1207,22 @@ func (g *Gateway) handleModels(w http.ResponseWriter, r *http.Request) {
 			{"free-llm", "model", time.Now().Unix(), "freellm"},
 			{"free-llm-fallback", "model", time.Now().Unix(), "freellm"},
 			{"free-llm-plain", "model", time.Now().Unix(), "freellm"},
+			{"gpt-4o", "model", time.Now().Unix(), "freellm"},
+			{"gpt-4o-mini", "model", time.Now().Unix(), "freellm"},
+			{"gpt-4-turbo", "model", time.Now().Unix(), "freellm"},
+			{"gpt-3.5-turbo", "model", time.Now().Unix(), "freellm"},
+			{"o1", "model", time.Now().Unix(), "freellm"},
+			{"o1-mini", "model", time.Now().Unix(), "freellm"},
+			{"o3-mini", "model", time.Now().Unix(), "freellm"},
+			{"claude-3-5-sonnet-20241022", "model", time.Now().Unix(), "freellm"},
+			{"claude-3-7-sonnet-20250219", "model", time.Now().Unix(), "freellm"},
+			{"claude-sonnet-4-20250514", "model", time.Now().Unix(), "freellm"},
+			{"claude-3-5-haiku-20241022", "model", time.Now().Unix(), "freellm"},
+			{"gemini-3-flash", "model", time.Now().Unix(), "freellm"},
+			{"gemini-3.5-flash", "model", time.Now().Unix(), "freellm"},
+			{"gemini-3.1-pro", "model", time.Now().Unix(), "freellm"},
+			{"webai-gemini", "model", time.Now().Unix(), "freellm"},
+			{"webai-gemini-fallback", "model", time.Now().Unix(), "freellm"},
 		},
 	}
 	for _, m := range g.GetModels() {
