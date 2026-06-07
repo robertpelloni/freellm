@@ -99,6 +99,12 @@ func (g *Gateway) GetModels() engine.RankedModels {
 	return g.RankedModels
 }
 
+func (g *Gateway) GetLastUsed() (string, string) {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	return g.LastUsedModel, g.LastUsedProvider
+}
+
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	authKey := os.Getenv("FREELLM_MASTER_KEY")
 	if authKey != "" {
@@ -597,6 +603,10 @@ func (g *Gateway) processJob(job *RequestJob) {
 
 func (g *Gateway) onSuccess(job *RequestJob, model engine.ModelCandidate, proxyResp *ProxyResponse, body []byte) {
 	log.Printf("[PROXY] Routed to: %s (%s) score=%.1f", model.ID, model.Provider, model.Score)
+	g.mu.Lock()
+	g.LastUsedModel = model.ID
+	g.LastUsedProvider = model.Provider
+	g.mu.Unlock()
 	if job.DBID > 0 {
 		db.DequeueRequest(g.DB, job.DBID)
 	}

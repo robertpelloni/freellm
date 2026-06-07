@@ -191,9 +191,9 @@ func onReady() {
 	pulseInterval := 10 * time.Minute
 	lastFullRefresh := time.Time{}
 	menuBuilt := false
-	primarySlots := make([]*systray.MenuItem, 10)
+	primarySlots := make([]*systray.MenuItem, 15)
 	fallbackSlots := make([]*systray.MenuItem, 20)
-	primarySlotIDs := make([]string, 10)
+	primarySlotIDs := make([]string, 15)
 	fallbackSlotIDs := make([]string, 20)
 
 	// ============================================================
@@ -358,10 +358,34 @@ func onReady() {
 		if len(models) == 0 {
 			return
 		}
+
+		// Ensure last-used model appears in the primary list
+		lastModel, lastProvider := gateway.GetLastUsed()
+		if lastModel != "" {
+			// Check if last-used model is already in top 10
+			found := false
+			for i, m := range models {
+				if i >= 10 { break }
+				if m.ID == lastModel && m.Provider == lastProvider {
+					found = true
+					break
+				}
+			}
+			if !found {
+				// Find the model in the full list and move it to front
+				for i, m := range models {
+					if m.ID == lastModel && m.Provider == lastProvider {
+						models[0], models[i] = models[i], models[0]
+						break
+					}
+				}
+			}
+		}
+
 		pCount := gateway.PrimaryCount
-		if pCount > 10 { pCount = 10 }
+		if pCount > 15 { pCount = 15 }
 		if len(models) < pCount { pCount = len(models) }
-		maxModels := 30
+		maxModels := 40
 		if len(models) < maxModels { maxModels = len(models) }
 		fCount := maxModels - pCount
 		if fCount > 20 { fCount = 20 }
@@ -424,6 +448,7 @@ func onReady() {
 
 	updateTrayStatus := func() {
 		models := gateway.GetModels()
+		lastModel, lastProvider := gateway.GetLastUsed()
 		if len(models) == 0 {
 			systray.SetIcon(icon.Gray)
 			systray.SetTooltip("FreeLLM - No models available")
@@ -432,22 +457,23 @@ func onReady() {
 		}
 		top := models[0]
 		lat := top.Latency
-
-		var primaryLabel string
 		if lat < 0.5 {
 			systray.SetIcon(icon.Green)
-			primaryLabel = fmt.Sprintf("%s (%.2fs)", top.ID, lat)
 		} else if lat < 1.5 {
 			systray.SetIcon(icon.Yellow)
-			primaryLabel = fmt.Sprintf("%s (%.2fs)", top.ID, lat)
 		} else {
 			systray.SetIcon(icon.Red)
-			primaryLabel = fmt.Sprintf("%s (%.2fs)", top.ID, lat)
 		}
-
-		systray.SetTooltip(fmt.Sprintf("FreeLLM - Primary: %s", primaryLabel))
+		// Show last-used model in tray title (what was actually routed)
+		if lastModel != "" {
+			systray.SetTitle(fmt.Sprintf("FreeLLM: %s", lastModel))
+			systray.SetTooltip(fmt.Sprintf("FreeLLM - Last: %s (%s) | Top: %s (%.2fs)", lastModel, lastProvider, top.ID, lat))
+			mStatus.SetTitle(fmt.Sprintf("FreeLLM: Live | Last: %s (%s) | Top: %s | %d models", lastModel, lastProvider, top.ID, len(models)))
+		} else {
 			systray.SetTitle(fmt.Sprintf("FreeLLM: %s", top.ID))
-		mStatus.SetTitle(fmt.Sprintf("FreeLLM: Live | Primary: %s | %d models", primaryLabel, len(models)))
+			systray.SetTooltip(fmt.Sprintf("FreeLLM - Primary: %s (%.2fs)", top.ID, lat))
+			mStatus.SetTitle(fmt.Sprintf("FreeLLM: Live | Primary: %s (%.2fs) | %d models", top.ID, lat, len(models)))
+		}
 	}
 
 	// ============================================================
@@ -770,7 +796,7 @@ func onReady() {
 			// --- Model Actions ---
 			case "model_set_primary_slot":
 				slotIdx, _ := strconv.Atoi(action.data)
-				if slotIdx >= 0 && slotIdx < 10 && primarySlotIDs[slotIdx] != "" {
+				if slotIdx >= 0 && slotIdx < 15 && primarySlotIDs[slotIdx] != "" {
 					modelID := primarySlotIDs[slotIdx]
 					log.Printf("Setting %s as primary", modelID)
 					gateway.SetModelPrimary(modelID)
