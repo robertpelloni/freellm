@@ -1,6 +1,6 @@
 {
-  "signature": "internal/proxy/server.go::Unresolved from this turn — internal/proxy/server.go:\n🔴 STOP — 4 issue(s) must be fixed:\n  L522: g.cbLogMu undefined (type *Gateway has no field or method cbLogMu)\n  L523: g.cbLogTime undefined (type *Gateway has no field or method cbLogTime)\n  L525: g.cbLogTime undefined (type *Gateway has no field or method cbLogTime)\n  L527: g.cbLogMu undefined (type *Gateway has no field or method cbLogMu)",
-  "sessionId": "lens-mpy79abn-3edfac8e",
-  "projectSeqStart": 50,
-  "projectSeqEnd": 51
+  "signature": "internal/proxy/responses_api.go::Unresolved from this turn — internal/proxy/responses_api.go:\n🔴 STOP — 1 issue(s) must be fixed:\n  L66: g.Port undefined (type *Gateway has no field or method Port)",
+  "sessionId": "lens-mq10xy51-6c13dcce",
+  "projectSeqStart": 84,
+  "projectSeqEnd": 85
 }

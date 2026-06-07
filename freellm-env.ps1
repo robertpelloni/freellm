@@ -1,0 +1,8 @@
+$env:OPENAI_BASE_URL = "http://localhost:4000/v1"
+$env:OPENAI_API_KEY = "sk-freellm"
+$env:ANTHROPIC_BASE_URL = "http://localhost:4000"
+$env:ANTHROPIC_API_KEY = "sk-freellm-proxy"
+$env:GEMINI_API_KEY = ""
+Write-Host "FreeLLM proxy environment configured."
+Write-Host "  OpenAI: $env:OPENAI_BASE_URL"
+Write-Host "  Anthropic: $env:ANTHROPIC_BASE_URL"

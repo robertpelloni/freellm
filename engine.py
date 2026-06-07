@@ -7,6 +7,57 @@ from typing import List, Dict, Any, Optional
 import database
 import known_models
 
+def safe_parse_datetime(dt_str):
+    if not isinstance(dt_str, str):
+        if hasattr(dt_str, "replace"):
+            try:
+                return dt_str.replace(tzinfo=None)
+            except:
+                pass
+        return dt_str
+    if " m=+" in dt_str:
+        dt_str = dt_str.split(" m=+")[0]
+    parts = dt_str.split()
+    if len(parts) >= 2:
+        date_part = parts[0]
+        time_part = parts[1]
+        offset_part = ""
+        if len(parts) >= 3:
+            for p in parts[2:]:
+                if p.startswith('+') or p.startswith('-') or p.isdigit():
+                    offset_part = p
+                    break
+        dt_str = f"{date_part} {time_part}"
+        if offset_part:
+            dt_str += f" {offset_part}"
+    dt_str_clean = dt_str.replace(" ", "T")
+    try:
+        val = database.datetime.datetime.fromisoformat(dt_str_clean)
+        return val.replace(tzinfo=None)
+    except:
+        pass
+    naive_str = dt_str_clean
+    if '+' in naive_str:
+        naive_str = naive_str.split('+')[0]
+    elif '-' in naive_str:
+        t_idx = naive_str.find('T')
+        if t_idx != -1:
+            left = naive_str[:t_idx]
+            right = naive_str[t_idx:]
+            if '-' in right:
+                right = right.split('-')[0]
+            naive_str = left + right
+    try:
+        if '.' in naive_str:
+            p_parts = naive_str.split('.')
+            if len(p_parts[1]) > 6:
+                naive_str = p_parts[0] + '.' + p_parts[1][:6]
+        val = database.datetime.datetime.fromisoformat(naive_str)
+        return val.replace(tzinfo=None)
+    except:
+        pass
+    return database.datetime.datetime.now()
+
 # Constants
 OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models"
 GROQ_MODELS_URL = "https://api.groq.com/openai/v1/models"
@@ -167,6 +218,7 @@ class ModelEngine:
         self.base_urls = base_urls or {}
         self.client = httpx.AsyncClient(timeout=10.0)
         self.log_listeners = []
+        self.current_state = "Idle"
 
     def add_log_listener(self, listener):
         """Add a callback for log messages. listener(msg: str)"""
@@ -755,6 +807,33 @@ class ModelEngine:
             pass
         return []
 
+
+    async def fetch_openai_models(self) -> List[Dict[str, Any]]:
+        """Fetches models from OpenAI."""
+        api_key = self.api_keys.get("openai")
+        if not api_key:
+            return []
+        url = self.base_urls.get("openai", "https://api.openai.com/v1")
+        url = url.rstrip("/") + "/models"
+        try:
+            response = await self.client.get(url, headers={"Authorization": f"Bearer {api_key}"})
+            if response.status_code == 200:
+                data = response.json().get("data", [])
+                models = []
+                for m in data:
+                    params, context = self._resolve_model_metadata(m, "openai")
+                    if params >= self.min_params or params == 0:
+                        models.append({
+                            "id": m.get("id"),
+                            "provider": "openai",
+                            "parameters": params,
+                            "context_length": context,
+                        })
+                return models
+        except:
+            pass
+        return []
+
     async def get_ranked_models(self) -> List[Dict[str, Any]]:
         """Main loop to fetch, test, and rank models."""
         self._log("Starting model ranking cycle...")
@@ -883,6 +962,12 @@ class ModelEngine:
             candidates.extend(opencode_zen_models)
             database.update_provider_cycle("opencode_zen", len(opencode_zen_models) > 0, has_api_key=True)
 
+
+        if "openai" not in blacklisted_providers:
+            openai_models = await self.fetch_openai_models()
+            candidates.extend(openai_models)
+            database.update_provider_cycle("openai", len(openai_models) > 0, has_api_key=bool(self.api_keys.get("openai")))
+
         # De-duplicate candidates by (id, provider)
         seen = set()
         deduped = []
@@ -934,13 +1019,13 @@ class ModelEngine:
                 # Manual skip check
                 if skipped:
                     if skip_expiry:
-                        expiry_dt = database.datetime.datetime.fromisoformat(skip_expiry) if isinstance(skip_expiry, str) else skip_expiry
+                        expiry_dt = safe_parse_datetime(skip_expiry)
                         if now < expiry_dt:
                             continue
                 # Circuit breaker check
                 if failures >= 3:
                     if retry_after:
-                        retry_dt = database.datetime.datetime.fromisoformat(retry_after) if isinstance(retry_after, str) else retry_after
+                        retry_dt = safe_parse_datetime(retry_after)
                         if now < retry_dt:
                             continue
             valid_candidates.append(m)
@@ -1005,6 +1090,22 @@ class ModelEngine:
             self._log(f"Force-including {len(known_to_force)} known good models not found in provider fetches.")
             valid_candidates.extend(known_to_force)
 
+        # Filter out models < 150B if they specify their size in their name
+        import re
+        filtered_candidates = []
+        for m in valid_candidates:
+            m_id = m.get("id", "")
+            match = re.search(r'(\d+(?:\.\d+)?)\s*[bB]\b', m_id)
+            if match:
+                try:
+                    size = float(match.group(1))
+                    if size < 150:
+                        continue
+                except ValueError:
+                    pass
+            filtered_candidates.append(m)
+        valid_candidates = filtered_candidates
+
         # 3. Benchmark in parallel with concurrency limit
         semaphore = asyncio.Semaphore(5)  # Max 5 parallel benchmarks
         tasks = []
@@ -1030,7 +1131,7 @@ class ModelEngine:
             if is_local and status:
                 last_success, avg_latency = status[5], status[6]
                 if last_success and avg_latency and avg_latency > 0:
-                    last_success_dt = database.datetime.datetime.fromisoformat(last_success) if isinstance(last_success, str) else last_success
+                    last_success_dt = safe_parse_datetime(last_success)
                     if now - last_success_dt < database.datetime.timedelta(minutes=15):
                         cached_results.append((m, avg_latency))
                         continue
@@ -1281,7 +1382,9 @@ class ModelEngine:
                 return None
             url = f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1/chat/completions"
         elif provider == "opencode_zen":
-            url = (base or "https://opencode.ai/zen/v1") + "/chat/completions"
+            url = (base or "https://opencode.ai/zen/v1") + "/chat/completions"            url = (base or "http://localhost:6969") + "/v1/chat/completions"
+        elif provider == "openai":
+            url = (base or "https://api.openai.com/v1") + "/chat/completions"
         else:
             return None
 

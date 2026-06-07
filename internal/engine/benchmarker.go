@@ -92,7 +92,7 @@ func (b *Benchmarker) FetchModels(ctx context.Context, database *sql.DB) []Model
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 
-	providers := []string{"openrouter", "groq", "deepinfra", "cerebras", "github", "nvidia", "nvidia_nim", "ollama", "lm_studio", "mistral", "codestral", "cohere", "sambanova", "fireworks", "hyperbolic", "cloudflare", "opencode_zen"}
+	providers := []string{"openrouter", "groq", "deepinfra", "cerebras", "github", "nvidia", "nvidia_nim", "mistral", "codestral", "cohere", "sambanova", "fireworks", "hyperbolic", "cloudflare", "opencode_zen", "gemini", "openai"}
 
 	for _, p := range providers {
 		if IsDeadProvider(p) { continue }
@@ -162,6 +162,7 @@ func (b *Benchmarker) fetchProviderModels(ctx context.Context, provider string) 
 	json.NewDecoder(resp.Body).Decode(&data)
 
 	var models []ModelCandidate
+	b.log(fmt.Sprintf("Provider %s: fetched %d raw models from API", provider, len(data.Data)))
 	for _, m := range data.Data {
 		id, _ := m["id"].(string)
 		if id == "" {
@@ -172,30 +173,21 @@ func (b *Benchmarker) fetchProviderModels(ctx context.Context, provider string) 
 		if params < b.MinParams && params != 0 {
 			continue
 		}
-
 		if IsExcluded(id) {
 			continue
 		}
-
 		ctxLength := 4096
 		if spec, ok := LookupKnownModel(id); ok {
 			params = spec.Params
 			ctxLength = spec.Ctx
 		}
-
 		promptPrice, _ := m["prompt_price"].(float64)
 		completionPrice, _ := m["completion_price"].(float64)
 		if pricing, ok := m["pricing"].(map[string]interface{}); ok {
 			promptPrice, _ = pricing["prompt"].(float64)
 			completionPrice, _ = pricing["completion"].(float64)
 		}
-
-		// Skip paid models from providers that list pricing (e.g. OpenRouter)
-			// Free models have both prices = 0; paid models have non-zero prices.
-			if promptPrice > 0 || completionPrice > 0 {
-				continue
-			}
-			models = append(models, ModelCandidate{
+		models = append(models, ModelCandidate{
 			ID:              id,
 			Provider:        provider,
 			Parameters:      params,
@@ -204,27 +196,128 @@ func (b *Benchmarker) fetchProviderModels(ctx context.Context, provider string) 
 			CompletionPrice: completionPrice,
 		})
 	}
+	b.log(fmt.Sprintf("Provider %s: %d models after filtering", provider, len(models)))
 	return models
 }
 
+// fetchGeminiModels uses the OpenAI-compatible models endpoint
+// and strips the "models/" prefix from IDs.
+func (b *Benchmarker) fetchGeminiModels(ctx context.Context) []ModelCandidate {
+url := "https://generativelanguage.googleapis.com/v1beta/openai/models"
+req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+if err != nil {
+return nil
+}
+if apiKey := b.APIKeys["gemini"]; apiKey != "" {
+req.Header.Set("Authorization", "Bearer "+apiKey)
+}
+resp, err := b.Client.Do(req)
+if err != nil {
+b.log("gemini fetch error: " + err.Error())
+return nil
+}
+defer resp.Body.Close()
+if resp.StatusCode != http.StatusOK {
+b.log("gemini fetch status: " + resp.Status)
+return nil
+}
+var geminiResp struct {
+Data []map[string]interface{} `json:"data"`
+}
+
+if err := json.NewDecoder(resp.Body).Decode(&geminiResp); err != nil {
+b.log("gemini decode error: " + err.Error())
+return nil
+}
+var models []ModelCandidate
+for _, m := range geminiResp.Data {
+rawID, _ := m["id"].(string)
+if rawID == "" {
+continue
+}
+// Strip "models/" prefix returned by the OpenAI-compatible endpoint
+id := strings.TrimPrefix(rawID, "models/")
+// Add provider prefix
+fullID := "gemini/" + id
+// Skip non-chat models (embedding, tts, image, robotics, etc.)
+lower := strings.ToLower(id)
+if strings.Contains(lower, "embedding") ||
+strings.Contains(lower, "-tts") ||
+strings.Contains(lower, "-image") ||
+strings.Contains(lower, "robotics") ||
+strings.Contains(lower, "computer-use") {
+continue
+}
+params := 0
+ctxLength := 1048576 // Gemini default context
+if spec, ok := LookupKnownModel(fullID); ok {
+params = spec.Params
+ctxLength = spec.Ctx
+}
+models = append(models, ModelCandidate{
+ID: fullID,
+Provider: "gemini",
+Parameters: params,
+ContextLength: ctxLength,
+PromptPrice: 0,
+CompletionPrice: 0,
+})
+}
+b.log(fmt.Sprintf("gemini: found %d models", len(models)))
+return models
+}
+
+// measureGeminiLatency uses a lightweight models list request to measure
+// latency without wasting free tier chat quota.
+func (b *Benchmarker) measureGeminiLatency(ctx context.Context) (float64, error) {
+url := "https://generativelanguage.googleapis.com/v1beta/openai/models"
+req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+if err != nil {
+return 0, err
+}
+if apiKey := b.APIKeys["gemini"]; apiKey != "" {
+req.Header.Set("Authorization", "Bearer "+apiKey)
+}
+startTime := time.Now()
+resp, err := b.Client.Do(req)
+if err != nil {
+return 0, err
+}
+defer resp.Body.Close()
+if resp.StatusCode != http.StatusOK {
+return 0, fmt.Errorf("gemini latency check: %d", resp.StatusCode)
+}
+latency := time.Since(startTime).Seconds()
+b.log(fmt.Sprintf("gemini latency (models list): %.3fs", latency))
+return latency, nil
+}
+
 func (b *Benchmarker) MeasureLatency(ctx context.Context, modelID, provider string) (float64, error) {
+	if provider == "gemini" {
+		return b.measureGeminiLatency(ctx)
+	}
 	url := b.getCompletionsURL(provider)
 	if url == "" {
 		return 0, fmt.Errorf("unsupported provider: %s", provider)
 	}
 
+	// Resolve API key with fallbacks
 	apiKey := b.APIKeys[provider]
-	// NVIDIA uses same key
 	if provider == "nvidia" && apiKey == "" {
-	if provider == "nvidia_nim" {
-		if apiKey == "" {
-			apiKey = b.APIKeys["nvidia"]
-		}
-		// Strip nvidia_nim/ prefix for API call
-		modelID = strings.TrimPrefix(modelID, "nvidia_nim/")
-	}
 		apiKey = b.APIKeys["nvidia_nim"]
 	}
+	if provider == "nvidia_nim" && apiKey == "" {
+		apiKey = b.APIKeys["nvidia"]
+	}
+
+	// Strip provider prefix from model name for API payload
+	apiModelID := modelID
+	for _, prefix := range []string{"nvidia_nim/", "nvidia/", "gemini/"} {
+		apiModelID = strings.TrimPrefix(apiModelID, prefix)
+	}
+if provider == "gemini" {
+apiModelID = strings.TrimPrefix(apiModelID, "gemini/")
+}
 
 	payload := map[string]interface{}{
 		"model":    modelID,
@@ -379,6 +472,9 @@ func (b *Benchmarker) getModelsURL(provider string) string {
 		return "https://bedrock-runtime.us-east-1.amazonaws.com/model/list" // Simplified
 	case "vertex_ai":
 		return "https://us-central1-aiplatform.googleapis.com/v1/models"
+	case "openai":
+		if base == "" { return "https://api.openai.com/v1/models" }
+		return base + "/models"
 	case "lm_studio":
 		if base == "" { return "http://localhost:1234/v1/models" }
 		return base + "/v1/models"
@@ -411,7 +507,7 @@ func (b *Benchmarker) getCompletionsURL(provider string) string {
 		if base == "" { return "https://integrate.api.nvidia.com/v1/chat/completions" }
 		return base + "/chat/completions"
 	case "gemini":
-		if base == "" { return "https://generativelanguage.googleapis.com/v1beta/models" }
+	if base == "" { return "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions" }
 		return base
 	case "anthropic":
 		return "https://api.anthropic.com/v1/messages"
@@ -442,6 +538,9 @@ func (b *Benchmarker) getCompletionsURL(provider string) string {
 	case "ollama":
 		if base == "" { return "http://localhost:11434/v1/chat/completions" }
 		return base + "/v1/chat/completions"
+	case "openai":
+		if base == "" { return "https://api.openai.com/v1/chat/completions" }
+		return base + "/chat/completions"
 	case "lm_studio":
 		if base == "" { return "http://localhost:1234/v1/chat/completions" }
 		return base + "/v1/chat/completions"
@@ -461,15 +560,20 @@ func minF(a, b float64) float64 {
 
 type RankedModels []ModelCandidate
 
-
 // FilterCandidates applies the full filtering pipeline.
 func (b *Benchmarker) FilterCandidates(candidates []ModelCandidate, database *sql.DB) []ModelCandidate {
 	var valid []ModelCandidate
 	now := time.Now()
 	for _, m := range candidates {
-		if IsDeadModel(m.ID) || IsDeadModel(fmt.Sprintf("%s/%s", m.Provider, m.ID)) { continue }
-		if IsDeadProvider(m.Provider) { continue }
-		if IsExcluded(m.ID) { continue }
+		if IsDeadModel(m.ID) || IsDeadModel(fmt.Sprintf("%s/%s", m.Provider, m.ID)) {
+			continue
+		}
+		if IsDeadProvider(m.Provider) {
+			continue
+		}
+		if IsExcluded(m.ID) {
+			continue
+		}
 		if database != nil {
 			var isBlacklisted bool
 			var failureCount int
@@ -479,9 +583,15 @@ func (b *Benchmarker) FilterCandidates(candidates []ModelCandidate, database *sq
 			err := database.QueryRow("SELECT is_blacklisted, failure_count, retry_after, manually_skipped, skip_expiry FROM model_history WHERE model_id = ?", m.ID).
 				Scan(&isBlacklisted, &failureCount, &retryAfter, &manuallySkipped, &skipExpiry)
 			if err == nil {
-				if isBlacklisted { continue }
-				if manuallySkipped && skipExpiry.Valid && now.Before(skipExpiry.Time) { continue }
-				if failureCount >= 3 && retryAfter.Valid && now.Before(retryAfter.Time) { continue }
+				if isBlacklisted {
+					continue
+				}
+				if manuallySkipped && skipExpiry.Valid && now.Before(skipExpiry.Time) {
+					continue
+				}
+				if failureCount >= 3 && retryAfter.Valid && now.Before(retryAfter.Time) {
+					continue
+				}
 			}
 		}
 		valid = append(valid, m)
@@ -626,18 +736,23 @@ func (b *Benchmarker) RunBenchmark(ctx context.Context, candidates []ModelCandid
 				fmt.Printf("Benchmark failed for %s/%s: %v\n", m.Provider, m.ID, err)
 			}
 
-			if success {
-				m.Latency = lat
-				m.Score = b.CalculateScore(m.Parameters, lat, m.ContextLength)
-				m.LastBenchmark = time.Now()
+if success {
+    m.Latency = lat
+    m.Score = b.CalculateScore(m.Parameters, lat, m.ContextLength)
+    m.LastBenchmark = time.Now()
 
-				if m.Provider == "ollama" || m.Provider == "lm_studio" {
-					b.cacheMu.Lock()
-					b.smartCache[m.ID] = m
-					b.cacheMu.Unlock()
-				}
-				results <- m
-			}
+    if m.Provider == "ollama" || m.Provider == "lm_studio" {
+        b.cacheMu.Lock()
+        b.smartCache[m.ID] = m
+        b.cacheMu.Unlock()
+    }
+} else {
+    // Failed benchmarks still appear in model list with a low score
+    m.Latency = 30.0 // assume worst latency
+    m.Score = 0.1    // very low score
+    m.LastBenchmark = time.Now()
+}
+results <- m
 
 			if dbConn != nil {
 				db.RecordProbe(dbConn, m.ID, m.Provider, lat, success, errMsg, m.Score, m.ContextLength, m.Parameters)
@@ -664,4 +779,46 @@ func (b *Benchmarker) RunBenchmark(ctx context.Context, candidates []ModelCandid
 	})
 
 	return ranked
+}
+
+// LoadFromHistory creates a RankedModels from historical probe data.
+// Filters out dead/excluded models and sorts by success rate + latency.
+// This provides immediate models on startup before benchmarking finishes.
+func (b *Benchmarker) LoadFromHistory(dbResults []struct {
+	ModelID    string
+	Provider   string
+	AvgLatency float64
+	SuccessRate float64
+	Probes     int
+}) RankedModels {
+	var candidates []ModelCandidate
+	for _, r := range dbResults {
+		// Skip dead/excluded models
+		if IsDeadModel(r.ModelID) || IsDeadProvider(r.Provider) || IsExcluded(r.ModelID) {
+			continue
+		}
+		// Also check provider/model combination
+		if IsDeadModel(r.Provider + "/" + r.ModelID) {
+			continue
+		}
+		// Skip models with very low success rate
+		if r.SuccessRate < 0.5 {
+			continue
+		}
+		candidates = append(candidates, ModelCandidate{
+			ID:            r.ModelID,
+			Provider:      r.Provider,
+			Latency:       r.AvgLatency,
+			Score:         r.SuccessRate * 10, // rough score
+			LastBenchmark: time.Now(),
+		})
+	}
+	// Sort by success rate desc, then latency asc
+	sort.Slice(candidates, func(i, j int) bool {
+		if candidates[i].Score != candidates[j].Score {
+			return candidates[i].Score > candidates[j].Score
+		}
+		return candidates[i].Latency < candidates[j].Latency
+	})
+	return RankedModels(candidates)
 }

@@ -1,8 +1,8 @@
 {
   "version": 1,
   "projectRoot": "C:/Users/hyper/workspace/litellm_control_panel",
-  "generatedAt": "2026-06-04T02:25:10.402Z",
-  "seq": 51,
+  "generatedAt": "2026-06-07T11:41:26.283Z",
+  "seq": 89,
   "files": {
     "C:/Users/hyper/workspace/litellm_control_panel/api_server.py": {
       "path": "C:/Users/hyper/workspace/litellm_control_panel/api_server.py",
@@ -262,6 +262,55 @@
       "size": 151,
       "imports": [],
       "lastSeq": 0
+    },
+    "C:/Users/hyper/workspace/litellm_control_panel/patch_processjob.py": {
+      "path": "C:/Users/hyper/workspace/litellm_control_panel/patch_processjob.py",
+      "mtimeMs": 1780581099281.5786,
+      "size": 7725,
+      "imports": [],
+      "lastSeq": 0
+    },
+    "C:/Users/hyper/workspace/litellm_control_panel/update_configs.py": {
+      "path": "C:/Users/hyper/workspace/litellm_control_panel/update_configs.py",
+      "mtimeMs": 1780583181263.2615,
+      "size": 11775,
+      "imports": [],
+      "lastSeq": 0
+    },
+    "C:/Users/hyper/workspace/litellm_control_panel/internal/proxy/anthropic.go": {
+      "path": "C:/Users/hyper/workspace/litellm_control_panel/internal/proxy/anthropic.go",
+      "mtimeMs": 1780585946210.596,
+      "size": 23841,
+      "imports": [],
+      "lastSeq": 0
+    },
+    "C:/Users/hyper/workspace/litellm_control_panel/internal/proxy/responses_api.go": {
+      "path": "C:/Users/hyper/workspace/litellm_control_panel/internal/proxy/responses_api.go",
+      "mtimeMs": 1780700878173.5686,
+      "size": 12528,
+      "imports": [],
+      "lastSeq": 0
+    },
+    "C:/Users/hyper/workspace/litellm_control_panel/cmd/wrapper/main.go": {
+      "path": "C:/Users/hyper/workspace/litellm_control_panel/cmd/wrapper/main.go",
+      "mtimeMs": 1780751706566.6545,
+      "size": 986,
+      "imports": [],
+      "lastSeq": 0
+    },
+    "C:/Users/hyper/workspace/litellm_control_panel/internal/engine/rankings_cache.go": {
+      "path": "C:/Users/hyper/workspace/litellm_control_panel/internal/engine/rankings_cache.go",
+      "mtimeMs": 1780762065993.0884,
+      "size": 2690,
+      "imports": [],
+      "lastSeq": 0
+    },
+    "C:/Users/hyper/workspace/litellm_control_panel/patch_server.py": {
+      "path": "C:/Users/hyper/workspace/litellm_control_panel/patch_server.py",
+      "mtimeMs": 1780765530293.339,
+      "size": 8567,
+      "imports": [],
+      "lastSeq": 0
     }
   },
   "symbols": {},
@@ -269,6 +318,7 @@
     "C:/Users/hyper/workspace/litellm_control_panel/api_server.py": [],
     "C:/Users/hyper/workspace/litellm_control_panel/build_exe.py": [],
     "C:/Users/hyper/workspace/litellm_control_panel/cmd/app/main.go": [],
+    "C:/Users/hyper/workspace/litellm_control_panel/cmd/wrapper/main.go": [],
     "C:/Users/hyper/workspace/litellm_control_panel/comparison_ui.py": [],
     "C:/Users/hyper/workspace/litellm_control_panel/config_manager.py": [],
     "C:/Users/hyper/workspace/litellm_control_panel/dashboard_ui.py": [],
@@ -283,9 +333,12 @@
     "C:/Users/hyper/workspace/litellm_control_panel/internal/engine/benchmarker.go": [],
     "C:/Users/hyper/workspace/litellm_control_panel/internal/engine/known_models.go": [],
     "C:/Users/hyper/workspace/litellm_control_panel/internal/engine/logger.go": [],
+    "C:/Users/hyper/workspace/litellm_control_panel/internal/engine/rankings_cache.go": [],
     "C:/Users/hyper/workspace/litellm_control_panel/internal/icon/icon_other.go": [],
     "C:/Users/hyper/workspace/litellm_control_panel/internal/icon/icon_windows.go": [],
+    "C:/Users/hyper/workspace/litellm_control_panel/internal/proxy/anthropic.go": [],
     "C:/Users/hyper/workspace/litellm_control_panel/internal/proxy/mapping.go": [],
+    "C:/Users/hyper/workspace/litellm_control_panel/internal/proxy/responses_api.go": [],
     "C:/Users/hyper/workspace/litellm_control_panel/internal/proxy/server_test.go": [],
     "C:/Users/hyper/workspace/litellm_control_panel/internal/proxy/server.go": [],
     "C:/Users/hyper/workspace/litellm_control_panel/internal/ui/server_test.go": [],
@@ -295,6 +348,8 @@
     "C:/Users/hyper/workspace/litellm_control_panel/log_viewer.py": [],
     "C:/Users/hyper/workspace/litellm_control_panel/main.py": [],
     "C:/Users/hyper/workspace/litellm_control_panel/monitoring_ui.py": [],
+    "C:/Users/hyper/workspace/litellm_control_panel/patch_processjob.py": [],
+    "C:/Users/hyper/workspace/litellm_control_panel/patch_server.py": [],
     "C:/Users/hyper/workspace/litellm_control_panel/process_manager.py": [],
     "C:/Users/hyper/workspace/litellm_control_panel/protocol_ui.py": [],
     "C:/Users/hyper/workspace/litellm_control_panel/query_ui.py": [],
@@ -314,7 +369,7 @@
     "scanRoot": "C:\\Users\\hyper\\workspace\\litellm_control_panel",
     "projectRoot": "C:\\Users\\hyper\\workspace\\litellm_control_panel",
     "canWarmCaches": true,
-    "sourceFileCount": 37
+    "sourceFileCount": 43
   },
   "languageProfile": {
     "present": {
@@ -358,8 +413,8 @@
       "go": true
     },
     "counts": {
-      "python": 21,
-      "go": 15,
+      "python": 23,
+      "go": 19,
       "jsts": 1
     },
     "detectedKinds": [
@@ -367,5 +422,11 @@
       "python",
       "go"
     ]
+  },
+  "conventions": {
+    "frameworks": [],
+    "testRunners": [],
+    "buildTools": [],
+    "agentDocs": []
   }
 }

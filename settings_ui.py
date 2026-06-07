@@ -27,6 +27,7 @@ ENV_KEY_MAP = {
     "NEBIUS_API_KEY": "NEBIUS_API_KEY",
     "CLOUDFLARE_API_KEY": "CLOUDFLARE_API_KEY",
     "OPENCODE_ZEN_API_KEY": "OPENCODE_ZEN_API_KEY",
+    "OPENAI_API_KEY": "OPENAI_API_KEY",
 }
 
 def load_settings():
@@ -45,6 +46,7 @@ def load_settings():
         "GITHUB_API_KEY": os.environ.get("GITHUB_TOKEN", ""),
         "HUGGINGFACE_API_KEY": os.environ.get("HUGGINGFACE_API_KEY", ""),
         "NVIDIA_API_KEY": os.environ.get("NVIDIA_NIM_API_KEY", ""),
+        "OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY", ""),
         "OPENROUTER_BASE_URL": "https://openrouter.ai/api/v1",
         "GROQ_BASE_URL": "https://api.groq.com/openai/v1",
         "TOGETHER_BASE_URL": "https://api.together.xyz",
@@ -53,6 +55,7 @@ def load_settings():
         "GITHUB_BASE_URL": "https://models.inference.ai.azure.com",
         "HUGGINGFACE_BASE_URL": "https://api-inference.huggingface.co",
         "NVIDIA_BASE_URL": "https://integrate.api.nvidia.com/v1",
+        "OPENAI_BASE_URL": "https://api.openai.com/v1",
         "OLLAMA_BASE_URL": "http://localhost:11434",
         "LM_STUDIO_BASE_URL": "http://localhost:1234",
         "MIN_PARAMETERS": 0,
@@ -181,21 +184,23 @@ class SettingsUI:
         self.cf_account_id.insert(0, self.settings.get("CLOUDFLARE_ACCOUNT_ID", ""))
         self.cf_account_id.grid(row=16, column=3, sticky='ew', padx=5, pady=2)
 
-        ttk.Label(keys_frame, text="OpenCode Zen:").grid(row=17, column=0, sticky='w', padx=5, pady=2)
+                self.openai_key, self.openai_url = add_provider_fields(keys_frame, "OpenAI", "OPENAI_API_KEY", "OPENAI_BASE_URL", 18)
+
+        ttk.Label(keys_frame, text="OpenCode Zen:").grid(row=19, column=0, sticky='w', padx=5, pady=2)
         self.opencode_zen_url = ttk.Entry(keys_frame)
         self.opencode_zen_url.insert(0, self.settings.get("OPENCODE_ZEN_BASE_URL", "https://opencode.ai/zen/v1"))
-        self.opencode_zen_url.grid(row=17, column=1, columnspan=3, sticky='ew', padx=5, pady=2)
+        self.opencode_zen_url.grid(row=19, column=1, columnspan=3, sticky='ew', padx=5, pady=2)
 
         # Local URLs
-        ttk.Label(keys_frame, text="Ollama URL:").grid(row=17, column=0, sticky='w', padx=5, pady=2)
+        ttk.Label(keys_frame, text="Ollama URL:").grid(row=20, column=0, sticky='w', padx=5, pady=2)
         self.ollama_url = ttk.Entry(keys_frame)
         self.ollama_url.insert(0, self.settings.get("OLLAMA_BASE_URL", "http://localhost:11434"))
-        self.ollama_url.grid(row=9, column=1, columnspan=3, sticky='ew', padx=5, pady=2)
+        self.ollama_url.grid(row=20, column=1, columnspan=3, sticky='ew', padx=5, pady=2)
 
-        ttk.Label(keys_frame, text="LM Studio URL:").grid(row=18, column=0, sticky='w', padx=5, pady=2)
+        ttk.Label(keys_frame, text="LM Studio URL:").grid(row=21, column=0, sticky='w', padx=5, pady=2)
         self.lms_url = ttk.Entry(keys_frame)
         self.lms_url.insert(0, self.settings.get("LM_STUDIO_BASE_URL", "http://localhost:1234"))
-        self.lms_url.grid(row=18, column=1, columnspan=3, sticky='ew', padx=5, pady=2)
+        self.lms_url.grid(row=21, column=1, columnspan=3, sticky='ew', padx=5, pady=2)
 
         keys_frame.columnconfigure(1, weight=1)
         keys_frame.columnconfigure(3, weight=1)
@@ -375,7 +380,7 @@ class SettingsUI:
             self.settings["FIREWORKS_API_KEY"] = self.fireworks_key.get()
             self.settings["HYPERBOLIC_API_KEY"] = self.hyperbolic_key.get()
             self.settings["NEBIUS_API_KEY"] = self.nebius_key.get()
-            self.settings["CLOUDFLARE_API_KEY"] = self.cloudflare_key.get()
+            self.settings["CLOUDFLARE_API_KEY"] = self.cloudflare_key.get()            self.settings["OPENAI_API_KEY"] = self.openai_key.get()
 
             self.settings["OPENROUTER_BASE_URL"] = self.or_url.get()
             self.settings["GROQ_BASE_URL"] = self.groq_url.get()
@@ -392,7 +397,7 @@ class SettingsUI:
             self.settings["FIREWORKS_BASE_URL"] = self.fireworks_url.get()
             self.settings["HYPERBOLIC_BASE_URL"] = self.hyperbolic_url.get()
             self.settings["NEBIUS_BASE_URL"] = self.nebius_url.get()
-            self.settings["CLOUDFLARE_BASE_URL"] = self.cloudflare_url.get()
+            self.settings["CLOUDFLARE_BASE_URL"] = self.cloudflare_url.get()            self.settings["OPENAI_BASE_URL"] = self.openai_url.get()
             self.settings["CLOUDFLARE_ACCOUNT_ID"] = self.cf_account_id.get()
             self.settings["OPENCODE_ZEN_BASE_URL"] = self.opencode_zen_url.get()
             self.settings["OLLAMA_BASE_URL"] = self.ollama_url.get()

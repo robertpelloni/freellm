@@ -13,8 +13,6 @@ func TransformRequestBody(provider string, openaiBody []byte) ([]byte, error) {
 	switch provider {
 	case "anthropic":
 		return transformToAnthropic(openaiBody)
-	case "gemini":
-		return transformToGemini(openaiBody)
 	default:
 		return openaiBody, nil
 	}
@@ -30,7 +28,7 @@ func sanitizeRequest(provider string, body []byte) ([]byte, error) {
 	unsupported := []string{"frequency_penalty", "presence_penalty", "logit_bias"}
 
 	switch provider {
-	case "anthropic", "gemini":
+	case "anthropic":
 		for _, p := range unsupported {
 			delete(payload, p)
 		}
@@ -70,8 +68,6 @@ func TransformResponseBody(provider string, providerBody []byte) ([]byte, error)
 	switch provider {
 	case "anthropic":
 		return transformFromAnthropic(providerBody)
-	case "gemini":
-		return transformFromGemini(providerBody)
 	default:
 		return providerBody, nil
 	}

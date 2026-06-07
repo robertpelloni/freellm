@@ -91,10 +91,16 @@ class TestFreeLLM(unittest.TestCase):
         # We need to mock get_ranked_models parts or just test the logic inside
         # Since GLOBAL_EXCLUSIONS is used in get_ranked_models loop
 
-        # Testing logic directly
-        filtered = [m for m in candidates if not any(exc in m['id'].lower() for exc in engine.GLOBAL_EXCLUSIONS)]
-        self.assertEqual(len(filtered), 1)
-        self.assertEqual(filtered[0]['id'], "llama-3.1-405b")
+        # Save original and set mock exclusions for the test
+        orig_exclusions = engine.GLOBAL_EXCLUSIONS
+        engine.GLOBAL_EXCLUSIONS = ["preview"]
+        try:
+            # Testing logic directly
+            filtered = [m for m in candidates if not any(exc in m['id'].lower() for exc in engine.GLOBAL_EXCLUSIONS)]
+            self.assertEqual(len(filtered), 1)
+            self.assertEqual(filtered[0]['id'], "llama-3.1-405b")
+        finally:
+            engine.GLOBAL_EXCLUSIONS = orig_exclusions
 
     def test_blacklist(self):
         database.update_model_latency("bad-model", "p1", 0.5)

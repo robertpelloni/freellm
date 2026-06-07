@@ -223,23 +223,26 @@ func BlacklistModel(db *sql.DB, modelID string) error {
 	return err
 }
 
-// AutoBlacklistPermanentErrors blacklists a model if the error is permanent (401, 402, 404).
-// It ensures the model_history row exists first.
+// AutoBlacklistPermanentErrors blacklists a model ONLY if the error indicates
+// the model genuinely does not exist. Temporary errors (401/402/403/429) are
+// caused by rate limits, credit issues, or temp auth problems and must NOT
+// blacklist a model permanently.
 func AutoBlacklistPermanentErrors(db *sql.DB, modelID, provider, errMsg string) error {
-	// Check if this is a permanent error
-	lower := strings.ToLower(errMsg)
-	isPermanent := strings.Contains(lower, "error 401") ||
-		strings.Contains(lower, "error 402") ||
-		strings.Contains(lower, "error 403") ||
-		(strings.Contains(lower, "error 404") && !strings.Contains(lower, "rate_limit"))
-	if !isPermanent {
-		return nil
-	}
-	// Ensure model_history row exists
-	db.Exec(`INSERT OR IGNORE INTO model_history (model_id, provider_name, is_blacklisted, failure_count)
-		VALUES (?, ?, 1, 0)`, modelID, provider)
-	_, err := db.Exec("UPDATE model_history SET is_blacklisted = 1 WHERE model_id = ?", modelID)
-	return err
+    lower := strings.ToLower(errMsg)
+    isPermanent := strings.Contains(lower, "model_not_found") ||
+        strings.Contains(lower, "model not found") ||
+        strings.Contains(lower, "does not exist") ||
+        strings.Contains(lower, "not found for account")
+
+    if !isPermanent {
+        return nil
+    }
+
+    db.Exec(`INSERT OR IGNORE INTO model_history (model_id, provider_name, is_blacklisted, failure_count)
+        VALUES (?, ?, 1, 0)`, modelID, provider)
+
+    _, err := db.Exec("UPDATE model_history SET is_blacklisted = 1 WHERE model_id = ?", modelID)
+    return err
 }
 
 func ResetStats(db *sql.DB) error {
@@ -315,7 +318,9 @@ func GetPendingRequests(db *sql.DB) ([]QueuedRequest, error) {
 }
 
 func GetCircuitBreakerList(db *sql.DB) (map[string]bool, error) {
-	rows, err := db.Query("SELECT model_id FROM model_history WHERE failure_count >= 3 AND (retry_after IS NULL OR retry_after > ?)", time.Now())
+	// Only circuit-break models with very high consecutive failures (>= 10)
+	// Models with 3-9 failures might just be rate-limited and should still be available
+	rows, err := db.Query("SELECT model_id FROM model_history WHERE failure_count >= 10 AND (retry_after IS NULL OR retry_after > ?)", time.Now())
 	if err != nil {
 		return nil, err
 	}
@@ -480,4 +485,68 @@ func GetTotalSavings(db *sql.DB) (float64, error) {
 	var total float64
 	err := db.QueryRow("SELECT SUM(cost_saved) FROM usage").Scan(&total)
 	return total, err
+}
+
+// GetLastGoodModels returns model candidates from recent successful probes.
+// Used to seed the initial model list on startup before benchmarking completes.
+func GetLastGoodModels(db *sql.DB) ([]struct {
+	ModelID    string
+	Provider   string
+	AvgLatency float64
+	SuccessRate float64
+	Probes     int
+}, error) {
+	rows, err := db.Query(`
+		SELECT model_id, provider_name,
+		       COUNT(*) as probes,
+		       SUM(CASE WHEN success=1 THEN 1 ELSE 0 END) as successes,
+		       ROUND(AVG(CASE WHEN success=1 THEN latency ELSE NULL END), 3) as avg_latency
+		FROM probe_history 
+		WHERE timestamp > datetime('now', '-3 days')
+		GROUP BY model_id, provider_name
+		HAVING successes >= 2
+		ORDER BY 
+		    ROUND(successes * 1.0 / probes, 2) DESC,
+		    avg_latency ASC
+		LIMIT 50
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []struct {
+		ModelID    string
+		Provider   string
+		AvgLatency float64
+		SuccessRate float64
+		Probes     int
+	}
+
+	for rows.Next() {
+		var modelID, provider string
+		var probes, successes int
+		var avgLatency sql.NullFloat64
+		if err := rows.Scan(&modelID, &provider, &probes, &successes, &avgLatency); err != nil {
+			continue
+		}
+		lat := 5.0
+		if avgLatency.Valid {
+			lat = avgLatency.Float64
+		}
+		results = append(results, struct {
+			ModelID    string
+			Provider   string
+			AvgLatency float64
+			SuccessRate float64
+			Probes     int
+		}{
+			ModelID:    modelID,
+			Provider:   provider,
+			AvgLatency: lat,
+			SuccessRate: float64(successes) / float64(probes),
+			Probes:     probes,
+		})
+	}
+	return results, nil
 }

@@ -204,6 +204,7 @@ class FreeLLM:
             "hyperbolic": "HYPERBOLIC_API_KEY",
             "nebius": "NEBIUS_API_KEY",
             "cloudflare": "CLOUDFLARE_API_KEY",
+            "openai": "OPENAI_API_KEY",
         }
         api_keys = {}
         for provider, env_name in _env_map.items():
@@ -232,6 +233,7 @@ class FreeLLM:
             "gemini": self.settings.get("GEMINI_BASE_URL", ""),
             "ollama": self.settings.get("OLLAMA_BASE_URL", ""),
             "lm_studio": self.settings.get("LM_STUDIO_BASE_URL", ""),
+                        "openai": self.settings.get("OPENAI_BASE_URL", ""),
         }
 
         # Pass cloudflare account ID through api_keys (special case)
@@ -683,7 +685,8 @@ class FreeLLM:
             "hyperbolic": "HYPERBOLIC_API_KEY",
             "nebius": "NEBIUS_API_KEY",
             "cloudflare": "CLOUDFLARE_API_KEY",
-            "opencode_zen": "",  # No key needed
+            "opencode_zen": "",  # No key needed,
+            "openai": "OPENAI_API_KEY",
         }
         new_api_keys = {}
         for provider, env_name in _env_map.items():
@@ -692,7 +695,7 @@ class FreeLLM:
                 if provider != "github"
                 else self.settings.get("GITHUB_API_KEY", "")
             )
-            if not key:
+            if not key and env_name:
                 key = _os.environ.get(env_name, "")
             if key:
                 new_api_keys[provider] = key
@@ -709,6 +712,7 @@ class FreeLLM:
             "nvidia": self.settings.get("NVIDIA_BASE_URL", ""),
             "ollama": self.settings.get("OLLAMA_BASE_URL", ""),
             "lm_studio": self.settings.get("LM_STUDIO_BASE_URL", ""),
+                        "openai": self.settings.get("OPENAI_BASE_URL", ""),
         }
         self.engine.weights = {
             "size": float(self.settings.get("SIZE_WEIGHT", 0.6)),
@@ -741,6 +745,8 @@ class FreeLLM:
             if model and model in self.ranked_models:
                 self.ranked_models.remove(model)
                 self.ranked_models.insert(0, model)
+                self.settings["MANUAL_PRIMARY"] = model_id
+                settings_ui.save_settings(self.settings)
                 config_manager.apply_ranked_models(
                     self.ranked_models,
                     self.config_path,
@@ -906,6 +912,18 @@ class FreeLLM:
         print("Refreshing model rankings...")
         database.log_activity("Sync Started", None, "Starting model benchmarking cycle")
         self.ranked_models = await self.engine.get_ranked_models()
+        self.settings = settings_ui.load_settings()
+        manual_primary = self.settings.get("MANUAL_PRIMARY")
+        if manual_primary and self.ranked_models:
+            found_model = None
+            for m in self.ranked_models:
+                if m.get("id") == manual_primary:
+                    found_model = m
+                    break
+            if found_model:
+                self.ranked_models.remove(found_model)
+                self.ranked_models.insert(0, found_model)
+
         self.last_benchmark_time = datetime.datetime.now()
 
         if self.routing_enabled and self.ranked_models:
