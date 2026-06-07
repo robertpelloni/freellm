@@ -1,32 +1,35 @@
-# Session Handoff: FreeLLM v4.5.0 (Autonomous Go Execution)
+# Session Handoff: FreeLLM v4.5.2
 
 ## Overview
-Successfully finalized the transition from Python to a pure Go architecture, achieving parity with the previous Python stack and introducing significant reliability enhancements. The project now operates as an autonomous "Highly Stable Network" gateway.
+All three main APIs are now working: Chat Completions, Anthropic Messages, and OpenAI Responses API. The proxy routes requests through concurrent fan-out (racing top model candidates) and bypasses the request queue for immediate processing.
 
-## Key Shifts
-- **Full Go Integration:** The core engine, proxy, and UI are now unified in Go.
-- **Resilient Gateway:** The proxy uses a channel-based `RequestJob` queue and worker pool to buffer incoming connections.
-- **Real-Time Dashboard:** An embedded web interface provides live visibility into rankings, logs, and system performance.
-- **Health Governance:** Introduced standard `/health` probes and a `/api/providers/health` data endpoint.
+## Working APIs
+- **Chat Completions** (`/v1/chat/completions`): ✅ Model=zai-glm-4.7 (Cerebras), ~0.5s response time
+- **Anthropic Messages** (`/v1/messages`): ✅ Model=claude-sonnet-4-20250514 (actually Cerebras GLM mapped), ~0.7s
+- **Responses API** (`/v1/responses`): ✅ Non-streaming returns proper content, streaming works
+- **Models** (`/v1/models`): ✅ 300+ models available
+- **Dashboard** (`/`): ✅ Web UI
 
-## Completed Tasks
-- **Go Port Refinement:** Resolved compilation issues in `main.go` and verified the internal package logic.
-- **Submodule Integration:** Linked `robertpelloni/freellm` as a submodule for reference.
-- **Dashboard APIs:** Implemented WebSocket log streaming and historical provider performance analytics.
-- **Benchmarking Logic:** Standardized TTFT measurement and scoring for 14+ providers.
-- **Deployment Safety:** Implemented SQLite schema migrations with existence checks.
+## Key Fixes Applied This Session
+1. **Queue bypass**: `go g.processJob(job)` instead of queue send — avoids congestion from TormentNexus
+2. **Responses API JSON parsing**: `translateNonStreamToResponses` now handles both SSE (`data: ` prefix) and regular JSON responses — was only handling SSE, returning empty content
+3. **Response building**: Added proper Responses API response object construction (respID, output array, usage, status)
 
-## Current State
-- **Core Logic:** `internal/` packages (db, engine, proxy, config, ui) are 100% functional and tested.
-- **Stability:** The application buffers requests during model rotation, ensuring zero dropped connections.
-- **Build Status:** Passes all logic tests (`go test ./internal/...`).
+## Known Issues
+- **First request cold start**: The first Chat API request after proxy startup may time out (8s) while TormentNexus saturates workers. Subsequent requests succeed in <1s.
+- **Windows tray caps-changed flood**: System tray UI receives rapid "caps-changed" events that degrade performance.
+- **NVIDIA rate limiting**: NVIDIA consistently returns 429 under load; cooldown mechanism mitigates but doesn't eliminate this.
 
-## Notable Learnings
-- Go's `embed` package allows for a completely standalone binary with a built-in web dashboard, simplifying deployment.
-- Closure capture in Go requires careful variable ordering, especially when variables are initialized later in a block.
-- Database-backed persistence for proxy queues ensures requests survive crashes, fulfilling the "Highly Stable" directive.
+## Architecture
+- **Request flow**: ServeHTTP → processJob (direct, bypasses queue) → fan-out (3 candidates raced) → first 200 wins
+- **Provider cooldown**: 429/timeout → 10s cooldown, skipped in fan-out
+- **Provider diversity**: nvidia+nvidia_nim share one fan-out slot
+- **Known-working providers**: nvidia (qwen3.5-397b), sambanova (DeepSeek-V3.1), cerebras (gpt-oss-120b), mistral (mistral-large-latest) always included
+- **Score floor**: Large-param models can't drop below `(min(params,405)/100)*0.2`
+- **Cache guard**: Don't save rankings cache when top model has negative score
 
 ## Next Steps
-- Implement full OIDC/Keycloak integration for enterprise-grade proxy authentication.
-- Expand the Model Comparison UI to support multi-modal (vision) evaluation.
-- Integrate automated PR generation for the `known_models.go` list based on benchmark outliers.
+- Fix cold-start timeout for first Chat API request
+- Implement OIDC/Keycloak authentication
+- Expand Model Comparison UI for multi-modal evaluation
+- Fix Windows tray caps-changed event flood
