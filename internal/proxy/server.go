@@ -281,6 +281,17 @@ func (g *Gateway) streamSSE(w http.ResponseWriter, flusher http.Flusher, body io
 			for _, c := range choices {
 				if choice, ok := c.(map[string]interface{}); ok {
 					if delta, ok := choice["delta"].(map[string]interface{}); ok {
+							// Migrate reasoning_content to content if content is empty
+						if rc, ok := delta["reasoning_content"].(string); ok && rc != "" {
+							if existing, ok := delta["content"].(string); !ok || existing == "" {
+								delta["content"] = rc
+							}
+						}
+						if r, ok := delta["reasoning"].(string); ok && r != "" {
+							if existing, ok := delta["content"].(string); !ok || existing == "" {
+								delta["content"] = r
+							}
+						}
 						delete(delta, "reasoning_content")
 						delete(delta, "reasoning")
 					}
