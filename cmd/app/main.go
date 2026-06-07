@@ -153,9 +153,16 @@ func onReady() {
 		}
 	}
 
-	gateway := proxy.NewGateway(10, database)
+	gateway := proxy.NewGateway(10, database, 4000)
 	gateway.RestoreQueue()
 
+
+	// Load cached rankings from disk for instant startup
+	rankingsCache := engine.NewRankingsCache(".")
+	if cached := rankingsCache.Load(true); len(cached) > 0 {
+		gateway.UpdateModels(cached)
+		log.Printf("Cache-loaded %d models (top: %s, age: %v)", len(cached), cached[0].ID, rankingsCache.Age())
+	}
 	go func() {
 		addr := fmt.Sprintf(":%d", proxyPort)
 		log.Printf("Starting FreeLLM Proxy on %s", addr)
@@ -179,6 +186,7 @@ func onReady() {
 	routingEnabled := true
 	autoPilot := true
 	refreshTrigger := make(chan bool, 1)
+	benchmarkResult := make(chan engine.RankedModels, 1)
 	fullRefreshInterval := 60 * time.Minute
 	pulseInterval := 10 * time.Minute
 	lastFullRefresh := time.Time{}
@@ -488,31 +496,46 @@ func onReady() {
 			timeSinceFull := now.Sub(lastFullRefresh)
 
 			if timeSinceFull >= fullRefreshInterval || lastFullRefresh.IsZero() {
-				log.Println("Full refresh: benchmarking all candidates...")
+				log.Println("Full refresh: benchmarking in background...")
 				systray.SetIcon(icon.Yellow)
 				mStatus.SetTitle("FreeLLM: Syncing...")
-				notify("FreeLLM Sync", "Full model discovery started...")
+				lastFullRefresh = time.Now() // prevent re-triggering while running
 
-				candidates := benchmarker.FetchModels(ctx, database)
-				log.Printf("Discovered %d model candidates", len(candidates))
+				go func() {
+					notify("FreeLLM Sync", "Full model discovery started...")
 
-				ranked := benchmarker.RunBenchmark(ctx, candidates, database)
-				gateway.UpdateModels(ranked)
-				uiServer.UpdateModels(ranked)
+					candidates := benchmarker.FetchModels(ctx, database)
+					log.Printf("Discovered %d model candidates", len(candidates))
 
-				for _, m := range ranked {
-					db.UpdateModelPricing(database, m.ID, m.Provider, m.PromptPrice, m.CompletionPrice)
-				}
+					ranked := benchmarker.RunBenchmark(ctx, candidates, database)
+					gateway.UpdateModels(ranked)
+					uiServer.UpdateModels(ranked)
 
-				topModel := "none"
-				if len(ranked) > 0 {
-					topModel = ranked[0].ID
-					notify("Sync Complete", fmt.Sprintf("Top Model: %s (%.2fs)", topModel, ranked[0].Latency))
-				}
-				db.LogActivity(database, "Sync Complete", topModel, fmt.Sprintf("Ranked %d models", len(ranked)))
-				lastFullRefresh = time.Now()
-				updateTrayStatus()
-				rebuildDynamicMenu()
+					// Save rankings to disk cache for instant next startup
+	// Only save if top model has a positive score
+	if len(ranked) > 0 && ranked[0].Score > 0 {
+		if err := rankingsCache.Save(ranked); err != nil {
+			log.Printf("Cache save failed: %v", err)
+		} else {
+			log.Printf("Saved rankings cache (%d models, top score: %.1f)", len(ranked), ranked[0].Score)
+		}
+	} else if len(ranked) > 0 {
+		log.Printf("Skipping cache save: top score negative (%.1f), preserving existing cache", ranked[0].Score)
+	}
+
+					for _, m := range ranked {
+						db.UpdateModelPricing(database, m.ID, m.Provider, m.PromptPrice, m.CompletionPrice)
+					}
+
+					topModel := "none"
+					if len(ranked) > 0 {
+						topModel = ranked[0].ID
+						notify("Sync Complete", fmt.Sprintf("Top Model: %s (%.2fs)", topModel, ranked[0].Latency))
+					}
+					db.LogActivity(database, "Sync Complete", topModel, fmt.Sprintf("Ranked %d models", len(ranked)))
+					// Send results back to main loop for safe systray updates
+					benchmarkResult <- ranked
+				}()
 			} else {
 				if routingEnabled {
 					currentModels := gateway.GetModels()
@@ -529,6 +552,12 @@ func onReady() {
 			}
 
 			select {
+			case ranked := <-benchmarkResult:
+				// Benchmark completed - update tray safely on main goroutine
+				lastFullRefresh = time.Now()
+				updateTrayStatus()
+				rebuildDynamicMenu()
+				_ = ranked
 			case <-refreshTrigger:
 			case <-time.After(pulseInterval):
 			}
