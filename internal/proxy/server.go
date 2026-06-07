@@ -503,13 +503,16 @@ func (g *Gateway) processJob(job *RequestJob) {
 			go func(m engine.ModelCandidate, s []byte) {
 				// Per-provider rate limiting with 429 backoff
 				if sem, ok := g.providerSems[m.Provider]; ok {
-					sem <- struct{}{} // acquire slot
+					select {
+					case sem <- struct{}{}: // acquired slot
+					case <-time.After(2 * time.Second):
+						// Could not acquire slot, skip this provider
+						fanCh <- fanResult{model: m, resp: &ProxyResponse{Err: fmt.Errorf("provider %s: semaphore timeout", m.Provider)}}
+						return
+					}
 					defer func() {
-						// If this request got 429, hold the slot for 5s to prevent hammering
-						// The cooldown check in filterCandidates will also prevent re-queueing
-						time.Sleep(5 * time.Second)
-						<-sem
-					}()
+					<-sem // release slot immediately (cooldown handles 429 backoff)
+				}()
 				}
 				mc := &http.Client{Timeout: 3 * time.Second}
 				fanCh <- fanResult{model: m, resp: g.forwardRequest(mc, job.Request, m, s)}
@@ -523,7 +526,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 			// Set provider cooldown on 429 or timeout
 			if result.resp.Status == 429 || result.resp.Err != nil {
 				g.cooldownMu.Lock()
-				g.providerCooldown[result.model.Provider] = time.Now().Add(10 * time.Second)
+				g.providerCooldown[result.model.Provider] = time.Now().Add(5 * time.Second)
 				g.cooldownMu.Unlock()
 				log.Printf("[ROUTER] Provider %s on cooldown for 10s (status=%d)", result.model.Provider, result.resp.Status)
 			}
