@@ -191,6 +191,10 @@ func onReady() {
 	pulseInterval := 10 * time.Minute
 	lastFullRefresh := time.Time{}
 	menuBuilt := false
+	primarySlots := make([]*systray.MenuItem, 10)
+	fallbackSlots := make([]*systray.MenuItem, 20)
+	primarySlotIDs := make([]string, 10)
+	fallbackSlotIDs := make([]string, 20)
 
 	// ============================================================
 	//  Build Static Menu (matches Python version layout)
@@ -259,6 +263,20 @@ func onReady() {
 
 	// --- Fallback Models Submenu (flat, populated dynamically) ---
 	mFallbackGroup := systray.AddMenuItem("  Fallback (0)", "Fallback model group")
+
+	// Pre-create primary model slots (up to 10)
+	for i := 0; i < 10; i++ {
+		slot := mPrimaryGroup.AddSubMenuItem("--", "")
+		primarySlots[i] = slot
+		watchMenuItem(slot, "model_set_primary_slot", fmt.Sprintf("%d", i))
+	}
+
+	// Pre-create fallback model slots (up to 20)
+	for i := 0; i < 20; i++ {
+		slot := mFallbackGroup.AddSubMenuItem("--", "")
+		fallbackSlots[i] = slot
+		watchMenuItem(slot, "model_set_fallback_slot", fmt.Sprintf("%d", i))
+	}
 
 	systray.AddSeparator()
 
@@ -336,122 +354,68 @@ func onReady() {
 	// ============================================================
 
 	rebuildDynamicMenu := func() {
-		if menuBuilt {
-			return // systray doesn't support removing items, build once
-		}
-
 		models := gateway.GetModels()
 		if len(models) == 0 {
-			return // don't build yet, don't set menuBuilt so it retries later
+			return
 		}
-		primaryCount := gateway.PrimaryCount
+		pCount := gateway.PrimaryCount
+		if pCount > 10 { pCount = 10 }
+		if len(models) < pCount { pCount = len(models) }
+		maxModels := 30
+		if len(models) < maxModels { maxModels = len(models) }
+		fCount := maxModels - pCount
+		if fCount > 20 { fCount = 20 }
+		if fCount < 0 { fCount = 0 }
 
-		pCount := primaryCount
-		if len(models) < pCount {
-			pCount = len(models)
-		}
-		fCount := len(models) - primaryCount
-		if fCount < 0 {
-			fCount = 0
-		}
-
-		mPrimaryGroup.SetTitle(fmt.Sprintf("★ Primary (%d)", pCount))
+		mPrimaryGroup.SetTitle(fmt.Sprintf("\u2605 Primary (%d)", pCount))
 		mFallbackGroup.SetTitle(fmt.Sprintf("  Fallback (%d)", fCount))
 
-		for i, m := range models {
-			isPrimary := i < primaryCount
-
-			latStr := "?"
-			if m.Latency > 0 {
-				latStr = fmt.Sprintf("%.2fs", m.Latency)
-			}
-			scoreStr := ""
-			if m.Score > 0 {
-				scoreStr = fmt.Sprintf("score=%.0f", m.Score)
-			}
-			paramsStr := ""
-			if m.Parameters > 0 {
-				paramsStr = fmt.Sprintf("%dB", m.Parameters)
-			}
-			groupTag := "★"
-			if !isPrimary {
-				groupTag = "  "
-			}
-
-			// Model label is a flat item under the group submenu.
-			// Clicking it sets it as primary (#1).
-			label := fmt.Sprintf("%s %s (%s) %s %s %s", groupTag, m.ID, m.Provider, paramsStr, latStr, scoreStr)
-
-			var parent *systray.MenuItem
-			if isPrimary {
-				parent = mPrimaryGroup
+		// Update primary slots
+		for i := 0; i < 10; i++ {
+			if i < pCount && i < len(models) {
+				m := models[i]
+				latStr := "?"
+				if m.Latency > 0 { latStr = fmt.Sprintf("%.2fs", m.Latency) }
+				scoreStr := ""
+				if m.Score > 0 { scoreStr = fmt.Sprintf("score=%.0f", m.Score) }
+				primarySlots[i].SetTitle(fmt.Sprintf("\u2605 %s (%s) %s %s", m.ID, m.Provider, latStr, scoreStr))
+				primarySlotIDs[i] = m.ID
+				primarySlots[i].Enable()
 			} else {
-				parent = mFallbackGroup
-			}
-
-			mEntry := parent.AddSubMenuItem(label, m.ID)
-
-			// --- Set as Primary ★ (clicking the model name itself also does this) ---
-			mSetPrimary := mEntry.AddSubMenuItem("★ Set as Primary", "Make "+m.ID+" the #1 model")
-			watchMenuItem(mSetPrimary, "model_set_primary", m.ID)
-
-			// --- Set as Fallback ---
-			mSetFallback := mEntry.AddSubMenuItem("↕ Set as Fallback", "Make "+m.ID+" the top fallback model")
-			watchMenuItem(mSetFallback, "model_set_fallback", m.ID)
-
-			// Skip (24h)
-			mSkip := mEntry.AddSubMenuItem("Skip (24h)", "Skip "+m.ID+" for 24 hours")
-			watchMenuItem(mSkip, "model_skip", m.ID)
-
-			// Blacklist
-			mBL := mEntry.AddSubMenuItem("Blacklist", "Permanently blacklist "+m.ID)
-			watchMenuItem(mBL, "model_blacklist", m.ID)
-
-			if isPrimary {
-				// Demote
-				mDemote := mEntry.AddSubMenuItem("↓ Demote to Fallback", "Move "+m.ID+" to fallback group")
-				watchMenuItem(mDemote, "model_demote", m.ID)
-
-				// Move Up (if not already #1)
-				if i > 0 {
-					mUp := mEntry.AddSubMenuItem("↑ Move Up", "Move "+m.ID+" higher in priority")
-					watchMenuItem(mUp, "model_move_up", m.ID)
-				}
-
-				// Move Down (if not last in primary group)
-				if i < primaryCount-1 && i < len(models)-1 {
-					mDown := mEntry.AddSubMenuItem("↓ Move Down", "Move "+m.ID+" lower in priority")
-					watchMenuItem(mDown, "model_move_down", m.ID)
-				}
-			} else {
-				// Promote
-				mPromote := mEntry.AddSubMenuItem("↑ Promote to Primary", "Move "+m.ID+" to primary group")
-				watchMenuItem(mPromote, "model_promote", m.ID)
-
-				// Move Up (if not first in fallback)
-				if i > primaryCount {
-					mUp := mEntry.AddSubMenuItem("↑ Move Up", "Move "+m.ID+" higher in priority")
-					watchMenuItem(mUp, "model_move_up", m.ID)
-				}
-
-				// Move Down (if not last)
-				if i < len(models)-1 {
-					mDown := mEntry.AddSubMenuItem("↓ Move Down", "Move "+m.ID+" lower in priority")
-					watchMenuItem(mDown, "model_move_down", m.ID)
-				}
+				primarySlots[i].SetTitle("---")
+				primarySlotIDs[i] = ""
+				primarySlots[i].Disable()
 			}
 		}
 
-		// Build provider toggle checkboxes
-		providerHealth, _ := db.GetProviderHealth(database)
-		for _, ph := range providerHealth {
-			cb := mProviders.AddSubMenuItemCheckbox(ph.Name,
-				fmt.Sprintf("Toggle %s (latency=%.1fs, success=%.0f%%)", ph.Name, ph.AvgLatency, ph.SuccessRate),
-				ph.Enabled)
-			watchMenuItem(cb, "toggle_provider", ph.Name)
+		// Update fallback slots
+		for i := 0; i < 20; i++ {
+			mi := pCount + i
+			if i < fCount && mi < len(models) {
+				m := models[mi]
+				latStr := "?"
+				if m.Latency > 0 { latStr = fmt.Sprintf("%.2fs", m.Latency) }
+				scoreStr := ""
+				if m.Score > 0 { scoreStr = fmt.Sprintf("score=%.0f", m.Score) }
+				fallbackSlots[i].SetTitle(fmt.Sprintf("  %s (%s) %s %s", m.ID, m.Provider, latStr, scoreStr))
+				fallbackSlotIDs[i] = m.ID
+				fallbackSlots[i].Enable()
+			} else {
+				fallbackSlots[i].SetTitle("---")
+				fallbackSlotIDs[i] = ""
+				fallbackSlots[i].Disable()
+			}
 		}
 
-		menuBuilt = true
+		// Build provider toggles once
+		if !menuBuilt {
+			providerHealth, _ := db.GetProviderHealth(database)
+			for _, ph := range providerHealth {
+				cb := mProviders.AddSubMenuItemCheckbox(ph.Name, fmt.Sprintf("Toggle %s", ph.Name), ph.Enabled)
+				watchMenuItem(cb, "toggle_provider", ph.Name)
+			}
+			menuBuilt = true
+		}
 	}
 
 	// ============================================================
@@ -482,6 +446,7 @@ func onReady() {
 		}
 
 		systray.SetTooltip(fmt.Sprintf("FreeLLM - Primary: %s", primaryLabel))
+			systray.SetTitle(fmt.Sprintf("FreeLLM: %s", top.ID))
 		mStatus.SetTitle(fmt.Sprintf("FreeLLM: Live | Primary: %s | %d models", primaryLabel, len(models)))
 	}
 
@@ -549,6 +514,7 @@ func onReady() {
 					}
 				}
 				updateTrayStatus()
+			rebuildDynamicMenu()
 			}
 
 			select {
@@ -802,8 +768,30 @@ func onReady() {
 				open.Run("http://localhost:8080#config-tab")
 
 			// --- Model Actions ---
+			case "model_set_primary_slot":
+				slotIdx, _ := strconv.Atoi(action.data)
+				if slotIdx >= 0 && slotIdx < 10 && primarySlotIDs[slotIdx] != "" {
+					modelID := primarySlotIDs[slotIdx]
+					log.Printf("Setting %s as primary", modelID)
+					gateway.SetModelPrimary(modelID)
+					db.LogActivity(database, "Set Primary", modelID, "Manually set as primary model")
+					notify("FreeLLM", fmt.Sprintf("Primary set to: %s", modelID))
+					updateTrayStatus()
+					rebuildDynamicMenu()
+				}
+			case "model_set_fallback_slot":
+				slotIdx2, _ := strconv.Atoi(action.data)
+				if slotIdx2 >= 0 && slotIdx2 < 20 && fallbackSlotIDs[slotIdx2] != "" {
+					modelID := fallbackSlotIDs[slotIdx2]
+					log.Printf("Setting %s as primary from fallback", modelID)
+					gateway.SetModelPrimary(modelID)
+					db.LogActivity(database, "Set Primary", modelID, "Manually set as primary from fallback")
+					notify("FreeLLM", fmt.Sprintf("Primary set to: %s", modelID))
+					updateTrayStatus()
+					rebuildDynamicMenu()
+				}
 			case "model_set_primary":
-				log.Printf("Setting %s as primary ★", action.data)
+				log.Printf("Setting %s as primary", action.data)
 				gateway.SetModelPrimary(action.data)
 				db.LogActivity(database, "Set Primary", action.data, "Manually set as primary model")
 				notify("FreeLLM", fmt.Sprintf("Primary set to: %s", action.data))

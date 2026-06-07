@@ -599,6 +599,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 }
 
 func (g *Gateway) onSuccess(job *RequestJob, model engine.ModelCandidate, proxyResp *ProxyResponse, body []byte) {
+	log.Printf("[PROXY] Routed to: %s (%s) score=%.1f", model.ID, model.Provider, model.Score)
 	if job.DBID > 0 {
 		db.DequeueRequest(g.DB, job.DBID)
 	}
