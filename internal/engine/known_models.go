@@ -84,6 +84,27 @@ var KnownModels = map[string]ModelSpec{
 	"zhipu/glm-5.1": {Params: 744, Ctx: 128000, Provider: "zhipu"},
 	"zhipu/glm-4-plus": {Params: 130, Ctx: 128000, Provider: "zhipu"},
 	"zhipu/glm-4-flash": {Params: 130, Ctx: 128000, Provider: "zhipu"},
+	// InternLM (Shanghai AI Lab) models
+	"internlm/internlm3-latest": {Params: 200, Ctx: 128000, Provider: "internlm"},
+	"internlm/internlm3-20b": {Params: 20, Ctx: 128000, Provider: "internlm"},
+	// Arcee AI models
+	"arcee/trinity": {Params: 400, Ctx: 128000, Provider: "arcee"},
+	"arcee/arcee-flash": {Params: 70, Ctx: 128000, Provider: "arcee"},
+	// Perplexity models
+	"perplexity/sonar": {Params: 8, Ctx: 128000, Provider: "perplexity"},
+	"perplexity/sonar-pro": {Params: 70, Ctx: 200000, Provider: "perplexity"},
+	"perplexity/sonar-reasoning": {Params: 70, Ctx: 128000, Provider: "perplexity"},
+	"perplexity/r1-1776": {Params: 685, Ctx: 128000, Provider: "perplexity"},
+	// xAI (Grok) models
+	"xai/grok-3": {Params: 314, Ctx: 131072, Provider: "xai"},
+	"xai/grok-3-mini": {Params: 314, Ctx: 131072, Provider: "xai"},
+	"xai/grok-3-fast": {Params: 314, Ctx: 131072, Provider: "xai"},
+	"xai/grok-4.20": {Params: 500, Ctx: 128000, Provider: "xai"},
+	// Tencent Hunyuan models
+	"hunyuan/hunyuan-lite": {Params: 70, Ctx: 256000, Provider: "hunyuan"},
+	"hunyuan/hunyuan-standard": {Params: 70, Ctx: 128000, Provider: "hunyuan"},
+	"hunyuan/hunyuan-pro": {Params: 200, Ctx: 128000, Provider: "hunyuan"},
+	"hunyuan/hunyuan-turbos": {Params: 70, Ctx: 128000, Provider: "hunyuan"},
 }
 
 func LookupKnownModel(modelID string) (ModelSpec, bool) {
