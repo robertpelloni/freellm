@@ -23,7 +23,7 @@ func (m *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func TestGatewayQueueing(t *testing.T) {
-	g := NewGateway(0, nil) // 0 workers to force queueing
+	g := NewGateway(0, nil, 4000) // 0 workers to force queueing
 
 	g.UpdateModels(engine.RankedModels{
 		{ID: "test-model", Provider: "openrouter"},
@@ -74,7 +74,7 @@ func TestHealthChecks(t *testing.T) {
 }
 
 func TestRoutingLogic(t *testing.T) {
-	g := NewGateway(1, nil)
+	g := NewGateway(1, nil, 4000)
 	g.PrimaryCount = 1 // Rotate after 1 failure
 
 	g.UpdateModels(engine.RankedModels{
@@ -135,7 +135,7 @@ func TestRoutingLogic(t *testing.T) {
 }
 
 func TestFallbackGroup(t *testing.T) {
-	g := NewGateway(1, nil)
+	g := NewGateway(1, nil, 4000)
 	g.PrimaryCount = 1
 
 	g.UpdateModels(engine.RankedModels{

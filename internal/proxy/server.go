@@ -44,8 +44,6 @@ type Gateway struct {
 	cbRecoveryMu sync.Mutex
 	cbLogMu sync.Mutex
 	cbLogTime time.Time
-	webaiConvMu sync.RWMutex
-	webaiConversations map[string]string
 	LastUsedModel string
 	LastUsedProvider string
 }
@@ -84,8 +82,7 @@ func NewGateway(maxActive int, database *sql.DB, port int) *Gateway {
 		providerCooldown: make(map[string]time.Time),
 		Client: &http.Client{Timeout: 30 * time.Second},
 		preflightCache: make(map[string]preflightEntry),
-		webaiConversations: make(map[string]string),
-	}
+		}
 	go g.workerLoop()
 	return g
 }
@@ -528,7 +525,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 				g.cooldownMu.Lock()
 				g.providerCooldown[result.model.Provider] = time.Now().Add(5 * time.Second)
 				g.cooldownMu.Unlock()
-				log.Printf("[ROUTER] Provider %s on cooldown for 10s (status=%d)", result.model.Provider, result.resp.Status)
+				log.Printf("[ROUTER] Provider %s on cooldown for 5s (status=%d)", result.model.Provider, result.resp.Status)
 			}
 			if result.resp.Err == nil && result.resp.Status < 400 {
 				g.onSuccess(job, result.model, result.resp, body)
@@ -663,7 +660,7 @@ func (g *Gateway) classifyRequest(body []byte) (hasTools bool, toolModels []engi
 
 // filterCandidates removes circuit-broken models
 func (g *Gateway) filterCandidates(all engine.RankedModels) []engine.ModelCandidate {
-	skipProvider := map[string]bool{"webai": true, "ollama": true, "lm_studio": true}
+	skipProvider := map[string]bool{"ollama": true, "lm_studio": true}
 	valid := make([]engine.ModelCandidate, 0, len(all))
 	skipped := 0
 	// Check provider cooldowns
@@ -913,40 +910,6 @@ func (g *Gateway) PreFlightCheck(model engine.ModelCandidate) bool {
 }
 
 // forwardRequest sends the request to a specific provider
-// wrapWebAIStream wraps an SSE stream from the WebAI provider to capture
-// conversation_id from chunks for auto-continuation of future requests.
-// It passes all data through unchanged; only extracts the conversation_id.
-func (g *Gateway) wrapWebAIStream(body io.ReadCloser, modelForAPI string) io.ReadCloser {
-	pr, pw := io.Pipe()
-	go func() {
-		defer body.Close()
-		defer pw.Close()
-		bufReader := bufio.NewReader(body)
-		for {
-			line, err := bufReader.ReadString('\n')
-			if err != nil && line == "" {
-				break
-			}
-			// Try to extract conversation_id from data lines
-			trimmed := strings.TrimRight(line, "\r\n")
-			if strings.HasPrefix(trimmed, "data: ") && trimmed != "data: [DONE]" {
-				data := trimmed[6:]
-				var chunk map[string]interface{}
-				if json.Unmarshal([]byte(data), &chunk) == nil {
-					if cid, ok := chunk["conversation_id"].(string); ok && cid != "" {
-						g.webaiConvMu.Lock()
-						g.webaiConversations[modelForAPI] = cid
-						g.webaiConvMu.Unlock()
-					}
-				}
-			}
-			pw.Write([]byte(line))
-		}
-	}()
-	return pr
-}
-
-
 func (g *Gateway) forwardRequest(client *http.Client, r *http.Request, model engine.ModelCandidate, body []byte) *ProxyResponse {
 	var payload map[string]interface{}
 	if err := json.Unmarshal(body, &payload); err != nil {
@@ -959,17 +922,6 @@ func (g *Gateway) forwardRequest(client *http.Client, r *http.Request, model eng
 		modelForAPI = strings.TrimPrefix(modelForAPI, "nvidia_nim/")
 	}
 	payload["model"] = modelForAPI
-
-	// WebAI: auto-inject conversation_id for continuity
-	if model.Provider == "webai" {
-		if _, hasCid := payload["conversation_id"]; !hasCid {
-			g.webaiConvMu.RLock()
-			if lastCid, ok := g.webaiConversations[modelForAPI]; ok && lastCid != "" {
-				payload["conversation_id"] = lastCid
-			}
-			g.webaiConvMu.RUnlock()
-		}
-	}
 
 	stream, _ := payload["stream"].(bool)
 	newBody, _ := json.Marshal(payload)
@@ -994,15 +946,6 @@ func (g *Gateway) forwardRequest(client *http.Client, r *http.Request, model eng
 	}
 
 	if stream && resp.StatusCode == http.StatusOK {
-		if model.Provider == "webai" {
-			return &ProxyResponse{
-				Status:   resp.StatusCode,
-				Header:   resp.Header,
-				Stream:   g.wrapWebAIStream(resp.Body, modelForAPI),
-				ModelID:  model.ID,
-				Provider: model.Provider,
-			}
-		}
 		return &ProxyResponse{
 			Status:   resp.StatusCode,
 			Header:   resp.Header,
@@ -1055,15 +998,6 @@ func (g *Gateway) forwardRequest(client *http.Client, r *http.Request, model eng
 			}
 			// Set model name in response
 			rd["model"] = model.ID
-
-			// WebAI: extract and store conversation_id for auto-continuation
-			if model.Provider == "webai" {
-				if cid, ok := rd["conversation_id"].(string); ok && cid != "" {
-					g.webaiConvMu.Lock()
-					g.webaiConversations[modelForAPI] = cid
-					g.webaiConvMu.Unlock()
-				}
-			}
 
 			respBody, _ = json.Marshal(rd)
 		}
@@ -1126,9 +1060,7 @@ func (g *Gateway) getProviderURL(modelID, provider string) string {
 		return "https://api.anthropic.com/v1/messages"
 	case "gemini":
 		return "https://generativelanguage.googleapis.com/v1beta/models/" + modelID + ":streamGenerateContent"
-	case "webai":
-		return "http://localhost:6969/v1/chat/completions"
-	case "openai":
+		case "openai":
 		return "https://api.openai.com/v1/chat/completions"
 	}
 	return ""
@@ -1175,9 +1107,7 @@ func (g *Gateway) getAPIKey(provider string) string {
 		return os.Getenv("ANTHROPIC_API_KEY")
 	case "gemini":
 		return os.Getenv("GEMINI_API_KEY")
-	case "webai":
-		return os.Getenv("WEBAI_API_KEY")
-	}
+		}
 	return ""
 }
 
@@ -1225,9 +1155,7 @@ func (g *Gateway) handleModels(w http.ResponseWriter, r *http.Request) {
 			{"gemini-3-flash", "model", time.Now().Unix(), "freellm"},
 			{"gemini-3.5-flash", "model", time.Now().Unix(), "freellm"},
 			{"gemini-3.1-pro", "model", time.Now().Unix(), "freellm"},
-			{"webai-gemini", "model", time.Now().Unix(), "freellm"},
-			{"webai-gemini-fallback", "model", time.Now().Unix(), "freellm"},
-		},
+				},
 	}
 	for _, m := range g.GetModels() {
 		resp.Data = append(resp.Data, ME{m.ID, "model", time.Now().Unix(), m.Provider})
