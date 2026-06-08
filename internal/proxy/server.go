@@ -47,6 +47,7 @@ type Gateway struct {
 	LastUsedModel string
 	LastUsedProvider string
 	A2A A2ARouter
+	Sessions *SessionTracker
 }
 
 // A2ARouter is the interface for A2A protocol route handling.
@@ -66,6 +67,8 @@ type RequestJob struct {
 	Response chan *ProxyResponse
 	Ctx      context.Context
 	DBID     int64
+
+	IsStream bool // Whether client expects SSE streaming
 }
 
 type ProxyResponse struct {
@@ -90,6 +93,7 @@ func NewGateway(maxActive int, database *sql.DB, port int) *Gateway {
 		providerCooldown: make(map[string]time.Time),
 		Client: &http.Client{Timeout: 30 * time.Second},
 		preflightCache: make(map[string]preflightEntry),
+		Sessions:   NewSessionTracker(),
 		}
 	go g.workerLoop()
 	return g
@@ -156,6 +160,21 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		g.handleResponsesAPI(w, r)
 		return
 	}
+	// Session info endpoint
+	if r.URL.Path == "/api/sessions" {
+		g.mu.RLock()
+		count := 0
+		if g.Sessions != nil {
+			count = g.Sessions.ActiveSessionCount()
+		}
+		g.mu.RUnlock()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"active_sessions": count,
+		})
+		return
+	}
+
 	// A2A protocol routes
 	if g.A2A != nil {
 		if r.URL.Path == "/.well-known/agent-card" {
@@ -218,23 +237,71 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		dbID, _ = db.EnqueueRequest(g.DB, r.Method, r.URL.String(), headers.String(), body)
 	}
 
-	job := &RequestJob{Request: r, Response: make(chan *ProxyResponse, 1), Ctx: ctx, DBID: dbID}
+	// Detect if client expects SSE streaming
+	isStream := false
+	var peekPayload map[string]interface{}
+	if json.Unmarshal(body, &peekPayload) == nil {
+		if s, ok := peekPayload["stream"].(bool); ok {
+			isStream = s
+		}
+	}
+	job := &RequestJob{Request: r, Response: make(chan *ProxyResponse, 1), Ctx: ctx, DBID: dbID, IsStream: isStream}
 	// Bypass queue: call processJob directly for immediate processing
 	// This avoids queue congestion from background agent traffic
 	go g.processJob(job)
 
-	log.Printf("[PROXY] Waiting for job response...")
-	resp := <-job.Response
+	wroteHeader := false
+	log.Printf("[PROXY] Waiting for job response (stream=%v)...", isStream)
+	var resp *ProxyResponse
+	// Keepalive loop: wait for response while sending periodic pings
+	// to prevent client or intermediary timeouts
+	keepaliveInterval := 15 * time.Second
+	if isStream {
+		keepaliveInterval = 10 * time.Second
+	}
+	keepaliveTicker := time.NewTicker(keepaliveInterval)
+	defer keepaliveTicker.Stop()
+WaitLoop:
+	for {
+		select {
+		case resp = <-job.Response:
+			break WaitLoop
+		case <-keepaliveTicker.C:
+			if isStream {
+				// Start SSE and send keepalive comment
+				if !wroteHeader {
+					w.Header().Set("Content-Type", "text/event-stream")
+					w.Header().Set("Cache-Control", "no-cache")
+					w.Header().Set("Connection", "keep-alive")
+					w.Header().Set("X-Accel-Buffering", "no")
+					w.WriteHeader(http.StatusOK)
+					wroteHeader = true
+				}
+				fmt.Fprintf(w, ": keepalive\n\n")
+				if flusher, ok := w.(http.Flusher); ok {
+					flusher.Flush()
+				}
+				log.Printf("[PROXY] Sent SSE keepalive ping")
+			} else {
+				log.Printf("[PROXY] Still waiting for model response...")
+			}
+		case <-ctx.Done():
+			log.Printf("[PROXY] Client disconnected while waiting")
+			return
+		}
+	}
 	log.Printf("[PROXY] Got response, err=%v status=%d", resp.Err, resp.Status)
 	if resp.Err != nil {
 		writeJSONError(w, http.StatusBadGateway, resp.Err.Error(), "server_error", "proxy")
 		return
 	}
 
-	for k, v := range resp.Header {
-		w.Header()[k] = v
+	if !wroteHeader {
+		for k, v := range resp.Header {
+			w.Header()[k] = v
+		}
+		w.WriteHeader(resp.Status)
 	}
-	w.WriteHeader(resp.Status)
 
 	if resp.Stream != nil {
 		defer resp.Stream.Close()
@@ -412,229 +479,6 @@ func isTransientError(status int) bool {
 	return status == 413 || status == 429 || status == 402 || status == 408 || status == 503
 }
 
-func (g *Gateway) processJob(job *RequestJob) {
-	g.mu.RLock()
-	allModels := g.RankedModels
-	g.mu.RUnlock()
-
-	if len(allModels) == 0 {
-		job.Response <- &ProxyResponse{Err: fmt.Errorf("no models available")}
-		return
-	}
-
-	body, err := io.ReadAll(job.Request.Body)
-	if err != nil {
-		job.Response <- &ProxyResponse{Err: fmt.Errorf("read body: %v", err)}
-		return
-	}
-
-	hasTools, toolModels, plainModels := g.classifyRequest(body)
-	models := g.filterCandidates(allModels)
-
-	if len(models) == 0 {
-		log.Println("[ROUTER] All models circuit-broken, auto-recovering...")
-		g.autoRecoverCircuitBreakers()
-		models = allModels
-	}
-
-	// Build ordered attempt list
-	var attemptOrder []engine.ModelCandidate
-	if hasTools && len(toolModels) > 0 {
-		attemptOrder = append(attemptOrder, toolModels...)
-		if len(attemptOrder) < 5 {
-			attemptOrder = append(attemptOrder, plainModels...)
-		}
-	} else {
-		attemptOrder = models
-	}
-
-	client := g.Client
-	if client == nil {
-		client = &http.Client{Timeout: 30 * time.Second}
-	}
-
-	if len(attemptOrder) > 0 {
-		top3 := make([]string, 0, 3)
-		for i := 0; i < 3 && i < len(attemptOrder); i++ {
-			top3 = append(top3, attemptOrder[i].ID+"("+attemptOrder[i].Provider+")="+fmt.Sprintf("%.1f", attemptOrder[i].Score))
-		}
-		log.Printf("[ROUTER] attemptOrder top3 (hasTools=%v, toolM=%d, plainM=%d): %v", hasTools, len(toolModels), len(plainModels), top3)
-	}
-	// Phase 1: Concurrent fan-out for top candidates, then sequential fallback
-	var lastErr error
-	
-	// Fan-out: race top N models concurrently with provider diversity
-	// Group nvidia/nvidia_nim together (same API endpoint, shared rate limit)
-	providerGroup := func(p string) string {
-		if p == "nvidia" || p == "nvidia_nim" { return "nvidia_group" }
-		return p
-	}
-	// Check active cooldowns
-	g.cooldownMu.Lock()
-	now := time.Now()
-	activeCooldowns := make(map[string]bool)
-	for prov, until := range g.providerCooldown {
-		if now.Before(until) {
-			activeCooldowns[prov] = true
-		} else {
-			delete(g.providerCooldown, prov)
-		}
-	}
-	g.cooldownMu.Unlock()
-	fanOutModels := make([]engine.ModelCandidate, 0, 3)
-	seenGroups := make(map[string]bool)
-	for _, m := range attemptOrder {
-		grp := providerGroup(m.Provider)
-		if activeCooldowns[m.Provider] { continue } // Skip providers on cooldown
-		if !seenGroups[grp] && len(fanOutModels) < 3 {
-			fanOutModels = append(fanOutModels, m)
-			seenGroups[grp] = true
-		}
-	}
-	// Always include at least one model from known-working providers
-	// even if their scores are low (they may have been reduced by failed benchmarks)
-	knownWorking := map[string]string{
-		"nvidia":    "qwen/qwen3.5-397b-a17b",
-		"sambanova": "DeepSeek-V3.1",
-		"cerebras":  "zai-glm-4.7",
-		"mistral":   "mistral-large-latest",
-	}
-	includedGroups := make(map[string]bool)
-	for _, m := range fanOutModels {
-		includedGroups[providerGroup(m.Provider)] = true
-	}
-	for prov, modelID := range knownWorking {
-		grp := providerGroup(prov)
-		if includedGroups[grp] || activeCooldowns[prov] {
-			continue
-		}
-		if len(fanOutModels) >= 5 {
-			break
-		}
-		// Find this model in allModels (not just attemptOrder, since it might have been filtered)
-		for _, m := range allModels {
-			if m.ID == modelID && m.Provider == prov {
-				if m.Score < 0 { m.Score = 0.5 } // Give it a minimum score
-				fanOutModels = append(fanOutModels, m)
-				includedGroups[grp] = true
-				break
-			}
-		}
-	}
-	fanOutSize := len(fanOutModels)
-	log.Printf("[ROUTER] Fan-out %d models (diverse providers) from %d candidates, top3: %v", fanOutSize, len(attemptOrder), func() []string {
-		names := make([]string, 0, fanOutSize)
-		for i := 0; i < fanOutSize && i < len(fanOutModels); i++ {
-			names = append(names, fanOutModels[i].ID+"("+fanOutModels[i].Provider+")")
-		}
-		return names
-	}())
-	if fanOutSize > 0 {
-		type fanResult struct {
-			model engine.ModelCandidate
-			resp  *ProxyResponse
-		}
-		fanCh := make(chan fanResult, fanOutSize)
-		for i := 0; i < fanOutSize; i++ {
-			model := fanOutModels[i]
-			sanitized := g.sanitizeRequestBody(model.Provider, body, hasTools, model.ID)
-			go func(m engine.ModelCandidate, s []byte) {
-				// Per-provider rate limiting with 429 backoff
-				if sem, ok := g.providerSems[m.Provider]; ok {
-					select {
-					case sem <- struct{}{}: // acquired slot
-					case <-time.After(2 * time.Second):
-						// Could not acquire slot, skip this provider
-						fanCh <- fanResult{model: m, resp: &ProxyResponse{Err: fmt.Errorf("provider %s: semaphore timeout", m.Provider)}}
-						return
-					}
-					defer func() {
-					<-sem // release slot immediately (cooldown handles 429 backoff)
-				}()
-				}
-				mc := &http.Client{Timeout: 3 * time.Second}
-				fanCh <- fanResult{model: m, resp: g.forwardRequest(mc, job.Request, m, s)}
-			}(model, sanitized)
-		}
-		// Wait for first success or all failures
-		fanFailCount := 0
-		for fanFailCount < fanOutSize {
-			result := <-fanCh
-			log.Printf("[ROUTER] Fan-out result: %s(%s) err=%v status=%d", result.model.ID, result.model.Provider, result.resp.Err, result.resp.Status)
-			// Set provider cooldown on 429 or timeout
-			if result.resp.Status == 429 || result.resp.Err != nil {
-				g.cooldownMu.Lock()
-				g.providerCooldown[result.model.Provider] = time.Now().Add(5 * time.Second)
-				g.cooldownMu.Unlock()
-				log.Printf("[ROUTER] Provider %s on cooldown for 5s (status=%d)", result.model.Provider, result.resp.Status)
-			}
-			if result.resp.Err == nil && result.resp.Status < 400 {
-				g.onSuccess(job, result.model, result.resp, body)
-				return
-			}
-			// Don't count transient errors as model failures
-			if g.DB != nil && !isTransientError(result.resp.Status) {
-				db.RecordFailure(g.DB, result.model.ID)
-			}
-			if result.resp.Err != nil {
-				lastErr = result.resp.Err
-			} else {
-				lastErr = fmt.Errorf("%s: status %d", result.model.ID, result.resp.Status)
-			}
-			fanFailCount++
-		}
-	}
-	
-	// Sequential fallback for remaining candidates
-	for i := fanOutSize; i < len(attemptOrder); i++ {
-		model := attemptOrder[i]
-		sanitized := g.sanitizeRequestBody(model.Provider, body, hasTools, model.ID)
-		mc := &http.Client{Timeout: 3 * time.Second}
-		proxyResp := g.forwardRequest(mc, job.Request, model, sanitized)
-		if proxyResp.Err == nil && proxyResp.Status < 400 {
-			g.onSuccess(job, model, proxyResp, body)
-			return
-		}
-		// Don't count transient errors as model failures
-		if g.DB != nil && !isTransientError(proxyResp.Status) {
-			db.RecordFailure(g.DB, model.ID)
-		}
-		if proxyResp.Err != nil {
-			lastErr = proxyResp.Err
-		} else {
-			lastErr = fmt.Errorf("%s: status %d", model.ID, proxyResp.Status)
-		}
-	}
-
-	// Phase 2: Auto-recover circuit breakers and retry top 5
-	if time.Since(g.cbLogTime) > 5*time.Minute {
-			log.Println("[ROUTER] All models failed in phase 1, auto-recovering and retrying top 3...")
-		}
-	g.autoRecoverCircuitBreakers()
-	retryModels := g.filterCandidates(allModels)
-	if len(retryModels) == 0 {
-		retryModels = allModels
-	}
-	maxRetry := minInt(len(retryModels), 3)
-	for i := 0; i < maxRetry; i++ {
-		model := retryModels[i]
-		sanitized := g.sanitizeRequestBody(model.Provider, body, hasTools, model.ID)
-		proxyResp := g.forwardRequest(client, job.Request, model, sanitized)
-		if proxyResp.Err == nil && proxyResp.Status < 400 {
-			g.onSuccess(job, model, proxyResp, body)
-			return
-		}
-		lastErr = proxyResp.Err
-		if proxyResp.Err == nil {
-			lastErr = fmt.Errorf("%s: status %d", model.ID, proxyResp.Status)
-		}
-	}
-
-	if job.DBID > 0 {
-		db.DequeueRequest(g.DB, job.DBID)
-	}
-	job.Response <- &ProxyResponse{Err: fmt.Errorf("all %d models failed: %v", len(attemptOrder)+maxRetry, lastErr)}
-}
 
 func (g *Gateway) onSuccess(job *RequestJob, model engine.ModelCandidate, proxyResp *ProxyResponse, body []byte) {
 	log.Printf("[PROXY] Routed to: %s (%s) score=%.1f", model.ID, model.Provider, model.Score)
