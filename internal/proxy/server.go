@@ -316,18 +316,38 @@ if resp.Err != nil {
 		for k, v := range resp.Header {
 			w.Header()[k] = v
 		}
+		// Add FreeLLM routing metadata so clients know which model/provider served them
+		w.Header().Set("X-FreeLLM-Model", resp.ModelID)
+		w.Header().Set("X-FreeLLM-Provider", resp.Provider)
+		fullModelID := resp.ModelID + "(" + resp.Provider + ")"
+		w.Header().Set("X-FreeLLM-FullModel", fullModelID)
 		w.WriteHeader(resp.Status)
+	} else {
+		// Headers already sent (SSE keepalive), but add model info to trailers
+		w.Header().Set("X-FreeLLM-Model", resp.ModelID)
+		w.Header().Set("X-FreeLLM-Provider", resp.Provider)
 	}
 
 	if resp.Stream != nil {
 		defer resp.Stream.Close()
 		if flusher, ok := w.(http.Flusher); ok {
-			g.streamSSE(w, flusher, resp.Stream, resp.ModelID)
+			g.streamSSE(w, flusher, resp.Stream, resp.ModelID, resp.Provider)
 		} else {
 			io.Copy(w, resp.Stream)
 		}
 		g.logUsage(resp.ModelID, nil, nil)
 	} else {
+		// Rewrite model field to include provider for client visibility
+		var respMap map[string]interface{}
+		if json.Unmarshal(resp.Body, &respMap) == nil {
+			if _, ok := respMap["model"]; ok {
+				respMap["model"] = resp.ModelID + "(" + resp.Provider + ")"
+				if rewritten, err := json.Marshal(respMap); err == nil {
+					w.Write(rewritten)
+					return
+				}
+			}
+		}
 		w.Write(resp.Body)
 	}
 }
@@ -335,7 +355,7 @@ if resp.Err != nil {
 // streamSSE reads an SSE stream from upstream, sanitizes each chunk,
 // and forwards it to the client. It ensures proper [DONE] sentinel
 // and finish_reason even if the upstream drops unexpectedly.
-func (g *Gateway) streamSSE(w http.ResponseWriter, flusher http.Flusher, body io.ReadCloser, modelID string) {
+func (g *Gateway) streamSSE(w http.ResponseWriter, flusher http.Flusher, body io.ReadCloser, modelID string, provider string) {
 	// Strip Content-Length since we may modify chunks
 	w.Header().Del("Content-Length")
 
@@ -384,6 +404,11 @@ func (g *Gateway) streamSSE(w http.ResponseWriter, flusher http.Flusher, body io
 		}
 
 		// Strip reasoning/reasoning_content from delta messages
+		// Rewrite model field to include provider in every chunk
+		if _, hasModel := chunk["model"]; hasModel {
+			chunk["model"] = modelID + "(" + provider + ")"
+		}
+
 		if choices, ok := chunk["choices"].([]interface{}); ok {
 			for _, c := range choices {
 				if choice, ok := c.(map[string]interface{}); ok {
@@ -414,8 +439,6 @@ func (g *Gateway) streamSSE(w http.ResponseWriter, flusher http.Flusher, body io
 		}
 
 		// Set model name in chunk
-		chunk["model"] = modelID
-
 		// Re-serialize and forward
 		cleaned, err := json.Marshal(chunk)
 		if err != nil {
@@ -518,6 +541,9 @@ func (g *Gateway) onSuccess(job *RequestJob, model engine.ModelCandidate, proxyR
 			g.cacheMu.Unlock()
 		}
 	}
+	// Set model/provider metadata on the response so ServeHTTP can expose them
+	proxyResp.ModelID = model.ID
+	proxyResp.Provider = model.Provider
 	job.Response <- proxyResp
 }
 
