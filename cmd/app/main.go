@@ -17,6 +17,7 @@ import (
 	"github.com/robertpelloni/freellm/internal/config"
 	"github.com/robertpelloni/freellm/internal/db"
 	"github.com/robertpelloni/freellm/internal/engine"
+	"github.com/robertpelloni/freellm/internal/a2a"
 	"github.com/robertpelloni/freellm/internal/icon"
 	"github.com/robertpelloni/freellm/internal/proxy"
 	"github.com/robertpelloni/freellm/internal/ui"
@@ -224,6 +225,17 @@ func onReady() {
 
 	gateway := proxy.NewGateway(10, database, 4000)
 	gateway.RestoreQueue()
+
+	// Initialize A2A protocol server for agent-to-agent communication
+	a2aBaseURL := fmt.Sprintf("http://localhost:%d", proxyPort)
+	a2aServer := a2a.NewA2AServer(gateway, a2aBaseURL)
+	gateway.A2A = a2aServer
+	log.Printf("[A2A] Agent-to-Agent protocol server initialized at %s/a2a", a2aBaseURL)
+
+	// Initialize Swarm Coordinator
+	swarm := a2a.NewSwarmCoordinator(a2a.DefaultSwarmConfig(), a2aServer)
+	_ = swarm // Available for API-driven agent registration
+	log.Printf("[A2A-SWARM] Coordinator ready (max %d concurrent agents)", a2a.DefaultSwarmConfig().MaxConcurrentAgents)
 
 
 	// Load cached rankings from disk for instant startup

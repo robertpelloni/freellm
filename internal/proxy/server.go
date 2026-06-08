@@ -46,6 +46,14 @@ type Gateway struct {
 	cbLogTime time.Time
 	LastUsedModel string
 	LastUsedProvider string
+	A2A A2ARouter
+}
+
+// A2ARouter is the interface for A2A protocol route handling.
+type A2ARouter interface {
+	ServeAgentCard(w http.ResponseWriter, r *http.Request)
+	ServeA2A(w http.ResponseWriter, r *http.Request)
+	ServeAgentList(w http.ResponseWriter, r *http.Request)
 }
 
 type preflightEntry struct {
@@ -147,6 +155,21 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/v1/responses" {
 		g.handleResponsesAPI(w, r)
 		return
+	}
+	// A2A protocol routes
+	if g.A2A != nil {
+		if r.URL.Path == "/.well-known/agent-card" {
+			g.A2A.ServeAgentCard(w, r)
+			return
+		}
+		if r.URL.Path == "/a2a" {
+			g.A2A.ServeA2A(w, r)
+			return
+		}
+		if r.URL.Path == "/a2a/agents" {
+			g.A2A.ServeAgentList(w, r)
+			return
+		}
 	}
 	if r.URL.Path != "/v1/chat/completions" {
 		http.NotFound(w, r)
@@ -1433,4 +1456,69 @@ func (g *Gateway) MoveModelDown(modelID string) {
 			return
 		}
 	}
+}
+
+
+// RouteMessage routes a text message through the FreeLLM gateway.
+// Used by the A2A server to process agent tasks via the LLM routing pipeline.
+func (g *Gateway) RouteMessage(ctx context.Context, message string, model string) (string, error) {
+	// Build an internal chat completion request
+	payload := map[string]interface{}{
+		"model":      model,
+		"messages":   []map[string]interface{}{{"role": "user", "content": message}},
+		"max_tokens": 1024,
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return "", fmt.Errorf("marshal request: %w", err)
+	}
+
+	// Create internal HTTP request to our own server
+	url := fmt.Sprintf("http://127.0.0.1:%d/v1/chat/completions", g.Port)
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
+	if err != nil {
+		return "", fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-FreeLLM-Priority", "high")
+	req.Header.Set("Authorization", "Bearer sk-freellm")
+
+	resp, err := g.Client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("internal request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("internal request returned status %d: %s", resp.StatusCode, string(respBody[:min(len(respBody), 200)]))
+	}
+
+	// Parse the OpenAI response to extract content
+	var oaiResp struct {
+		Choices []struct {
+			Message struct {
+				Content json.RawMessage `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if err := json.Unmarshal(respBody, &oaiResp); err != nil {
+		return "", fmt.Errorf("parse response: %w", err)
+	}
+
+	if len(oaiResp.Choices) == 0 {
+		return "", fmt.Errorf("no choices in response")
+	}
+
+	var content string
+	if err := json.Unmarshal(oaiResp.Choices[0].Message.Content, &content); err != nil {
+		// Content might be an array of content blocks
+		return string(oaiResp.Choices[0].Message.Content), nil
+	}
+
+	return content, nil
 }
