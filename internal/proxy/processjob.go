@@ -92,8 +92,8 @@ func (g *Gateway) processJob(job *RequestJob) {
 	// until one succeeds, with session-aware prioritization.
 	// Cap retries: enough attempts to try all models via fan-out + sequential
 	maxAttempts := len(candidatePool) + 5
-	if maxAttempts > 50 {
-		maxAttempts = 50
+	if maxAttempts > 100 {
+		maxAttempts = 100
 	}
 	attemptCount := 0
 
@@ -189,9 +189,23 @@ func (g *Gateway) processJob(job *RequestJob) {
 				result.model.ID, result.model.Provider, result.resp.Err, result.resp.Status,
 				result.quality, result.isPreferred)
 
-			if result.resp.Status == 429 || result.resp.Err != nil {
+			if result.resp.Err != nil || result.resp.Status >= 400 {
+				// Scale cooldown by error severity:
+				// 401/402/403 = permanent auth failure, long cooldown (10 min)
+				// 429 = rate limit, short cooldown (30s)
+				// 5xx = server error, medium cooldown (2 min)
+				// other = default (1 min)
+				cooldown := 1 * time.Minute
+				switch {
+				case result.resp.Status == 401 || result.resp.Status == 402 || result.resp.Status == 403:
+					cooldown = 10 * time.Minute
+				case result.resp.Status == 429:
+					cooldown = 30 * time.Second
+				case result.resp.Status >= 500:
+					cooldown = 2 * time.Minute
+				}
 				g.cooldownMu.Lock()
-				g.providerCooldown[result.model.Provider] = time.Now().Add(5 * time.Second)
+				g.providerCooldown[result.model.Provider] = time.Now().Add(cooldown)
 				g.cooldownMu.Unlock()
 				// Invalidate session's preferred model if it's rate-limited or failed
 				if result.isPreferred {
@@ -279,9 +293,18 @@ func (g *Gateway) processJob(job *RequestJob) {
 				return
 			}
 
-			if proxyResp.Status == 429 || proxyResp.Err != nil {
+			if proxyResp.Err != nil || proxyResp.Status >= 400 {
+				cooldown := 1 * time.Minute
+				switch {
+				case proxyResp.Status == 401 || proxyResp.Status == 402 || proxyResp.Status == 403:
+					cooldown = 10 * time.Minute
+				case proxyResp.Status == 429:
+					cooldown = 30 * time.Second
+				case proxyResp.Status >= 500:
+					cooldown = 2 * time.Minute
+				}
 				g.cooldownMu.Lock()
-				g.providerCooldown[model.Provider] = time.Now().Add(5 * time.Second)
+				g.providerCooldown[model.Provider] = time.Now().Add(cooldown)
 				g.cooldownMu.Unlock()
 			}
 
