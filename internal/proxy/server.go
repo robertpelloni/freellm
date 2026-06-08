@@ -290,9 +290,25 @@ WaitLoop:
 			return
 		}
 	}
-	log.Printf("[PROXY] Got response, err=%v status=%d", resp.Err, resp.Status)
-	if resp.Err != nil {
-		writeJSONError(w, http.StatusBadGateway, resp.Err.Error(), "server_error", "proxy")
+	log.Printf("[PROXY] 'Got response, err=%v status=%d", resp.Err, resp.Status)
+if resp.Err != nil {
+		if wroteHeader {
+			// Headers already sent via SSE keepalive - send error as SSE event
+			errJSON, _ := json.Marshal(map[string]interface{}{
+				"error": map[string]interface{}{
+					"message": resp.Err.Error(),
+					"type":   "server_error",
+					"code":   "proxy_error",
+				},
+			})
+			fmt.Fprintf(w, "data: %s\n\n", string(errJSON))
+			fmt.Fprintf(w, "data: [DONE]\n\n")
+			if flusher, ok := w.(http.Flusher); ok {
+				flusher.Flush()
+			}
+		} else {
+			writeJSONError(w, http.StatusBadGateway, resp.Err.Error(), "server_error", "proxy")
+		}
 		return
 	}
 
