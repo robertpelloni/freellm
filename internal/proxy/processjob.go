@@ -90,7 +90,11 @@ func (g *Gateway) processJob(job *RequestJob) {
 	// ── Never-Fail Routing Loop ────────────────────────────────────
 	// The proxy never gives up on a request. It keeps trying models
 	// until one succeeds, with session-aware prioritization.
+	// Cap retries: enough attempts to try all models via fan-out + sequential
 	maxAttempts := len(candidatePool) + 5
+	if maxAttempts > 50 {
+		maxAttempts = 50
+	}
 	attemptCount := 0
 
 	for attemptCount < maxAttempts {
@@ -189,6 +193,10 @@ func (g *Gateway) processJob(job *RequestJob) {
 				g.cooldownMu.Lock()
 				g.providerCooldown[result.model.Provider] = time.Now().Add(5 * time.Second)
 				g.cooldownMu.Unlock()
+				// Invalidate session's preferred model if it's rate-limited or failed
+				if result.isPreferred {
+					g.Sessions.InvalidatePreferred(session.ID, fmt.Sprintf("status %d", result.resp.Status))
+				}
 			}
 
 			if result.resp.Err == nil && result.resp.Status < 400 {

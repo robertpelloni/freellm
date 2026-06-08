@@ -122,6 +122,23 @@ func (st *SessionTracker) UpdatePreferred(sessionID string, model engine.ModelCa
 	}
 }
 
+// InvalidatePreferred clears the session's preferred model when it fails
+// (e.g. 429 rate limit, 5xx server error). This forces the next request
+// to select a new preferred model from the current best candidates.
+func (st *SessionTracker) InvalidatePreferred(sessionID string, reason string) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+
+	session, exists := st.sessions[sessionID]
+	if !exists {
+		return
+	}
+
+	log.Printf("[SESSION] %s: Invalidating preferred model %s (%s)",
+		sessionID, session.Preferred.ID, reason)
+	session.Preferred = engine.ModelCandidate{} // Clear preferred
+}
+
 // RecordExplorationResult records the outcome of an exploratory fan-out attempt.
 // If an alternative model succeeded with higher quality than the current preferred,
 // it becomes the new preferred model for the session.
