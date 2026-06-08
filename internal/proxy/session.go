@@ -45,33 +45,62 @@ func NewSessionTracker() *SessionTracker {
 	return st
 }
 
-// extractSessionFingerprint hashes the first user message content to identify
-// a conversation session. This allows continuity across multiple turns of the
-// same conversation, even without an explicit session ID.
+// extractSessionFingerprint hashes the conversation content to identify a session.
+// It uses two parts for stable-yet-evolving identification:
+//
+//   - Root: SHA-256 of the first user message (stable anchor across turns)
+//   - Branch: SHA-256 of ALL user message contents concatenated (evolves with new turns)
+//
+// This means:
+//   - The same first message always maps to the same root, maintaining session affinity
+//   - New turns extend the branch, allowing the session to evolve and be distinguished
+//     from other conversations that start with the same greeting
+//   - When a conversation grows significantly, the branch hash changes, letting the
+//     router adapt model selection to the current context depth
 func extractSessionFingerprint(body []byte) string {
 	var payload struct {
 		Messages []struct {
-			Role    string `json:"role"`
+			Role    string          `json:"role"`
 			Content json.RawMessage `json:"content"`
 		} `json:"messages"`
 	}
+
 	if err := json.Unmarshal(body, &payload); err != nil || len(payload.Messages) == 0 {
-		// Fallback: hash the entire body
 		h := sha256.Sum256(body)
 		return fmt.Sprintf("raw-%x", h[:8])
 	}
 
-	// Find the first user message
+	// Collect all user message contents
+	var firstUser []byte
+	var allUser []byte
+	userCount := 0
 	for _, msg := range payload.Messages {
 		if msg.Role == "user" {
-			h := sha256.Sum256(msg.Content)
-			return fmt.Sprintf("sess-%x", h[:12])
+			if userCount == 0 {
+				firstUser = msg.Content
+			}
+			allUser = append(allUser, msg.Content...)
+			allUser = append(allUser, 0x00) // separator between messages
+			userCount++
 		}
 	}
 
-	// No user message found - hash entire body
-	h := sha256.Sum256(body)
-	return fmt.Sprintf("raw-%x", h[:8])
+	if userCount == 0 {
+		h := sha256.Sum256(body)
+		return fmt.Sprintf("raw-%x", h[:8])
+	}
+
+	rootHash := sha256.Sum256(firstUser)
+	branchHash := sha256.Sum256(allUser)
+
+	// Single-turn: just root. Multi-turn: root + branch.
+	// The root provides stability (same conversation always shares a root),
+	// while the branch differentiates conversations that start the same way
+	// but diverge, and allows tracking context depth.
+	if userCount == 1 {
+		return fmt.Sprintf("sess-%x", rootHash[:8])
+	}
+	return fmt.Sprintf("sess-%x-%x-n%d", rootHash[:6], branchHash[:6], userCount)
 }
 
 // Lookup finds or creates a session for the given request body.
