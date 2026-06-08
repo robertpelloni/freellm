@@ -752,6 +752,21 @@ func (g *Gateway) sanitizeRequestBody(provider string, body []byte, hasTools boo
 			clean = append(clean, m)
 		}
 		payload["messages"] = clean
+
+		// Ensure last message is from user - many providers reject
+		// requests where the last message is role=assistant
+		if len(clean) > 0 {
+			if last, ok := clean[len(clean)-1].(map[string]interface{}); ok {
+				if r, ok := last["role"].(string); ok && r == "assistant" {
+					// Append a continuation prompt so the provider accepts the request
+					clean = append(clean, map[string]interface{}{
+						"role":    "user",
+						"content": "continue",
+					})
+					payload["messages"] = clean
+				}
+			}
+		}
 	}
 
 	// For no-tool providers: strip tools and tool_choice
