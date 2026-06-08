@@ -170,6 +170,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			g.A2A.ServeAgentList(w, r)
 			return
 		}
+
 	}
 	if r.URL.Path != "/v1/chat/completions" {
 		http.NotFound(w, r)
