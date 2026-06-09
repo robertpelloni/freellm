@@ -47,7 +47,8 @@ type Gateway struct {
 	LastUsedModel string
 	LastUsedProvider string
 	A2A A2ARouter
-	Sessions *SessionTracker
+	Sessions   *SessionTracker
+	activeSem  chan struct{} // main proxy path concurrency semaphore (MaxActive)
 }
 
 // A2ARouter is the interface for A2A protocol route handling.
@@ -84,9 +85,9 @@ type ProxyResponse struct {
 func NewGateway(maxActive int, database *sql.DB, port int) *Gateway {
 	g := &Gateway{
 		Port: port,
-		Queue: make(chan *RequestJob, 20),
+		Queue: make(chan *RequestJob, 100),
 		HighPriQueue: make(chan *RequestJob, 200),
-		MaxActive: 10,
+		MaxActive: 50,
 		DB: database,
 		PrimaryCount: 10,
 		Cache: make(map[string][]byte),
@@ -94,6 +95,7 @@ func NewGateway(maxActive int, database *sql.DB, port int) *Gateway {
 		Client: &http.Client{Timeout: 30 * time.Second},
 		preflightCache: make(map[string]preflightEntry),
 		Sessions:   NewSessionTracker(),
+		activeSem: make(chan struct{}, maxActive),
 		}
 	go g.workerLoop()
 	return g
@@ -246,9 +248,13 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	job := &RequestJob{Request: r, Response: make(chan *ProxyResponse, 1), Ctx: ctx, DBID: dbID, IsStream: isStream}
-	// Bypass queue: call processJob directly for immediate processing
-	// This avoids queue congestion from background agent traffic
-	go g.processJob(job)
+	// Process job with concurrency control: up to MaxActive (50) concurrent
+	// requests. Additional requests wait for a slot via the semaphore.
+	g.activeSem <- struct{}{} // acquire slot
+	go func() {
+		defer func() { <-g.activeSem }() // release slot
+		g.processJob(job)
+	}()
 
 	wroteHeader := false
 	log.Printf("[PROXY] Waiting for job response (stream=%v)...", isStream)

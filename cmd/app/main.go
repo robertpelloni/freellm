@@ -223,7 +223,7 @@ func onReady() {
 		}
 	}
 
-	gateway := proxy.NewGateway(10, database, 4000)
+	gateway := proxy.NewGateway(50, database, 4000)
 	gateway.RestoreQueue()
 
 	// Initialize A2A protocol server for agent-to-agent communication
