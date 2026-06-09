@@ -256,17 +256,34 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		g.processJob(job)
 	}()
 
-	wroteHeader := false
+		wroteHeader := false
+	// For streaming requests, send SSE headers IMMEDIATELY so the client
+	// knows the connection is alive. This prevents "terminated" errors
+	// from clients that timeout waiting for the initial response headers.
+	if isStream {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+		w.Header().Set("X-Accel-Buffering", "no")
+		w.Header().Set("X-FreeLLM-Model", "routing")
+		w.WriteHeader(http.StatusOK)
+		wroteHeader = true
+		if flusher, ok := w.(http.Flusher); ok {
+			flusher.Flush()
+		}
+		log.Printf("[PROXY] Sent SSE headers immediately (stream=true)")
+	}
+
 	log.Printf("[PROXY] Waiting for job response (stream=%v)...", isStream)
 	var resp *ProxyResponse
-	// Keepalive loop: wait for response while sending periodic pings
-	// to prevent client or intermediary timeouts
+	// Keepalive loop: send periodic pings to prevent client timeouts
 	keepaliveInterval := 15 * time.Second
 	if isStream {
 		keepaliveInterval = 10 * time.Second
 	}
 	keepaliveTicker := time.NewTicker(keepaliveInterval)
 	defer keepaliveTicker.Stop()
+
 WaitLoop:
 	for {
 		select {
@@ -274,15 +291,7 @@ WaitLoop:
 			break WaitLoop
 		case <-keepaliveTicker.C:
 			if isStream {
-				// Start SSE and send keepalive comment
-				if !wroteHeader {
-					w.Header().Set("Content-Type", "text/event-stream")
-					w.Header().Set("Cache-Control", "no-cache")
-					w.Header().Set("Connection", "keep-alive")
-					w.Header().Set("X-Accel-Buffering", "no")
-					w.WriteHeader(http.StatusOK)
-					wroteHeader = true
-				}
+				// SSE headers already sent, just send keepalive comment
 				fmt.Fprintf(w, ": keepalive\n\n")
 				if flusher, ok := w.(http.Flusher); ok {
 					flusher.Flush()
