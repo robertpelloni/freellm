@@ -8,7 +8,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/robertpelloni/freellm/internal/db"
 	"github.com/robertpelloni/freellm/internal/engine"
 )
 
@@ -28,70 +27,8 @@ func (g *Gateway) processJob(job *RequestJob) {
 		return
 	}
 
-	hasTools, toolModels, plainModels := g.classifyRequest(body)
-
-	// ── Session-Aware Routing ──────────────────────────────────────
-	// Identify the session from conversation content fingerprint.
-	// The session tracks the last-known-working model for continuity
-	// and continuously explores higher-quality alternatives.
-	session := g.Sessions.Lookup(body)
-
-	// Get provider cooldowns
-	g.cooldownMu.Lock()
-	now := time.Now()
-	activeCooldowns := make(map[string]bool)
-	for prov, until := range g.providerCooldown {
-		if now.Before(until) {
-			activeCooldowns[prov] = true
-		} else {
-			delete(g.providerCooldown, prov)
-		}
-	}
-	g.cooldownMu.Unlock()
-
-	// Filter candidates
-	models := g.filterCandidates(allModels)
-	if len(models) == 0 {
-		log.Println("[ROUTER] All models circuit-broken, auto-recovering...")
-		g.autoRecoverCircuitBreakers()
-		models = allModels
-	}
-
-	// Build candidate pool based on tool requirements
-	var candidatePool []engine.ModelCandidate
-	if hasTools && len(toolModels) > 0 {
-		candidatePool = append(candidatePool, toolModels...)
-		if len(candidatePool) < 5 {
-			candidatePool = append(candidatePool, plainModels...)
-		}
-	} else {
-		candidatePool = models
-	}
-
-	// Get the routing plan: preferred model + quality alternatives
-	plan := g.Sessions.GetRoutingPlan(session, candidatePool, activeCooldowns)
-
-	if plan.ModelCount() == 0 {
-		for _, m := range candidatePool {
-			if !activeCooldowns[m.Provider] && m.Score >= 0 {
-				plan.Preferred = m
-				break
-			}
-		}
-		if plan.Preferred.ID == "" && len(candidatePool) > 0 {
-			plan.Preferred = candidatePool[0]
-		}
-	}
-
-	log.Printf("[SESSION] %s: preferred=%s(%s) quality=%.1f alts=%d hasTools=%v",
-		session.ID, plan.Preferred.ID, plan.Preferred.Provider,
-		qualityScore(plan.Preferred), len(plan.Alternatives), hasTools)
-
 	// ── Never-Fail Routing Loop ────────────────────────────────────
-	// The proxy never gives up on a request. It keeps trying models
-	// until one succeeds, with session-aware prioritization.
-	// Cap retries: enough attempts to try all models via fan-out + sequential
-	maxAttempts := len(candidatePool) + 5
+	maxAttempts := len(allModels) + 5
 	if maxAttempts > 100 {
 		maxAttempts = 100
 	}
@@ -100,233 +37,20 @@ func (g *Gateway) processJob(job *RequestJob) {
 	for attemptCount < maxAttempts {
 		attemptCount++
 
-		// Phase 1: Fan-out preferred model + alternatives concurrently
-		// This races the session's preferred model against 2-3 quality
-		// alternatives. The first successful HIGH-QUALITY response wins.
-		fanOutModels := plan.AllModels()
-		var availableFanOut []engine.ModelCandidate
-		for _, m := range fanOutModels {
-			if !activeCooldowns[m.Provider] {
-				availableFanOut = append(availableFanOut, m)
-			}
-		}
-
-		if len(availableFanOut) == 0 {
-			log.Printf("[ROUTER] All fan-out models on cooldown, waiting 2s (attempt %d)", attemptCount)
-			time.Sleep(2 * time.Second)
-			g.cooldownMu.Lock()
-			now = time.Now()
-			activeCooldowns = make(map[string]bool)
-			for prov, until := range g.providerCooldown {
-				if now.Before(until) {
-					activeCooldowns[prov] = true
-				} else {
-					delete(g.providerCooldown, prov)
-				}
-			}
-			g.cooldownMu.Unlock()
-			plan = g.Sessions.GetRoutingPlan(session, candidatePool, activeCooldowns)
-			continue
-		}
-
-		fanOutSize := len(availableFanOut)
-		altNames := make([]string, 0, len(plan.Alternatives))
-		for _, m := range plan.Alternatives {
-			altNames = append(altNames, m.ID+"("+m.Provider+")")
-		}
-		log.Printf("[ROUTER] Fan-out %d models (session-aware): preferred=%s alts=%v",
-			fanOutSize, plan.Preferred.ID, altNames)
-
-		type fanResult struct {
-			model       engine.ModelCandidate
-			resp        *ProxyResponse
-			isPreferred bool
-			quality     float64
-		}
-
-		fanCh := make(chan fanResult, fanOutSize)
-		for i := 0; i < fanOutSize; i++ {
-			model := availableFanOut[i]
-			sanitized := g.sanitizeRequestBody(model.Provider, body, hasTools, model.ID)
-			isPref := model.ID == plan.Preferred.ID && model.Provider == plan.Preferred.Provider
-
-			go func(m engine.ModelCandidate, s []byte, isPreferred bool) {
-				// Per-provider rate limiting with 429 backoff
-				if sem, ok := g.providerSems[m.Provider]; ok {
-					select {
-					case sem <- struct{}{}:
-					case <-time.After(5 * time.Second):
-						fanCh <- fanResult{
-							model: m, resp: &ProxyResponse{Err: fmt.Errorf("provider %s: semaphore timeout", m.Provider)},
-							isPreferred: isPreferred, quality: qualityScore(m),
-						}
-						return
-					}
-					defer func() { <-sem }()
-				}
-
-				// Quality models get more time to think
-				timeout := 30 * time.Second
-				if qualityScore(m) >= 2.0 {
-					timeout = 60 * time.Second // Large models get more time
-				}
-				mc := &http.Client{Timeout: timeout}
-
-				fanCh <- fanResult{
-					model:       m,
-					resp:        g.forwardRequest(mc, job.Request, m, s),
-					isPreferred: isPreferred,
-					quality:     qualityScore(m),
-				}
-			}(model, sanitized, isPref)
-		}
-
-		// Collect ALL fan-out results, then pick the BEST quality success
-		var successes []fanResult
-		for i := 0; i < fanOutSize; i++ {
-			result := <-fanCh
-			log.Printf("[ROUTER] Fan-out result: %s(%s) err=%v status=%d quality=%.1f pref=%v",
-				result.model.ID, result.model.Provider, result.resp.Err, result.resp.Status,
-				result.quality, result.isPreferred)
-
-			if result.resp.Err != nil || result.resp.Status >= 400 {
-				// Scale cooldown by error severity:
-				// 401/402/403 = permanent auth failure, long cooldown (10 min)
-				// 429 = rate limit, short cooldown (30s)
-				// 5xx = server error, medium cooldown (2 min)
-				// other = default (1 min)
-				cooldown := 1 * time.Minute
-				switch {
-				case result.resp.Status == 401 || result.resp.Status == 402 || result.resp.Status == 403:
-					cooldown = 10 * time.Minute
-				case result.resp.Status == 429:
-					cooldown = 30 * time.Second
-				case result.resp.Status >= 500:
-					cooldown = 2 * time.Minute
-				}
-				g.cooldownMu.Lock()
-				g.providerCooldown[result.model.Provider] = time.Now().Add(cooldown)
-				g.cooldownMu.Unlock()
-				// Invalidate session's preferred model if it's rate-limited or failed
-				if result.isPreferred {
-					g.Sessions.InvalidatePreferred(session.ID, fmt.Sprintf("status %d", result.resp.Status))
-				}
-			}
-
-			if result.resp.Err == nil && result.resp.Status < 400 {
-				successes = append(successes, result)
-			} else {
-				if g.DB != nil && !isTransientError(result.resp.Status) {
-					db.RecordFailure(g.DB, result.model.ID)
-				}
-			}
-		}
-
-		// ── Quality-First Selection with Continuity Bonus ───────────
-		// Among successful responses, pick the highest quality model.
-		// The preferred model gets a +0.5 continuity bonus so it's not
-		// unnecessarily replaced by a marginally better alternative.
-		if len(successes) > 0 {
-			sort.Slice(successes, func(i, j int) bool {
-				qi := successes[i].quality
-				qj := successes[j].quality
-				if successes[i].isPreferred {
-					qi += 0.5 // Continuity bonus
-				}
-				if successes[j].isPreferred {
-					qj += 0.5
-				}
-				return qi > qj
-			})
-
-			best := successes[0]
-			log.Printf("[ROUTER] Selected %s(%s) quality=%.1f pref=%v (from %d successes)",
-				best.model.ID, best.model.Provider, best.quality, best.isPreferred, len(successes))
-
-			// Update session tracking
-			g.Sessions.UpdatePreferred(session.ID, best.model)
-			for _, s := range successes[1:] {
-				g.Sessions.RecordExplorationResult(session.ID, s.model, true)
-			}
-
-			g.onSuccess(job, best.model, best.resp, body)
-			return
-		}
-
-		// Phase 2: Sequential fallback through remaining candidates
-		// (models not in the fan-out, sorted by quality)
-		seenModels := make(map[string]bool)
-		for _, m := range availableFanOut {
-			seenModels[m.ID+"|"+m.Provider] = true
-		}
-
-		var remaining []engine.ModelCandidate
-		for _, m := range candidatePool {
-			key := m.ID + "|" + m.Provider
-			if !seenModels[key] && !activeCooldowns[m.Provider] && m.Score >= 0 {
-				remaining = append(remaining, m)
-			}
-		}
-		sort.Slice(remaining, func(i, j int) bool {
-			return qualityScore(remaining[i]) > qualityScore(remaining[j])
-		})
-
-		for _, model := range remaining {
-			if attemptCount >= maxAttempts {
-				break
-			}
-			attemptCount++
-
-			sanitized := g.sanitizeRequestBody(model.Provider, body, hasTools, model.ID)
-			timeout := 30 * time.Second
-			if qualityScore(model) >= 2.0 {
-				timeout = 60 * time.Second
-			}
-			mc := &http.Client{Timeout: timeout}
-			proxyResp := g.forwardRequest(mc, job.Request, model, sanitized)
-
-			if proxyResp.Err == nil && proxyResp.Status < 400 {
-				log.Printf("[ROUTER] Sequential fallback succeeded: %s(%s) quality=%.1f",
-					model.ID, model.Provider, qualityScore(model))
-				g.Sessions.UpdatePreferred(session.ID, model)
-				g.onSuccess(job, model, proxyResp, body)
-				return
-			}
-
-			if proxyResp.Err != nil || proxyResp.Status >= 400 {
-				cooldown := 1 * time.Minute
-				switch {
-				case proxyResp.Status == 401 || proxyResp.Status == 402 || proxyResp.Status == 403:
-					cooldown = 10 * time.Minute
-				case proxyResp.Status == 429:
-					cooldown = 30 * time.Second
-				case proxyResp.Status >= 500:
-					cooldown = 2 * time.Minute
-				}
-				g.cooldownMu.Lock()
-				g.providerCooldown[model.Provider] = time.Now().Add(cooldown)
-				g.cooldownMu.Unlock()
-			}
-
-			if g.DB != nil && !isTransientError(proxyResp.Status) {
-				db.RecordFailure(g.DB, model.ID)
-			}
-		}
-
-		// Phase 3: Auto-recover circuit breakers and rebuild plan
-		log.Printf("[ROUTER] All models failed in attempt %d, auto-recovering...", attemptCount)
-		g.autoRecoverCircuitBreakers()
-
-		g.mu.RLock()
-		allModels = g.RankedModels
-		g.mu.RUnlock()
-
-		models = g.filterCandidates(allModels)
+		// Filter candidates dynamically based on current cooldowns/circuit breakers
+		models := g.filterCandidates(allModels)
 		if len(models) == 0 {
+			log.Println("[ROUTER] All models circuit-broken, auto-recovering...")
+			g.autoRecoverCircuitBreakers()
 			models = allModels
 		}
+
+		hasTools, toolModels, plainModels := g.classifyRequest(body, models)
+
+		// Build candidate pool based on tool requirements
+		var candidatePool []engine.ModelCandidate
 		if hasTools && len(toolModels) > 0 {
-			candidatePool = append([]engine.ModelCandidate{}, toolModels...)
+			candidatePool = append(candidatePool, toolModels...)
 			if len(candidatePool) < 5 {
 				candidatePool = append(candidatePool, plainModels...)
 			}
@@ -334,22 +58,294 @@ func (g *Gateway) processJob(job *RequestJob) {
 			candidatePool = models
 		}
 
-		g.cooldownMu.Lock()
-		now = time.Now()
-		activeCooldowns = make(map[string]bool)
-		for prov, until := range g.providerCooldown {
-			if now.Before(until) {
-				activeCooldowns[prov] = true
-			} else {
-				delete(g.providerCooldown, prov)
+		// Phase 1: Survival-of-the-fittest Fan-out
+		// Select N random models from the top 10 for parallel execution.
+		topCount := 10
+		if len(candidatePool) < topCount {
+			topCount = len(candidatePool)
+		}
+		topPool := candidatePool[:topCount]
+		
+		// Randomly shuffle topPool to pick random models
+		shuffledTop := make([]engine.ModelCandidate, len(topPool))
+		copy(shuffledTop, topPool)
+		for i := len(shuffledTop) - 1; i > 0; i-- {
+			j := time.Now().UnixNano() % int64(i+1)
+			shuffledTop[i], shuffledTop[j] = shuffledTop[j], shuffledTop[i]
+		}
+		
+		fanOutSize := g.FanOutSize
+		if fanOutSize > len(shuffledTop) {
+			fanOutSize = len(shuffledTop)
+		}
+		availableFanOut := shuffledTop[:fanOutSize]
+
+		if len(availableFanOut) == 0 {
+			log.Printf("[ROUTER] No models available, auto-recovering...")
+			g.autoRecoverCircuitBreakers()
+			time.Sleep(1 * time.Second)
+			continue
+		}
+
+		log.Printf("[ROUTER] Survival-of-the-fittest: Fan-out %d models randomly from top %d",
+			len(availableFanOut), topCount)
+
+		type fanResult struct {
+			model       engine.ModelCandidate
+			resp        *ProxyResponse
+			quality     float64
+		}
+
+		// Collect remaining models for alternatives
+		seenInFanOut := make(map[string]bool)
+		for _, m := range availableFanOut {
+			seenInFanOut[m.ID+"|"+m.Provider] = true
+		}
+		var remainingForAlts []engine.ModelCandidate
+		for _, m := range candidatePool {
+			if !seenInFanOut[m.ID+"|"+m.Provider] {
+				remainingForAlts = append(remainingForAlts, m)
 			}
 		}
-		g.cooldownMu.Unlock()
 
-		plan = g.Sessions.GetRoutingPlan(session, candidatePool, activeCooldowns)
+		fanCh := make(chan fanResult, len(availableFanOut))
+		for i := 0; i < len(availableFanOut); i++ {
+			model := availableFanOut[i]
+			sanitized := g.sanitizeRequestBody(model.Provider, body, hasTools, model.ID)
+			
+			// Build alternatives for this fan-out model: other fan-out models + remaining models
+			var alts []engine.ModelCandidate
+			for j, other := range availableFanOut {
+				if i != j {
+					alts = append(alts, other)
+				}
+			}
+			alts = append(alts, remainingForAlts...)
+
+			go func(m engine.ModelCandidate, s []byte, alternatives []engine.ModelCandidate) {
+				// Per-provider rate limiting
+				if sem, ok := g.providerSems[m.Provider]; ok {
+					select {
+					case sem <- struct{}{}:
+					case <-time.After(5 * time.Second):
+						fanCh <- fanResult{
+							model: m, resp: &ProxyResponse{Err: fmt.Errorf("provider %s: semaphore timeout", m.Provider)},
+							quality: qualityScore(m),
+						}
+						return
+					}
+					defer func() { <-sem }()
+				}
+
+				// Streaming requests should NOT have a global client timeout
+				// as they can last for minutes. We rely on context for header timeout.
+				timeout := 0 * time.Second
+				if !job.IsStream {
+					timeout = 30 * time.Second
+					if qualityScore(m) >= 2.0 {
+						timeout = 60 * time.Second
+					}
+				}
+				var transport *http.Transport
+				if t, ok := http.DefaultTransport.(*http.Transport); ok {
+					transport = t.Clone()
+				} else {
+					transport = &http.Transport{}
+				}
+				headerTimeout := 15 * time.Second
+				if len(s) > 100000 {
+					headerTimeout = 60 * time.Second
+				} else if len(s) > 30000 {
+					headerTimeout = 30 * time.Second
+				}
+				transport.ResponseHeaderTimeout = headerTimeout
+				mc := &http.Client{
+					Timeout:   timeout,
+					Transport: transport,
+				}
+
+				resp := g.forwardRequestInternal(mc, job.Request, m, s, false, alternatives)
+				
+				// Track auth failures
+				if resp.Status == 401 || resp.Status == 402 || resp.Status == 403 {
+					log.Printf("[ROUTER] Auth failure (status %d) for %s(%s)", resp.Status, m.ID, m.Provider)
+					g.recordProviderAuthFail(m.Provider)
+				}
+
+				if resp.Err != nil || resp.Status >= 400 {
+					log.Printf("[ROUTER-DEBUG] Attempt failed for %s(%s): status=%d err=%v", m.ID, m.Provider, resp.Status, resp.Err)
+				}
+
+				fanCh <- fanResult{
+					model:       m,
+					resp:        resp,
+					quality:     qualityScore(m),
+				}
+			}(model, sanitized, alts)
+		}
+
+		var successes []fanResult
+		finishedCount := 0
+		for finishedCount < len(availableFanOut) {
+			res := <-fanCh
+			finishedCount++
+
+			if res.resp.Err == nil && res.resp.Status < 400 {
+				if job.IsStream {
+					// First success wins for streams
+					if len(successes) == 0 {
+						successes = append(successes, res)
+						// For streams, we want to start immediately, but we must
+						// drain the rest of the channel in the background to avoid leaks.
+						go func(rem int) {
+							for k := 0; k < rem; k++ {
+								r := <-fanCh
+								if r.resp != nil && r.resp.Stream != nil {
+									r.resp.Stream.Close()
+								}
+							}
+						}(len(availableFanOut) - finishedCount)
+						break
+					}
+				} else {
+					successes = append(successes, res)
+				}
+			} else {
+				// Record failure for cooldown
+				cooldown := 1 * time.Minute
+				if res.resp.Status == 429 {
+					cooldown = 30 * time.Second
+				} else if res.resp.Status == 503 || res.resp.Status == 504 {
+					cooldown = 10 * time.Second
+				}
+				g.cooldownMu.Lock()
+				g.providerCooldown[res.model.Provider] = time.Now().Add(cooldown)
+				g.cooldownMu.Unlock()
+			}
+		}
+
+		if len(successes) > 0 {
+			sort.Slice(successes, func(i, j int) bool {
+				return successes[i].quality > successes[j].quality
+			})
+
+			best := successes[0]
+			log.Printf("[ROUTER] Selected winner: %s(%s) quality=%.1f (from %d successes)",
+				best.model.ID, best.model.Provider, best.quality, len(successes))
+
+			if g.ShuffleEnabled {
+				g.ShuffleModels(best.model, availableFanOut)
+			}
+
+			g.onSuccess(job, best.model, best.resp, body)
+			return
+		}
+
+		// Phase 2: Fallback Fan-out through remaining candidates
+		sort.Slice(remainingForAlts, func(i, j int) bool {
+			return qualityScore(remainingForAlts[i]) > qualityScore(remainingForAlts[j])
+		})
+
+		for i := 0; i < len(remainingForAlts); i += g.FanOutSize {
+			if attemptCount >= maxAttempts {
+				break
+			}
+			
+			end := i + g.FanOutSize
+			if end > len(remainingForAlts) {
+				end = len(remainingForAlts)
+			}
+			batch := remainingForAlts[i:end]
+			attemptCount += len(batch)
+			
+			log.Printf("[ROUTER] Fallback Fan-out: racing %d models", len(batch))
+			
+			fbCh := make(chan fanResult, len(batch))
+			for _, model := range batch {
+				sanitized := g.sanitizeRequestBody(model.Provider, body, hasTools, model.ID)
+				
+				// Alternatives for this fallback: rest of the batch + everything after
+				var alts []engine.ModelCandidate
+				for _, other := range batch {
+					if other.ID != model.ID || other.Provider != model.Provider {
+						alts = append(alts, other)
+					}
+				}
+				if end < len(remainingForAlts) {
+					alts = append(alts, remainingForAlts[end:]...)
+				}
+
+				go func(m engine.ModelCandidate, s []byte, a []engine.ModelCandidate) {
+					timeout := 30 * time.Second
+					if qualityScore(m) >= 2.0 {
+						timeout = 60 * time.Second
+					}
+					var transport *http.Transport
+					if t, ok := http.DefaultTransport.(*http.Transport); ok {
+						transport = t.Clone()
+					} else {
+						transport = &http.Transport{}
+					}
+					headerTimeout := 15 * time.Second
+					if len(s) > 100000 {
+						headerTimeout = 60 * time.Second
+					} else if len(s) > 30000 {
+						headerTimeout = 30 * time.Second
+					}
+					transport.ResponseHeaderTimeout = headerTimeout
+					mc := &http.Client{
+						Timeout:   timeout,
+						Transport: transport,
+					}
+					fbCh <- fanResult{
+						model:   m,
+						resp:    g.forwardRequestInternal(mc, job.Request, m, s, false, a),
+						quality: qualityScore(m),
+					}
+				}(model, sanitized, alts)
+			}
+			
+			var fbSuccesses []fanResult
+			for j := 0; j < len(batch); j++ {
+				res := <-fbCh
+				if res.resp.Err == nil && res.resp.Status < 400 {
+					fbSuccesses = append(fbSuccesses, res)
+					if job.IsStream {
+						break
+					}
+				} else {
+					// Handle cooldowns for fallback failures
+					cooldown := 1 * time.Minute
+					if res.resp.Status == 429 {
+						cooldown = 30 * time.Second
+					}
+					g.cooldownMu.Lock()
+					g.providerCooldown[res.model.Provider] = time.Now().Add(cooldown)
+					g.cooldownMu.Unlock()
+				}
+			}
+			
+			if len(fbSuccesses) > 0 {
+				sort.Slice(fbSuccesses, func(i, j int) bool {
+					return fbSuccesses[i].quality > fbSuccesses[j].quality
+				})
+				
+				best := fbSuccesses[0]
+				log.Printf("[ROUTER] Fallback success: %s(%s)", best.model.ID, best.model.Provider)
+				
+				if g.ShuffleEnabled {
+					g.ShuffleModels(best.model, batch)
+				}
+				
+				g.onSuccess(job, best.model, best.resp, body)
+				return
+			}
+		}
+
+		log.Printf("[ROUTER] All models failed in attempt %d, auto-recovering...", attemptCount)
+		g.autoRecoverCircuitBreakers()
 		time.Sleep(1 * time.Second)
 	}
 
-	log.Printf("[ROUTER] CRITICAL: Exhausted all attempts for session %s", session.ID)
 	job.Response <- &ProxyResponse{Err: fmt.Errorf("all models exhausted after %d attempts", attemptCount)}
 }

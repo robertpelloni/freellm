@@ -24,6 +24,10 @@ REM Check if FreeLLM proxy is running
 curl -s http://localhost:4000/health >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
     echo [FreeLLM] Proxy not running! Starting...
+    echo [FreeLLM] Compiling Go proxy...
+    pushd "%~dp0"
+    go build -buildvcs=false -o freellm.exe ./cmd/app/
+    popd
     start "" /B "%~dp0freellm.exe"
     echo [FreeLLM] Waiting for proxy to start...
     timeout /t 8 /nobreak >nul

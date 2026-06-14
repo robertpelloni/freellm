@@ -1,5 +1,7 @@
 @echo off
-cd /d C:\Users\hyper\workspace\litellm_control_panel
+cd /d C:\Users\hyper\workspace\freellm
+echo [FreeLLM] Compiling Go proxy...
+go build -buildvcs=false -o freellm.exe ./cmd/app/
 set GEMINI_API_KEY=
 start /B freellm.exe
 echo FreeLLM Proxy started on port 4000

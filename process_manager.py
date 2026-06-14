@@ -118,7 +118,55 @@ class FreeLLMProcess:
 
             print(f"Starting FreeLLM with config: {self.config_path}")
 
-            cmd = ["freellm", "--config", self.config_path, "--port", "4000"]
+            # Auto-compile Go binary if Go source files exist
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            go_mod = os.path.join(base_dir, "go.mod")
+            main_go = os.path.join(base_dir, "cmd", "app", "main.go")
+            exe_path = os.path.join(base_dir, "freellm.exe")
+
+            if os.path.exists(go_mod) and os.path.exists(main_go):
+                print("Compiling Go proxy (freellm.exe)...")
+                temp_exe = exe_path + ".old"
+                if os.path.exists(temp_exe):
+                    try:
+                        os.remove(temp_exe)
+                    except:
+                        pass
+                if os.path.exists(exe_path):
+                    try:
+                        os.rename(exe_path, temp_exe)
+                    except:
+                        pass
+
+                try:
+                    res = subprocess.run(
+                        ["go", "build", "-buildvcs=false", "-o", exe_path, "./cmd/app/"],
+                        cwd=base_dir,
+                        capture_output=True,
+                        text=True,
+                        creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+                        timeout=15
+                    )
+                    if res.returncode == 0:
+                        print("Go proxy compiled successfully.")
+                        try:
+                            os.remove(temp_exe)
+                        except:
+                            pass
+                    else:
+                        print(f"Go proxy compilation failed: {res.stderr}")
+                        if os.path.exists(temp_exe) and not os.path.exists(exe_path):
+                            try:
+                                os.rename(temp_exe, exe_path)
+                            except:
+                                pass
+                except Exception as build_err:
+                    print(f"Could not compile Go proxy: {build_err}")
+
+            if not os.path.exists(exe_path):
+                exe_path = "freellm"
+
+            cmd = [exe_path, "--config", self.config_path, "--port", "4000"]
             creationflags = 0
             if sys.platform == "win32":
                 creationflags = subprocess.CREATE_NO_WINDOW
