@@ -179,15 +179,15 @@ func (g *Gateway) handleAnthropicMessages(w http.ResponseWriter, r *http.Request
 		defer resp.Stream.Close()
 		if aReq.Stream {
 			// Stream: translate OpenAI SSE -> Anthropic SSE
-			g.streamAnthropicSSE(w, resp.Stream, aReq.Model, resp.ModelID)
+			g.streamAnthropicSSE(w, resp.Stream, aReq.Model, resp.ModelID, resp.Provider)
 		} else {
 			// Non-stream but upstream gave us a stream - collect and translate
-			g.collectAndTranslateStream(w, resp.Stream, aReq.Model, resp.ModelID)
+			g.collectAndTranslateStream(w, resp.Stream, aReq.Model, resp.ModelID, resp.Provider)
 		}
 	} else {
 		if aReq.Stream {
 			// Client wants stream but got non-stream response - wrap as single SSE
-			g.wrapNonStreamAsAnthropicSSE(w, resp.Body, aReq.Model, resp.ModelID)
+			g.wrapNonStreamAsAnthropicSSE(w, resp.Body, aReq.Model, resp.ModelID, resp.Provider)
 		} else {
 			// Non-stream: translate OpenAI response -> Anthropic response
 			translateOpenAIToAnthropicResponse(w, resp, aReq.Model)
@@ -747,7 +747,7 @@ func translateFinishReason(choices []struct {
 }
 
 // streamAnthropicSSE translates an OpenAI SSE stream into an Anthropic SSE stream.
-func (g *Gateway) streamAnthropicSSE(w http.ResponseWriter, body io.ReadCloser, reqModel string, modelID string) {
+func (g *Gateway) streamAnthropicSSE(w http.ResponseWriter, body io.ReadCloser, reqModel string, modelID string, provider string) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -905,6 +905,18 @@ func (g *Gateway) streamAnthropicSSE(w http.ResponseWriter, body io.ReadCloser, 
 	}
 
 	// Send content_block_stop
+	// Append provider/model attribution as a final content delta
+	providerTag := "\n\n---\n*" + modelID + " (" + provider + ")*"
+	tagDelta := map[string]interface{}{
+		"type": "content_block_delta",
+		"index": 0,
+		"delta": map[string]interface{}{
+			"type": "text_delta",
+			"text": providerTag,
+		},
+	}
+	writeSSE(w, "content_block_delta", tagDelta, flusher, canFlush)
+
 	if !sentBlockStop {
 		blockStop := map[string]interface{}{
 			"type":  "content_block_stop",
@@ -935,7 +947,7 @@ func (g *Gateway) streamAnthropicSSE(w http.ResponseWriter, body io.ReadCloser, 
 
 // collectAndTranslateStream collects an OpenAI SSE stream and translates
 // it to a non-streaming Anthropic response.
-func (g *Gateway) collectAndTranslateStream(w http.ResponseWriter, body io.ReadCloser, reqModel string, modelID string) {
+func (g *Gateway) collectAndTranslateStream(w http.ResponseWriter, body io.ReadCloser, reqModel string, modelID string, provider string) {
 	bufReader := newBufferedLineReader(body)
 	var fullText strings.Builder
 	inputTokens := 0
@@ -1016,7 +1028,7 @@ func (g *Gateway) collectAndTranslateStream(w http.ResponseWriter, body io.ReadC
 		Type: "message",
 		Role: "assistant",
 		Content: []anthropicContent{
-			{Type: "text", Text: fullText.String()},
+			{Type: "text", Text: fullText.String() + "\n\n---\n*" + modelID + " (" + provider + ")*"},
 		},
 		Model:      reqModel,
 		StopReason: stopReason,
@@ -1037,7 +1049,7 @@ func (g *Gateway) collectAndTranslateStream(w http.ResponseWriter, body io.ReadC
 
 // wrapNonStreamAsAnthropicSSE wraps a non-streaming OpenAI response as
 // a single-shot Anthropic SSE stream.
-func (g *Gateway) wrapNonStreamAsAnthropicSSE(w http.ResponseWriter, body []byte, reqModel string, modelID string) {
+func (g *Gateway) wrapNonStreamAsAnthropicSSE(w http.ResponseWriter, body []byte, reqModel string, modelID string, provider string) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")

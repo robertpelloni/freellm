@@ -92,7 +92,7 @@ func (b *Benchmarker) FetchModels(ctx context.Context, database *sql.DB) []Model
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 
-	providers := []string{"openrouter", "groq", "deepinfra", "cerebras", "github", "nvidia", "nvidia_nim", "mistral", "codestral", "cohere", "sambanova", "fireworks", "hyperbolic", "cloudflare", "opencode_zen", "gemini", "openai"}
+	providers := []string{"openrouter", "groq", "deepinfra", "cerebras", "github", "nvidia", "nvidia_nim", "mistral", "codestral", "cohere", "sambanova", "fireworks", "hyperbolic", "cloudflare", "opencode_zen", "gemini", "openai", "siliconflow", "together", "novita", "dashscope", "minimax", "moonshot", "stepfun", "zhipu", "internlm", "hunyuan", "nebius", "ai21", "replicate", "perplexity", "xai", "arcee"}
 
 	for _, p := range providers {
 		if IsDeadProvider(p) { continue }
@@ -352,9 +352,12 @@ apiModelID = strings.TrimPrefix(apiModelID, "gemini/")
 	// Wait for the first line of streaming response
 	reader := io.Reader(resp.Body)
 	buf := make([]byte, 1024)
-	_, err = reader.Read(buf)
+	n, err := reader.Read(buf)
 	if err != nil && err != io.EOF {
 		return 0, err
+	}
+	if n == 0 || !bytes.Contains(buf[:n], []byte("data:")) {
+		return 0, fmt.Errorf("empty or invalid SSE response")
 	}
 
 	ttft := time.Since(startTime).Seconds()
@@ -475,6 +478,40 @@ func (b *Benchmarker) getModelsURL(provider string) string {
 	case "openai":
 		if base == "" { return "https://api.openai.com/v1/models" }
 		return base + "/models"
+	case "siliconflow":
+		return "https://api.siliconflow.cn/v1/models"
+	case "together":
+		return "https://api.together.xyz/v1/models"
+	case "novita":
+		return "https://api.novita.ai/v3/models"
+	case "nebius":
+		return "https://api.studio.nebius.ai/v1/models"
+	case "deepseek":
+		return "https://api.deepseek.com/v1/models"
+	case "ai21":
+		return "https://api.ai21.com/v1/models"
+	case "replicate":
+		return "https://api.replicate.com/v1/models"
+	case "dashscope":
+		return "https://dashscope.aliyuncs.com/compatible-mode/v1/models"
+	case "minimax":
+		return "https://api.minimax.chat/v1/models"
+	case "moonshot":
+		return "https://api.moonshot.cn/v1/models"
+	case "stepfun":
+		return "https://api.stepfun.com/v1/models"
+	case "zhipu":
+		return "https://open.bigmodel.cn/api/paas/v4/models"
+	case "internlm":
+		return "https://internlm-chat.intern-ai.org.cn/v1/models"
+	case "arcee":
+		return "https://api.arcee.ai/v1/models"
+	case "perplexity":
+		return "https://api.perplexity.ai/v1/models"
+	case "xai":
+		return "https://api.x.ai/v1/models"
+	case "hunyuan":
+		return "https://api.hunyuan.cloud.tencent.com/v1/models"
 	case "lm_studio":
 		if base == "" { return "http://localhost:1234/v1/models" }
 		return base + "/v1/models"
@@ -541,6 +578,40 @@ func (b *Benchmarker) getCompletionsURL(provider string) string {
 	case "openai":
 		if base == "" { return "https://api.openai.com/v1/chat/completions" }
 		return base + "/chat/completions"
+	case "siliconflow":
+		return "https://api.siliconflow.cn/v1/chat/completions"
+	case "together":
+		return "https://api.together.xyz/v1/chat/completions"
+	case "novita":
+		return "https://api.novita.ai/v3/chat/completions"
+	case "nebius":
+		return "https://api.studio.nebius.ai/v1/chat/completions"
+	case "deepseek":
+		return "https://api.deepseek.com/v1/chat/completions"
+	case "ai21":
+		return "https://api.ai21.com/v1/chat/completions"
+	case "replicate":
+		return "https://api.replicate.com/v1/chat/completions"
+	case "dashscope":
+		return "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+	case "minimax":
+		return "https://api.minimax.chat/v1/chat/completions"
+	case "moonshot":
+		return "https://api.moonshot.cn/v1/chat/completions"
+	case "stepfun":
+		return "https://api.stepfun.com/v1/chat/completions"
+	case "zhipu":
+		return "https://open.bigmodel.cn/api/paas/v4/chat/completions"
+	case "internlm":
+		return "https://internlm-chat.intern-ai.org.cn/v1/chat/completions"
+	case "arcee":
+		return "https://api.arcee.ai/v1/chat/completions"
+	case "perplexity":
+		return "https://api.perplexity.ai/v1/chat/completions"
+	case "xai":
+		return "https://api.x.ai/v1/chat/completions"
+	case "hunyuan":
+		return "https://api.hunyuan.cloud.tencent.com/v1/chat/completions"
 	case "lm_studio":
 		if base == "" { return "http://localhost:1234/v1/chat/completions" }
 		return base + "/v1/chat/completions"

@@ -16,3 +16,6 @@ tormentnexus.db
 freellm.exe
 freellm.exe~
 freellm-config-local.yaml
+
+# Environment secrets
+.env

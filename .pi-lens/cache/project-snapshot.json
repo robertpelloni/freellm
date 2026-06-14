@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "projectRoot": "C:/Users/hyper/workspace/litellm_control_panel",
-  "generatedAt": "2026-06-07T11:41:26.283Z",
-  "seq": 89,
+  "projectRoot": "C:/Users/hyper/workspace/freellm",
+  "generatedAt": "2026-06-14T15:14:31.578Z",
+  "seq": 90,
   "files": {
     "C:/Users/hyper/workspace/litellm_control_panel/api_server.py": {
       "path": "C:/Users/hyper/workspace/litellm_control_panel/api_server.py",
@@ -365,11 +365,11 @@
     "hasCustomRules": false
   },
   "startupScan": {
-    "cwd": "C:\\Users\\hyper\\workspace\\litellm_control_panel",
-    "scanRoot": "C:\\Users\\hyper\\workspace\\litellm_control_panel",
-    "projectRoot": "C:\\Users\\hyper\\workspace\\litellm_control_panel",
+    "cwd": "C:\\Users\\hyper\\workspace\\freellm",
+    "scanRoot": "C:\\Users\\hyper\\workspace\\freellm",
+    "projectRoot": "C:\\Users\\hyper\\workspace\\freellm",
     "canWarmCaches": true,
-    "sourceFileCount": 43
+    "sourceFileCount": 47
   },
   "languageProfile": {
     "present": {
@@ -414,7 +414,7 @@
     },
     "counts": {
       "python": 23,
-      "go": 19,
+      "go": 23,
       "jsts": 1
     },
     "detectedKinds": [

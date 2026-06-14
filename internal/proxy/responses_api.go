@@ -94,10 +94,16 @@ func (g *Gateway) handleResponsesAPI(w http.ResponseWriter, r *http.Request) {
 		}
 		log.Printf("[RESPONSES] processJob result: status=%d, body=%s", proxyResp.Status, func() string { s := string(proxyResp.Body); if len(s) > 200 { return s[:200] }; return s }())
 		// Build an http.Response from the ProxyResponse
+		var body io.ReadCloser
+		if proxyResp.Stream != nil {
+			body = proxyResp.Stream
+		} else {
+			body = io.NopCloser(strings.NewReader(string(proxyResp.Body)))
+		}
 		resp = &http.Response{
 			StatusCode: proxyResp.Status,
-			Body: io.NopCloser(strings.NewReader(string(proxyResp.Body))),
-			Header: proxyResp.Header,
+			Body:       body,
+			Header:     proxyResp.Header,
 		}
 	case <-time.After(30 * time.Second):
 		log.Printf("[RESPONSES] processJob timeout")

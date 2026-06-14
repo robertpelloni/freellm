@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
@@ -49,6 +50,10 @@ type Gateway struct {
 	A2A A2ARouter
 	Sessions   *SessionTracker
 	activeSem  chan struct{} // main proxy path concurrency semaphore (MaxActive)
+	FanOutSize int           // number of parallel requests in fan-out
+	ShuffleEnabled bool      // whether to shuffle models after successful request
+	provenModels     map[string]bool // map of modelID+provider that have successfully worked
+	provenMu         sync.RWMutex
 }
 
 // A2ARouter is the interface for A2A protocol route handling.
@@ -80,6 +85,65 @@ type ProxyResponse struct {
 	Stream io.ReadCloser
 	ModelID string
 	Provider string
+	OriginalPayload map[string]interface{}
+	Alternatives []engine.ModelCandidate
+}
+
+// writeSSEError sends an error message as a valid SSE event for streaming clients
+func writeSSEError(w http.ResponseWriter, message string, modelID string) {
+	id := fmt.Sprintf("chatcmpl-%d", time.Now().UnixNano())
+	if modelID == "" {
+		modelID = "error"
+	}
+
+	flusher, ok := w.(http.Flusher)
+
+	// First send the error as a text delta so the user can see it
+	errTextChunk, _ := json.Marshal(map[string]interface{}{
+		"id":      id,
+		"object":  "chat.completion.chunk",
+		"created": time.Now().Unix(),
+		"model":   modelID,
+		"choices": []interface{}{
+			map[string]interface{}{
+				"index": 0,
+				"delta": map[string]interface{}{
+					"content": fmt.Sprintf("\n\n[FreeLLM Proxy Error: %s]\n\n", message),
+				},
+			},
+		},
+	})
+	fmt.Fprintf(w, "data: %s\n\n", string(errTextChunk))
+
+	// Then send the formal error object as a chunk
+	errObjChunk, _ := json.Marshal(map[string]interface{}{
+		"error": map[string]interface{}{
+			"message": message,
+			"type":    "server_error",
+			"code":    "proxy_error",
+		},
+	})
+	fmt.Fprintf(w, "data: %s\n\n", string(errObjChunk))
+
+	// Finally send the finish reason and DONE sentinel
+	stopChunk, _ := json.Marshal(map[string]interface{}{
+		"id":      id,
+		"object":  "chat.completion.chunk",
+		"created": time.Now().Unix(),
+		"model":   modelID,
+		"choices": []interface{}{
+			map[string]interface{}{
+				"index":         0,
+				"delta":         map[string]interface{}{},
+				"finish_reason": "stop",
+			},
+		},
+	})
+	fmt.Fprintf(w, "data: %s\n\n", string(stopChunk))
+	fmt.Fprintf(w, "data: [DONE]\n\n")
+	if ok {
+		flusher.Flush()
+	}
 }
 
 func NewGateway(maxActive int, database *sql.DB, port int) *Gateway {
@@ -96,9 +160,27 @@ func NewGateway(maxActive int, database *sql.DB, port int) *Gateway {
 		preflightCache: make(map[string]preflightEntry),
 		Sessions:   NewSessionTracker(),
 		activeSem: make(chan struct{}, maxActive),
+		FanOutSize: 5,
+		ShuffleEnabled: true,
+		provenModels: make(map[string]bool),
 		}
 	go g.workerLoop()
 	return g
+}
+
+func (g *Gateway) IsProven(modelID, provider string) bool {
+	g.provenMu.RLock()
+	defer g.provenMu.RUnlock()
+	return g.provenModels[modelID+provider]
+}
+
+func (g *Gateway) MarkProven(modelID, provider string) {
+	g.provenMu.Lock()
+	defer g.provenMu.Unlock()
+	if !g.provenModels[modelID+provider] {
+		log.Printf("[ROUTER] Marking model %s(%s) as PROVEN - will receive extended timeouts", modelID, provider)
+		g.provenModels[modelID+provider] = true
+	}
 }
 
 func (g *Gateway) UpdateModels(models engine.RankedModels) {
@@ -277,9 +359,9 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[PROXY] Waiting for job response (stream=%v)...", isStream)
 	var resp *ProxyResponse
 	// Keepalive loop: send periodic pings to prevent client timeouts
-	keepaliveInterval := 15 * time.Second
+	keepaliveInterval := 10 * time.Second
 	if isStream {
-		keepaliveInterval = 10 * time.Second
+		keepaliveInterval = 5 * time.Second
 	}
 	keepaliveTicker := time.NewTicker(keepaliveInterval)
 	defer keepaliveTicker.Stop()
@@ -305,22 +387,11 @@ WaitLoop:
 			return
 		}
 	}
-	log.Printf("[PROXY] 'Got response, err=%v status=%d", resp.Err, resp.Status)
-if resp.Err != nil {
-		if wroteHeader {
-			// Headers already sent via SSE keepalive - send error as SSE event
-			errJSON, _ := json.Marshal(map[string]interface{}{
-				"error": map[string]interface{}{
-					"message": resp.Err.Error(),
-					"type":   "server_error",
-					"code":   "proxy_error",
-				},
-			})
-			fmt.Fprintf(w, "data: %s\n\n", string(errJSON))
-			fmt.Fprintf(w, "data: [DONE]\n\n")
-			if flusher, ok := w.(http.Flusher); ok {
-				flusher.Flush()
-			}
+	log.Printf("[PROXY] Got response, err=%v status=%d", resp.Err, resp.Status)
+	if resp.Err != nil {
+		log.Printf("[PROXY] Job error: %v", resp.Err)
+		if isStream {
+			writeSSEError(w, resp.Err.Error(), "")
 		} else {
 			writeJSONError(w, http.StatusBadGateway, resp.Err.Error(), "server_error", "proxy")
 		}
@@ -351,6 +422,145 @@ if resp.Err != nil {
 			io.Copy(w, resp.Stream)
 		}
 		g.logUsage(resp.ModelID, nil, nil)
+	} else if isStream {
+		// If the response is not a stream but the client expects a stream (e.g. error or fallback/mock),
+		// we must format it as SSE events.
+		flusher, ok := w.(http.Flusher)
+
+		var bodyMap map[string]interface{}
+		isErrorBody := resp.Status >= 400
+		hasErrorKey := false
+
+		if json.Unmarshal(resp.Body, &bodyMap) == nil {
+			if _, ok := bodyMap["error"]; ok {
+				hasErrorKey = true
+				isErrorBody = true
+			}
+		} else {
+			// If not valid JSON, treat as error string
+			isErrorBody = true
+		}
+
+		if isErrorBody && !hasErrorKey {
+			// Extract a meaningful error message from JSON/non-JSON response
+			errMsg := ""
+			if bodyMap != nil {
+				if msg, ok := bodyMap["message"].(string); ok && msg != "" {
+					errMsg = msg
+				} else if msg, ok := bodyMap["error_message"].(string); ok && msg != "" {
+					errMsg = msg
+				} else if msg, ok := bodyMap["msg"].(string); ok && msg != "" {
+					errMsg = msg
+				} else if msg, ok := bodyMap["detail"].(string); ok && msg != "" {
+					errMsg = msg
+				} else {
+					// Convert bodyMap to a JSON string if possible, or fall back to raw body
+					if rawJSON, err := json.Marshal(bodyMap); err == nil {
+						errMsg = string(rawJSON)
+					} else {
+						errMsg = string(resp.Body)
+					}
+				}
+			} else {
+				errMsg = string(resp.Body)
+			}
+
+			// Wrap in standard OpenAI error format
+			errJSON, _ := json.Marshal(map[string]interface{}{
+				"error": map[string]interface{}{
+					"message": errMsg,
+					"type":    "server_error",
+					"code":    "upstream_error",
+				},
+			})
+			resp.Body = errJSON
+		}
+
+		modelID := resp.ModelID
+		if modelID == "" {
+			modelID = "error"
+		}
+
+		if isErrorBody {
+			// Extract error message from resp.Body
+			errMsg := "Unknown error"
+			var errDetail map[string]interface{}
+			if json.Unmarshal(resp.Body, &errDetail) == nil {
+				if errSub, ok := errDetail["error"].(map[string]interface{}); ok {
+					if msg, ok := errSub["message"].(string); ok {
+						errMsg = msg
+					}
+				}
+			}
+			writeSSEError(w, errMsg, modelID)
+			return
+		} else {
+			// It's a successful non-streaming response. Let's translate it into SSE chunks.
+			id := fmt.Sprintf("chatcmpl-%d", time.Now().UnixNano())
+			if customID, ok := bodyMap["id"].(string); ok && customID != "" {
+				id = customID
+			}
+			
+			content := ""
+			finishReason := "stop"
+			if choices, ok := bodyMap["choices"].([]interface{}); ok && len(choices) > 0 {
+				if choice, ok := choices[0].(map[string]interface{}); ok {
+					if msg, ok := choice["message"].(map[string]interface{}); ok {
+						content, _ = msg["content"].(string)
+					}
+					if fr, ok := choice["finish_reason"].(string); ok && fr != "" {
+						finishReason = fr
+					}
+				}
+			}
+
+			// Send text delta chunk
+			if content != "" {
+				chunk := map[string]interface{}{
+					"id":      id,
+					"object":  "chat.completion.chunk",
+					"created": time.Now().Unix(),
+					"model":   modelID,
+					"choices": []interface{}{
+						map[string]interface{}{
+							"index": 0,
+							"delta": map[string]interface{}{
+								"role":    "assistant",
+								"content": content,
+							},
+						},
+					},
+				}
+				if cleaned, err := json.Marshal(chunk); err == nil {
+					fmt.Fprintf(w, "data: %s\n\n", string(cleaned))
+					if ok {
+						flusher.Flush()
+					}
+				}
+			}
+
+			// Send final stop chunk
+			stopChunk := map[string]interface{}{
+				"id":      id,
+				"object":  "chat.completion.chunk",
+				"created": time.Now().Unix(),
+				"model":   modelID,
+				"choices": []interface{}{
+					map[string]interface{}{
+						"index":         0,
+						"delta":         map[string]interface{}{},
+						"finish_reason": finishReason,
+					},
+				},
+			}
+			if cleaned, err := json.Marshal(stopChunk); err == nil {
+				fmt.Fprintf(w, "data: %s\n\n", string(cleaned))
+			}
+			fmt.Fprintf(w, "data: [DONE]\n\n")
+			if ok {
+				flusher.Flush()
+			}
+		}
 	} else {
 		// Rewrite model field to include provider for client visibility
 		var respMap map[string]interface{}
@@ -563,7 +773,7 @@ func (g *Gateway) onSuccess(job *RequestJob, model engine.ModelCandidate, proxyR
 }
 
 // classifyRequest detects tool-call requests and splits models by tool compatibility
-func (g *Gateway) classifyRequest(body []byte) (hasTools bool, toolModels []engine.ModelCandidate, plainModels []engine.ModelCandidate) {
+func (g *Gateway) classifyRequest(body []byte, models []engine.ModelCandidate) (hasTools bool, toolModels []engine.ModelCandidate, plainModels []engine.ModelCandidate) {
 	var payload map[string]interface{}
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return false, nil, nil
@@ -592,15 +802,13 @@ func (g *Gateway) classifyRequest(body []byte) (hasTools bool, toolModels []engi
 		"cloudflare": true,
 		"deepinfra":  true,
 	}
-	g.mu.RLock()
-	for _, m := range g.RankedModels {
+	for _, m := range models {
 		if noTool[m.Provider] {
 			plainModels = append(plainModels, m)
 		} else {
 			toolModels = append(toolModels, m)
 		}
 	}
-	g.mu.RUnlock()
 	return
 }
 
@@ -676,13 +884,18 @@ func (g *Gateway) filterCandidates(all engine.RankedModels) []engine.ModelCandid
 
 // autoRecoverCircuitBreakers resets all circuit-broken models for a second chance
 func (g *Gateway) autoRecoverCircuitBreakers() {
-	if g.DB == nil {
-		return
-	}
 	g.cbRecoveryMu.Lock()
 	defer g.cbRecoveryMu.Unlock()
-	g.DB.Exec("UPDATE model_history SET failure_count = 0, retry_after = NULL WHERE failure_count >= 3")
-	log.Println("[ROUTER] Circuit breakers auto-recovered")
+
+	// Clear in-memory provider cooldowns
+	g.cooldownMu.Lock()
+	g.providerCooldown = make(map[string]time.Time)
+	g.cooldownMu.Unlock()
+
+	if g.DB != nil {
+		g.DB.Exec("UPDATE model_history SET failure_count = 0, retry_after = NULL WHERE failure_count >= 3")
+	}
+	log.Println("[ROUTER] Circuit breakers and provider cooldowns auto-recovered")
 }
 
 // sanitizeRequestBody cleans request body for provider compatibility:
@@ -872,9 +1085,31 @@ func (g *Gateway) PreFlightCheck(model engine.ModelCandidate) bool {
 
 // forwardRequest sends the request to a specific provider
 func (g *Gateway) forwardRequest(client *http.Client, r *http.Request, model engine.ModelCandidate, body []byte) *ProxyResponse {
+	// Fetch fallback alternatives from RankedModels
+	g.mu.RLock()
+	allModels := g.RankedModels
+	g.mu.RUnlock()
+
+	candidates := g.filterCandidates(allModels)
+	var alternatives []engine.ModelCandidate
+	for _, c := range candidates {
+		if c.ID != model.ID || c.Provider != model.Provider {
+			alternatives = append(alternatives, c)
+		}
+	}
+
+	return g.forwardRequestInternal(client, r, model, body, false, alternatives)
+}
+
+func (g *Gateway) forwardRequestInternal(client *http.Client, r *http.Request, model engine.ModelCandidate, body []byte, isContinuation bool, alternatives []engine.ModelCandidate) *ProxyResponse {
+	trimmedBody := strings.TrimSpace(string(body))
+	if len(trimmedBody) == 0 || (trimmedBody[0] != '{' && trimmedBody[0] != '[') {
+		return &ProxyResponse{Err: fmt.Errorf("invalid request body: must be JSON object or array")}
+	}
+
 	var payload map[string]interface{}
 	if err := json.Unmarshal(body, &payload); err != nil {
-		return &ProxyResponse{Err: fmt.Errorf("unmarshal: %v", err)}
+		return &ProxyResponse{Err: fmt.Errorf("unmarshal request: %v", err)}
 	}
 
 	// Set model ID, stripping provider prefixes where needed
@@ -906,13 +1141,32 @@ func (g *Gateway) forwardRequest(client *http.Client, r *http.Request, model eng
 		return &ProxyResponse{Err: fmt.Errorf("%s: %v", model.Provider, err)}
 	}
 
-	if stream && resp.StatusCode == http.StatusOK {
+	isHTML := strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "text/html")
+	if isHTML {
+		defer resp.Body.Close()
 		return &ProxyResponse{
-			Status:   resp.StatusCode,
-			Header:   resp.Header,
-			Stream:   resp.Body,
-			ModelID:  model.ID,
-			Provider: model.Provider,
+			Status: http.StatusNotAcceptable,
+			Err:    fmt.Errorf("%s: provider returned HTML instead of API response", model.Provider),
+		}
+	}
+
+	if stream && resp.StatusCode == http.StatusOK {
+		var streamBody io.ReadCloser = resp.Body
+		if !isContinuation {
+			streamBody = g.newContinuationStream(client, r, model, body, resp.Body, alternatives)
+		}
+
+		var payload map[string]interface{}
+		json.Unmarshal(body, &payload)
+
+		return &ProxyResponse{
+			Status:          resp.StatusCode,
+			Header:          resp.Header,
+			Stream:          streamBody,
+			ModelID:         model.ID,
+			Provider:        model.Provider,
+			OriginalPayload: payload,
+			Alternatives:    alternatives,
 		}
 	}
 
@@ -932,18 +1186,18 @@ func (g *Gateway) forwardRequest(client *http.Client, r *http.Request, model eng
 					if choice, ok := c.(map[string]interface{}); ok {
 						if msg, ok := choice["message"].(map[string]interface{}); ok {
 							// Migrate reasoning to content if content is empty
-						if rc, ok := msg["reasoning_content"].(string); ok && rc != "" {
-							if existing, ok := msg["content"].(string); !ok || existing == "" {
-								msg["content"] = rc
+							if rc, ok := msg["reasoning_content"].(string); ok && rc != "" {
+								if existing, ok := msg["content"].(string); !ok || existing == "" {
+									msg["content"] = rc
+								}
 							}
-						}
-						if r, ok := msg["reasoning"].(string); ok && r != "" {
-							if existing, ok := msg["content"].(string); !ok || existing == "" {
-								msg["content"] = r
+							if r, ok := msg["reasoning"].(string); ok && r != "" {
+								if existing, ok := msg["content"].(string); !ok || existing == "" {
+									msg["content"] = r
+								}
 							}
-						}
-						delete(msg, "reasoning_content")
-						delete(msg, "reasoning")
+							delete(msg, "reasoning_content")
+							delete(msg, "reasoning")
 						}
 					}
 				}
@@ -969,15 +1223,754 @@ func (g *Gateway) forwardRequest(client *http.Client, r *http.Request, model eng
 		resp.Header.Del("Content-Length")
 	}
 
-	return &ProxyResponse{
-		Status: resp.StatusCode,
-		Body:   respBody,
-		Header: resp.Header,
+	if !stream && resp.StatusCode == 200 && !isContinuation {
+		// Prepend initial model prefix (prependModelPrefixNonStream will check if response has tool calls)
+		respBody = g.prependModelPrefixNonStream(respBody, model)
+
+		if g.isResponseTruncated(respBody) {
+			log.Printf("[AUTO-CONTINUE] Non-stream response truncated, starting auto-continuation...")
+			respBody = g.autoContinueNonStream(client, r, model, body, respBody, alternatives)
+		}
 	}
+
+	var payload_final map[string]interface{}
+	json.Unmarshal(body, &payload_final)
+
+	return &ProxyResponse{
+		Status:          resp.StatusCode,
+		Body:            respBody,
+		Header:          resp.Header,
+		ModelID:         model.ID,
+		Provider:        model.Provider,
+		OriginalPayload: payload_final,
+		Alternatives:    alternatives,
+	}
+}
+
+// prependModelPrefixNonStream prepends [Model: id | Provider: provider] to the assistant message
+func (g *Gateway) prependModelPrefixNonStream(respBody []byte, model engine.ModelCandidate) []byte {
+	var resp map[string]interface{}
+	if err := json.Unmarshal(respBody, &resp); err != nil {
+		return respBody
+	}
+	choices, ok := resp["choices"].([]interface{})
+	if !ok || len(choices) == 0 {
+		return respBody
+	}
+	choice, ok := choices[0].(map[string]interface{})
+	if !ok {
+		return respBody
+	}
+	msg, ok := choice["message"].(map[string]interface{})
+	if !ok {
+		return respBody
+	}
+
+	// Inject prefix (always, as requested)
+	content, _ := msg["content"].(string)
+	prefix := fmt.Sprintf("[Model: %s | Provider: %s]\n\n", model.ID, model.Provider)
+	msg["content"] = prefix + content
+
+	if merged, err := json.Marshal(resp); err == nil {
+		return merged
+	}
+	return respBody
+}
+
+// isResponseTruncated checks if a response was cut off (no proper completion)
+func (g *Gateway) isResponseTruncated(respBody []byte) bool {
+	var resp map[string]interface{}
+	if err := json.Unmarshal(respBody, &resp); err != nil {
+		return false // Can't parse, assume not truncated
+	}
+	choices, ok := resp["choices"].([]interface{})
+	if !ok || len(choices) == 0 {
+		return false
+	}
+	choice, ok := choices[0].(map[string]interface{})
+	if !ok {
+		return false
+	}
+
+	// Check if this is a tool call response
+	if msg, ok := choice["message"].(map[string]interface{}); ok {
+		if _, hasToolCalls := msg["tool_calls"]; hasToolCalls {
+			return false // Don't auto-continue tool calls
+		}
+	}
+
+	// Check finish_reason
+	if fr, ok := choice["finish_reason"]; ok && fr != nil {
+		frStr := fmt.Sprintf("%v", fr)
+		if frStr == "" || frStr == "<nil>" || frStr == "null" {
+			// No finish_reason - treat as truncated
+			return true
+		}
+		// Definite completions
+		if frStr == "stop" || frStr == "end_turn" || frStr == "tool_calls" || frStr == "function_call" {
+			return false
+		}
+		// Any other finish_reason (like "length", "max_tokens", etc.) - treat as truncated
+		return true
+	}
+	// No finish_reason field at all - treat as truncated
+	return true
+}
+
+// autoContinueNonStream continues a truncated response by sending a follow-up request
+func (g *Gateway) autoContinueNonStream(client *http.Client, r *http.Request, initialModel engine.ModelCandidate, originalBody []byte, firstRespBody []byte, alternatives []engine.ModelCandidate) []byte {
+	currentRespBody := firstRespBody
+	var accumulatedContent strings.Builder
+
+	// Parse first response content
+	var resp map[string]interface{}
+	if err := json.Unmarshal(firstRespBody, &resp); err != nil {
+		return firstRespBody
+	}
+	choices, ok := resp["choices"].([]interface{})
+	if !ok || len(choices) == 0 {
+		return firstRespBody
+	}
+	choice, ok := choices[0].(map[string]interface{})
+	if !ok {
+		return firstRespBody
+	}
+	msg, ok := choice["message"].(map[string]interface{})
+	if !ok {
+		return firstRespBody
+	}
+	content, _ := msg["content"].(string)
+	accumulatedContent.WriteString(content)
+
+	// Keep track of the request payload we are building
+	var currentPayload map[string]interface{}
+	if err := json.Unmarshal(originalBody, &currentPayload); err != nil {
+		return firstRespBody
+	}
+
+	currentModel := initialModel
+	fallbackIdx := 0
+
+	for i := 0; i < 5; i++ { // limit to 5 continuations to avoid infinite loop
+		// Get original messages
+		originalMsgs, ok := currentPayload["messages"].([]interface{})
+		if !ok {
+			break
+		}
+
+		// Build new messages: original messages + the accumulated assistant response so far + "continue" user message
+		newMsgs := make([]interface{}, len(originalMsgs))
+		copy(newMsgs, originalMsgs)
+		newMsgs = append(newMsgs, map[string]interface{}{
+			"role":    "assistant",
+			"content": accumulatedContent.String(),
+		})
+		newMsgs = append(newMsgs, map[string]interface{}{
+			"role":    "user",
+			"content": "continue",
+		})
+
+		newPayload := make(map[string]interface{})
+		for k, v := range currentPayload {
+			newPayload[k] = v
+		}
+		newPayload["messages"] = newMsgs
+
+		// Ensure max_tokens is set high enough for continuation
+		newPayload["max_tokens"] = 8192
+
+		newBody, err := json.Marshal(newPayload)
+		if err != nil {
+			break
+		}
+
+		log.Printf("[AUTO-CONTINUE] Sending non-stream continuation attempt %d for model %s", i+1, currentModel.ID)
+
+		// Make the request using forwardRequestInternal with isContinuation = true
+		contResp := g.forwardRequestInternal(client, r, currentModel, newBody, true, nil)
+
+		// Fallback switching if the continuation fails
+		for (contResp.Err != nil || contResp.Status != 200) && fallbackIdx < len(alternatives) {
+			fallbackModel := alternatives[fallbackIdx]
+			fallbackIdx++
+			log.Printf("[AUTO-CONTINUE] Model %s failed in continuation, switching to fallback %s...", currentModel.ID, fallbackModel.ID)
+
+			contResp = g.forwardRequestInternal(client, r, fallbackModel, newBody, true, nil)
+			if contResp.Err == nil && contResp.Status == 200 {
+				currentModel = fallbackModel
+				accumulatedContent.WriteString(fmt.Sprintf("\n\n[Switched to Model: %s | Provider: %s due to error/cutoff]\n\n", currentModel.ID, currentModel.Provider))
+				break
+			}
+		}
+
+		if contResp.Err != nil || contResp.Status != 200 {
+			log.Printf("[AUTO-CONTINUE] Continuation attempt %d failed completely.", i+1)
+			errMsg := "[FreeLLM Proxy Error: Continuation failed. Response may be incomplete.]"
+			if contResp.Err != nil {
+				errMsg = fmt.Sprintf("[FreeLLM Proxy Error: Continuation failed: %v]", contResp.Err)
+			}
+			accumulatedContent.WriteString("\n\n" + errMsg + "\n\n")
+			
+			// Update the original choice's message content with what we have
+			msg["content"] = accumulatedContent.String()
+			if merged, err := json.Marshal(resp); err == nil {
+				currentRespBody = merged
+			}
+			break
+		}
+
+		var contRespMap map[string]interface{}
+		if err := json.Unmarshal(contResp.Body, &contRespMap); err != nil {
+			break
+		}
+		contChoices, ok := contRespMap["choices"].([]interface{})
+		if !ok || len(contChoices) == 0 {
+			break
+		}
+		contChoice, ok := contChoices[0].(map[string]interface{})
+		if !ok {
+			break
+		}
+		contMsg, ok := contChoice["message"].(map[string]interface{})
+		if !ok {
+			break
+		}
+		contContent, _ := contMsg["content"].(string)
+		if contContent == "" {
+			log.Printf("[AUTO-CONTINUE] Continuation returned empty content, stopping.")
+			break
+		}
+
+		// Inject continuation marker
+		accumulatedContent.WriteString(fmt.Sprintf("\n\n[Continued with Model: %s | Provider: %s]\n\n", currentModel.ID, currentModel.Provider))
+		accumulatedContent.WriteString(contContent)
+
+		// Update finish_reason from the continuation
+		newFinishReason := ""
+		if fr, ok := contChoice["finish_reason"]; ok && fr != nil {
+			newFinishReason = fmt.Sprintf("%v", fr)
+		}
+
+		// Update the original choice's message content and finish_reason
+		msg["content"] = accumulatedContent.String()
+		choice["finish_reason"] = contChoice["finish_reason"]
+
+		// Re-serialize the response
+		if merged, err := json.Marshal(resp); err == nil {
+			currentRespBody = merged
+		}
+
+		// Check if we need to continue again
+		if !g.isResponseTruncated(contResp.Body) {
+			log.Printf("[AUTO-CONTINUE] Continuation complete with finish_reason: %s", newFinishReason)
+			break
+		}
+	}
+
+	return currentRespBody
+}
+
+type continuationStream struct {
+	g                 *Gateway
+	client            *http.Client
+	req               *http.Request
+	model             engine.ModelCandidate
+	alternatives      []engine.ModelCandidate
+	fallbackIdx       int
+	originalBody      []byte
+	currentStream     io.ReadCloser
+	reader            *bufio.Reader
+	accumulatedText   strings.Builder
+	finishReason      string
+	eofReached        bool
+	err               error
+	buffer            bytes.Buffer
+	continuationCount int
+	firstChunkParsed  bool
+	prefixSent        bool
+	isToolCall        bool
+	finishReasonSent  bool
+	lastAccumulatedLen int
+}
+
+func (g *Gateway) newContinuationStream(client *http.Client, r *http.Request, model engine.ModelCandidate, originalBody []byte, firstStream io.ReadCloser, alternatives []engine.ModelCandidate) *continuationStream {
+	return &continuationStream{
+		g:             g,
+		client:        client,
+		req:           r,
+		model:         model,
+		alternatives:  alternatives,
+		originalBody:  originalBody,
+		currentStream: firstStream,
+		reader:        bufio.NewReader(firstStream),
+		lastAccumulatedLen: 0,
+	}
+}
+
+func (s *continuationStream) injectTextChunk(text string) {
+	id := fmt.Sprintf("chatcmpl-%d", time.Now().UnixNano())
+	chunk := map[string]interface{}{
+		"id":      id,
+		"object":  "chat.completion.chunk",
+		"created": time.Now().Unix(),
+		"model":   s.model.ID,
+		"choices": []interface{}{
+			map[string]interface{}{
+				"index": 0,
+				"delta": map[string]interface{}{
+					"content": text,
+				},
+			},
+		},
+	}
+	if cleaned, err := json.Marshal(chunk); err == nil {
+		s.buffer.WriteString("data: " + string(cleaned) + "\n\n")
+	}
+}
+
+func (s *continuationStream) injectFinishReasonChunk(fr string) {
+	id := fmt.Sprintf("chatcmpl-%d", time.Now().UnixNano())
+	chunk := map[string]interface{}{
+		"id":      id,
+		"object":  "chat.completion.chunk",
+		"created": time.Now().Unix(),
+		"model":   s.model.ID,
+		"choices": []interface{}{
+			map[string]interface{}{
+				"index":         0,
+				"delta":         map[string]interface{}{},
+				"finish_reason": fr,
+			},
+		},
+	}
+	if cleaned, err := json.Marshal(chunk); err == nil {
+		s.buffer.WriteString("data: " + string(cleaned) + "\n\n")
+	}
+}
+
+func (s *continuationStream) Read(p []byte) (int, error) {
+	// If there are bytes in the buffer, read them first
+	if s.buffer.Len() > 0 {
+		return s.buffer.Read(p)
+	}
+
+	if s.eofReached {
+		if s.err != nil {
+			return 0, s.err
+		}
+		return 0, io.EOF
+	}
+
+	// Read lines from the current stream until we can fill the buffer or hit EOF
+	for s.buffer.Len() == 0 {
+		// Mandatory prefix injection if not yet sent (as requested by user)
+		if !s.prefixSent && !s.isToolCall {
+			s.injectTextChunk(fmt.Sprintf("[Model: %s | Provider: %s]\n\n", s.model.ID, s.model.Provider))
+			s.prefixSent = true
+			// After injecting prefix, we must return it immediately to avoid delays
+			return s.buffer.Read(p)
+		}
+
+		type result struct {
+			line string
+			err  error
+		}
+		resCh := make(chan result, 1)
+
+		go func() {
+			line, err := s.reader.ReadString('\n')
+			resCh <- result{line, err}
+		}()
+
+		var line string
+		var err error
+		
+		watchdogTimeout := 60 * time.Second
+		if !s.firstChunkParsed {
+			watchdogTimeout = 120 * time.Second // Lenient for first token (reasoning models)
+		} else if s.g.IsProven(s.model.ID, s.model.Provider) {
+			watchdogTimeout = 300 * time.Second
+		}
+
+		select {
+		case res := <-resCh:
+			line = res.line
+			err = res.err
+		case <-time.After(watchdogTimeout):
+			log.Printf("[WATCHDOG] Stream stall detected for %s(%s) after %v, closing connection", s.model.ID, s.model.Provider, watchdogTimeout)
+			s.currentStream.Close()
+			err = fmt.Errorf("stream stalled")
+		case <-s.req.Context().Done():
+			// Client disconnected - STOP EVERYTHING
+			err = s.req.Context().Err()
+			s.currentStream.Close()
+			s.eofReached = true
+			s.err = err
+			return 0, err
+		}
+
+		trimmed := strings.TrimRight(line, "\r\n")
+		if trimmed != "" {
+			log.Printf("[STREAM-RAW] %s", trimmed)
+			if strings.HasPrefix(trimmed, "data: ") {
+				data := trimmed[6:]
+				if data != "[DONE]" {
+					var chunk map[string]interface{}
+					if err := json.Unmarshal([]byte(data), &chunk); err == nil {
+						s.firstChunkParsed = true
+						if choices, ok := chunk["choices"].([]interface{}); ok && len(choices) > 0 {
+							if choice, ok := choices[0].(map[string]interface{}); ok {
+								if fr, ok := choice["finish_reason"].(string); ok && fr != "" {
+									s.finishReason = fr
+									s.finishReasonSent = true
+								}
+								if delta, ok := choice["delta"].(map[string]interface{}); ok {
+									if content, ok := delta["content"].(string); ok {
+										s.accumulatedText.WriteString(content)
+									}
+									if rc, ok := delta["reasoning_content"].(string); ok {
+										s.accumulatedText.WriteString(rc)
+									}
+									if r, ok := delta["reasoning"].(string); ok {
+										s.accumulatedText.WriteString(r)
+									}
+									if _, ok := delta["tool_calls"]; ok {
+										s.isToolCall = true
+									}
+								}
+							}
+						}
+					}
+				}
+				s.buffer.WriteString(line)
+			} else {
+				// Pass through comments/etc, but detect JSON errors
+				lineTrimmed := strings.TrimSpace(trimmed)
+				if lineTrimmed != "" {
+					// Detect JSON error even if we have some text already
+					isError := (strings.Contains(lineTrimmed, "\"error\"") || 
+						strings.Contains(lineTrimmed, "\"success\":false") || 
+						strings.Contains(lineTrimmed, "\"code\":")) && 
+						strings.Contains(lineTrimmed, "{")
+					
+					if isError || (s.accumulatedText.Len() == 0 && (strings.Contains(lineTrimmed, "Authorization") || strings.Contains(lineTrimmed, "auth"))) {
+						log.Printf("[STREAM-ERROR] Provider %s sent invalid SSE line (likely JSON error): %s", s.model.Provider, lineTrimmed)
+						// Force demotion of this model
+						s.g.DemoteModel(s.model.ID)
+						
+						// If it looks like an auth error, cooldown the whole provider
+						if strings.Contains(lineTrimmed, "Authorization") || strings.Contains(lineTrimmed, "auth") || strings.Contains(lineTrimmed, "key") {
+							s.g.recordProviderAuthFail(s.model.Provider)
+						}
+						
+						// Terminate this stream immediately and trigger retry
+						s.currentStream.Close()
+						err = fmt.Errorf("provider error: %s", lineTrimmed)
+						break
+					}
+				}
+				s.buffer.WriteString(line)
+			}
+		} else if line != "" {
+			// This was just a newline, but keep reading until we have a chunk or EOF
+		}
+
+		if err != nil {
+			// Current stream ended or failed
+			s.currentStream.Close()
+			log.Printf("[STREAM-END] Stream from %s(%s) ended with: %v (accumulated=%d chars)", s.model.ID, s.model.Provider, err, s.accumulatedText.Len())
+
+			// ── Empty or Failed Tool Call Retry (Multi-Batch) ─────────────
+			// Only treat tool call as failed if the stream crashed (err != io.EOF) or finishReason is a truncation reason like length.
+			// Clean EOF terminations (err == io.EOF) with tool calls should be treated as successful tool calls.
+			isFailedToolCall := s.isToolCall && err != io.EOF && s.finishReason != "tool_calls" && s.finishReason != "stop" && s.finishReason != ""
+			if ((s.accumulatedText.Len() == 0 && !s.isToolCall) || isFailedToolCall) && s.continuationCount < 20 {
+				log.Printf("[AUTO-CONTINUE] Stream from %s(%s) failed (empty=%v, tool_fail=%v), demoting and trying global fan-out...", 
+					s.model.ID, s.model.Provider, s.accumulatedText.Len() == 0, isFailedToolCall)
+				
+				// Demote the model that gave us nothing
+				s.g.DemoteModel(s.model.ID)
+
+				// Try up to 10 batches of 10 models each (total 100 potential models)
+				success := false
+				allModels := s.g.GetModels()
+				validModels := s.g.filterCandidates(allModels)
+				
+				for batch := 0; batch < 5; batch++ {
+					fanOutSize := s.g.FanOutSize
+					if fanOutSize < 3 {
+						fanOutSize = 3
+					}
+					if fanOutSize > 50 {
+						fanOutSize = 50 // Cap global search to avoid local system exhaust
+					}
+					
+					var fanModels []engine.ModelCandidate
+					indices := rand.Perm(len(validModels))
+					for _, idx := range indices {
+						candidate := validModels[idx]
+						// Skip models we've already tried if possible, or just skip current failing one
+						if candidate.ID == s.model.ID && candidate.Provider == s.model.Provider {
+							continue
+						}
+						
+						fanModels = append(fanModels, candidate)
+						if len(fanModels) >= fanOutSize {
+							break
+						}
+					}
+					
+					if len(fanModels) == 0 {
+						break
+					}
+
+					log.Printf("[AUTO-CONTINUE] Batch %d: Global random fan-out with %d models...", batch+1, len(fanModels))
+					
+					type fanRes struct {
+						model engine.ModelCandidate
+						resp  *ProxyResponse
+					}
+					fanCh := make(chan fanRes, len(fanModels))
+					
+					for _, m := range fanModels {
+						go func(candidate engine.ModelCandidate) {
+							mc := &http.Client{Timeout: 45 * time.Second} // Longer timeout for global search
+							fanCh <- fanRes{
+								model: candidate,
+								resp:  s.g.forwardRequestInternal(mc, s.req, candidate, s.originalBody, true, nil),
+							}
+						}(m)
+					}
+					
+					var winner *fanRes
+					for j := 0; j < len(fanModels); j++ {
+						res := <-fanCh
+						if res.resp.Err == nil && res.resp.Status == 200 && res.resp.Stream != nil {
+							if winner == nil {
+								winner = &res
+							} else {
+								res.resp.Stream.Close()
+							}
+						}
+					}
+
+					if winner != nil {
+						s.model = winner.model
+						s.currentStream = winner.resp.Stream
+						s.reader = bufio.NewReader(s.currentStream)
+						s.finishReason = ""
+						s.finishReasonSent = false
+						s.firstChunkParsed = false
+						s.continuationCount++
+
+						// Inject switch marker
+						s.injectTextChunk(fmt.Sprintf("\n\n[Switched to Model: %s | Provider: %s via Global Random Retry]\n\n", s.model.ID, s.model.Provider))
+
+						log.Printf("[AUTO-CONTINUE] Failed stream global fan-out retry succeeded with %s(%s)", s.model.ID, s.model.Provider)
+						success = true
+						break
+					}
+					log.Printf("[AUTO-CONTINUE] Batch %d failed to find a working model.", batch+1)
+				}
+
+				if success {
+					continue // Read from new stream
+				}
+
+				log.Printf("[AUTO-CONTINUE] All retry batches exhausted for empty stream retry")
+				s.injectTextChunk("\n\n[FreeLLM Proxy Error: Empty or failed response from all providers after multiple retries. Connection closed.]\n\n")
+			}
+
+			// Check if we should continue (truncation)
+			isTruncated := false
+			if s.finishReason == "" && s.accumulatedText.Len() > 0 {
+				isTruncated = true
+				log.Printf("[AUTO-CONTINUE] Stream from %s(%s) terminated without finish_reason, demoting.", s.model.ID, s.model.Provider)
+				s.g.DemoteModel(s.model.ID)
+			} else if s.finishReason == "length" || s.finishReason == "max_tokens" {
+				isTruncated = true
+			}
+
+			// If tool call is truncated, we can't "continue" it easily,
+			// but we SHOULD retry the original request with a different model.
+			if s.isToolCall && isTruncated {
+				log.Printf("[AUTO-CONTINUE] Tool call truncated, triggering full retry instead of continuation.")
+				// We reuse the "failed tool call" logic by ensuring it hits the retry block above in next loop
+				// or just manually trigger a retry here.
+				// For now, let's treat it as a failure so it might hit the retry block if we loop back.
+				// But we are already at the end of the error handling.
+				// Let's force a retry by resetting state and continuing the loop.
+				if s.continuationCount < 5 {
+					s.finishReason = "failed_tool_call" // This will trigger the retry block above in the next turn of the loop
+					s.accumulatedText.Reset() // Treat it as empty to force a full retry
+					continue
+				}
+			}
+
+			// If last continuation added NO text, don't continue again
+			if isTruncated && s.continuationCount > 0 && s.accumulatedText.Len() == s.lastAccumulatedLen {
+				log.Printf("[AUTO-CONTINUE] No new text added in last continuation, stopping.")
+				isTruncated = false
+			}
+
+			if isTruncated && s.continuationCount < 5 {
+				s.lastAccumulatedLen = s.accumulatedText.Len()
+				s.continuationCount++
+				log.Printf("[AUTO-CONTINUE] Stream truncated, starting continuation attempt %d...", s.continuationCount)
+
+				// Construct continuation payload
+				var currentPayload map[string]interface{}
+				if json.Unmarshal(s.originalBody, &currentPayload) == nil {
+					if originalMsgs, ok := currentPayload["messages"].([]interface{}); ok {
+						newMsgs := make([]interface{}, len(originalMsgs))
+						copy(newMsgs, originalMsgs)
+						newMsgs = append(newMsgs, map[string]interface{}{
+							"role":    "assistant",
+							"content": s.accumulatedText.String(),
+						})
+						newMsgs = append(newMsgs, map[string]interface{}{
+							"role":    "user",
+							"content": "continue",
+						})
+
+						newPayload := make(map[string]interface{})
+						for k, v := range currentPayload {
+							newPayload[k] = v
+						}
+						newPayload["messages"] = newMsgs
+						newPayload["max_tokens"] = 8192
+						newPayload["stream"] = true
+
+						if newBody, err := json.Marshal(newPayload); err == nil {
+							s.originalBody = newBody
+
+							fanOutSize := 3
+							remainingAlts := s.alternatives[s.fallbackIdx:]
+							if fanOutSize > len(remainingAlts) {
+								fanOutSize = len(remainingAlts)
+							}
+							
+							fanModels := remainingAlts
+							if len(fanModels) > fanOutSize {
+								fanModels = remainingAlts[:fanOutSize]
+							}
+							s.fallbackIdx += len(fanModels)
+							
+							type fanRes struct {
+								model engine.ModelCandidate
+								resp  *ProxyResponse
+							}
+							fanCh := make(chan fanRes, len(fanModels)+1)
+							
+							// Race original model (if not demoted above) + alternatives
+							go func() {
+								// If we already demoted it due to abrupt stop, maybe we shouldn't race it first
+								// but for "length" truncation it's fine.
+								mc := &http.Client{Timeout: 0}
+								fanCh <- fanRes{
+									model: s.model,
+									resp:  s.g.forwardRequestInternal(mc, s.req, s.model, newBody, true, nil),
+								}
+							}()
+
+							for _, m := range fanModels {
+								go func(candidate engine.ModelCandidate) {
+									mc := &http.Client{Timeout: 0}
+									fanCh <- fanRes{
+										model: candidate,
+										resp:  s.g.forwardRequestInternal(mc, s.req, candidate, newBody, true, nil),
+									}
+								}(m)
+							}
+							
+							var winner *fanRes
+							for j := 0; j < len(fanModels)+1; j++ {
+								res := <-fanCh
+								if res.resp.Err == nil && res.resp.Status == 200 && res.resp.Stream != nil {
+									if winner == nil {
+										winner = &res
+									} else {
+										res.resp.Stream.Close()
+									}
+								}
+							}
+
+							if winner != nil {
+								s.model = winner.model
+								s.currentStream = winner.resp.Stream
+								s.reader = bufio.NewReader(s.currentStream)
+								s.finishReason = "" 
+								
+								s.injectTextChunk(fmt.Sprintf("\n\n[Continued with Model: %s | Provider: %s]\n\n", s.model.ID, s.model.Provider))
+								
+								log.Printf("[AUTO-CONTINUE] Continuation attempt %d succeeded with model %s.", s.continuationCount, s.model.ID)
+								continue // Read from new stream
+							}
+						}
+					}
+				}
+			}
+
+			s.eofReached = true
+			s.err = err
+
+			if err == io.EOF && s.g.ShuffleEnabled && !s.isToolCall {
+				s.g.SetModelPrimary(s.model.ID)
+				s.g.MarkProven(s.model.ID, s.model.Provider)
+			}
+
+			if !s.finishReasonSent {
+				s.injectFinishReasonChunk("stop")
+				s.finishReasonSent = true
+			}
+
+			if err == io.EOF {
+				s.buffer.WriteString("data: [DONE]\n\n")
+			}
+
+			if s.buffer.Len() > 0 {
+				return s.buffer.Read(p)
+			}
+			return 0, err
+		}
+	}
+
+	return s.buffer.Read(p)
+}
+
+func (s *continuationStream) Close() error {
+	if s.currentStream != nil {
+		return s.currentStream.Close()
+	}
+	return nil
+}
+
+// recordProviderAuthFail tracks consecutive 401/402/403 failures per provider.
+func (g *Gateway) recordProviderAuthFail(provider string) {
+	g.cooldownMu.Lock()
+	defer g.cooldownMu.Unlock()
+	if g.providerCooldown == nil {
+		g.providerCooldown = make(map[string]time.Time)
+	}
+	g.providerCooldown[provider] = time.Now().Add(10 * time.Minute)
+	log.Printf("[ROUTER] Provider %s cooling down due to auth failure", provider)
 }
 
 // Complete provider URL mapping
 func (g *Gateway) getProviderURL(modelID, provider string) string {
+	// Check for model-specific overrides (e.g. mapping deepseek models to siliconflow)
+	if provider == "deepseek" && os.Getenv("DEEPSEEK_API_KEY") == "" {
+		if os.Getenv("SILICONFLOW_API_KEY") != "" {
+			// Change provider and potentially model ID
+			provider = "siliconflow"
+			if modelID == "deepseek-chat" {
+				modelID = "deepseek-ai/DeepSeek-V3"
+			} else if modelID == "deepseek-reasoner" {
+				modelID = "deepseek-ai/DeepSeek-R1"
+			}
+		}
+	}
+
 	switch provider {
 	case "openrouter":
 		return "https://openrouter.ai/api/v1/chat/completions"
@@ -1046,7 +2039,7 @@ func (g *Gateway) getProviderURL(modelID, provider string) string {
 	case "stepfun":
 		return "https://api.stepfun.com/v1/chat/completions"
 	case "zhipu":
-		return "https://open.bigmodel.cn/api/paas/v1/chat/completions"
+		return "https://open.bigmodel.cn/api/paas/v4/chat/completions"
 	case "internlm":
 		return "https://internlm-chat.intern-ai.org.cn/v1/chat/completions"
 	case "arcee":
@@ -1063,81 +2056,91 @@ func (g *Gateway) getProviderURL(modelID, provider string) string {
 
 // API key resolution for all providers (with NVIDIA fallback)
 func (g *Gateway) getAPIKey(provider string) string {
+	key := ""
 	switch provider {
 	case "openrouter":
-		return os.Getenv("OPENROUTER_API_KEY")
+		key = os.Getenv("OPENROUTER_API_KEY")
 	case "groq":
-		return os.Getenv("GROQ_API_KEY")
+		key = os.Getenv("GROQ_API_KEY")
 	case "github":
-		return os.Getenv("GITHUB_TOKEN")
+		key = os.Getenv("GITHUB_TOKEN")
 	case "deepinfra":
-		return os.Getenv("DEEPINFRA_API_KEY")
+		key = os.Getenv("DEEPINFRA_API_KEY")
 	case "cerebras":
-		return os.Getenv("CEREBRAS_API_KEY")
+		key = os.Getenv("CEREBRAS_API_KEY")
 	case "huggingface":
-		return os.Getenv("HUGGINGFACE_API_KEY")
+		key = os.Getenv("HUGGINGFACE_API_KEY")
 	case "nvidia", "nvidia_nim":
-		key := os.Getenv("NVIDIA_NIM_API_KEY")
+		key = os.Getenv("NVIDIA_NIM_API_KEY")
 		if key == "" {
 			key = os.Getenv("NVIDIA_API_KEY")
 		}
-		return key
 	case "mistral":
-		return os.Getenv("MISTRAL_API_KEY")
+		key = os.Getenv("MISTRAL_API_KEY")
 	case "codestral":
-		return os.Getenv("CODESTRAL_API_KEY")
+		key = os.Getenv("CODESTRAL_API_KEY")
 	case "cohere":
-		return os.Getenv("COHERE_API_KEY")
+		key = os.Getenv("COHERE_API_KEY")
 	case "sambanova":
-		return os.Getenv("SAMBANOVA_API_KEY")
+		key = os.Getenv("SAMBANOVA_API_KEY")
 	case "fireworks":
-		return os.Getenv("FIREWORKS_API_KEY")
+		key = os.Getenv("FIREWORKS_API_KEY")
 	case "hyperbolic":
-		return os.Getenv("HYPERBOLIC_API_KEY")
+		key = os.Getenv("HYPERBOLIC_API_KEY")
 	case "cloudflare":
-		return os.Getenv("CLOUDFLARE_API_KEY")
+		key = os.Getenv("CLOUDFLARE_API_KEY")
 	case "opencode_zen":
-		return os.Getenv("OPENCODE_ZEN_API_KEY")
+		key = os.Getenv("OPENCODE_ZEN_API_KEY")
 	case "anthropic":
-		return os.Getenv("ANTHROPIC_API_KEY")
+		key = os.Getenv("ANTHROPIC_API_KEY")
 	case "gemini":
-		return os.Getenv("GEMINI_API_KEY")
+		key = os.Getenv("GEMINI_API_KEY")
 	case "siliconflow":
-		return os.Getenv("SILICONFLOW_API_KEY")
+		key = os.Getenv("SILICONFLOW_API_KEY")
 	case "together":
-		return os.Getenv("TOGETHER_API_KEY")
+		key = os.Getenv("TOGETHER_API_KEY")
 	case "novita":
-		return os.Getenv("NOVITA_API_KEY")
+		key = os.Getenv("NOVITA_API_KEY")
 	case "nebius":
-		return os.Getenv("NEBIUS_API_KEY")
+		key = os.Getenv("NEBIUS_API_KEY")
 	case "deepseek":
-		return os.Getenv("DEEPSEEK_API_KEY")
+		key = os.Getenv("DEEPSEEK_API_KEY")
 	case "ai21":
-		return os.Getenv("AI21_API_KEY")
+		key = os.Getenv("AI21_API_KEY")
 	case "replicate":
-		return os.Getenv("REPLICATE_API_TOKEN")
+		key = os.Getenv("REPLICATE_API_TOKEN")
 	case "dashscope":
-		return os.Getenv("DASHSCOPE_API_KEY")
+		key = os.Getenv("DASHSCOPE_API_KEY")
 	case "minimax":
-		return os.Getenv("MINIMAX_API_KEY")
+		key = os.Getenv("MINIMAX_API_KEY")
 	case "moonshot":
-		return os.Getenv("MOONSHOT_API_KEY")
+		key = os.Getenv("MOONSHOT_API_KEY")
 	case "stepfun":
-		return os.Getenv("STEPFUN_API_KEY")
+		key = os.Getenv("STEPFUN_API_KEY")
 	case "zhipu":
-		return os.Getenv("ZHIPU_API_KEY")
+		key = os.Getenv("ZHIPU_API_KEY")
 	case "internlm":
-		return os.Getenv("INTERNLM_API_KEY")
+		key = os.Getenv("INTERNLM_API_KEY")
 	case "arcee":
-		return os.Getenv("ARCEE_API_KEY")
+		key = os.Getenv("ARCEE_API_KEY")
 	case "perplexity":
-		return os.Getenv("PERPLEXITY_API_KEY")
+		key = os.Getenv("PERPLEXITY_API_KEY")
 	case "xai":
-		return os.Getenv("XAI_API_KEY")
+		key = os.Getenv("XAI_API_KEY")
 	case "hunyuan":
-		return os.Getenv("HUNYUAN_API_KEY")
+		key = os.Getenv("HUNYUAN_API_KEY")
+	}
+
+	// Dynamic provider fallback:
+	// If deepseek key is missing, try siliconflow key for deepseek models.
+	if key == "" && provider == "deepseek" {
+		sfKey := os.Getenv("SILICONFLOW_API_KEY")
+		if sfKey != "" {
+			return sfKey
 		}
-	return ""
+	}
+
+	return key
 }
 
 func (g *Gateway) transformRequest(req *http.Request, provider string) {
@@ -1297,7 +2300,7 @@ func (g *Gateway) PromoteModel(modelID string) {
 	g.RankedModels[idx], g.RankedModels[lastPrimary] = g.RankedModels[lastPrimary], g.RankedModels[idx]
 }
 
-// DemoteModel moves a model from primary into the fallback group
+// DemoteModel moves a model to the end of the rankings
 func (g *Gateway) DemoteModel(modelID string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -1308,14 +2311,15 @@ func (g *Gateway) DemoteModel(modelID string) {
 			break
 		}
 	}
-	if idx < 0 || idx >= g.PrimaryCount {
-		return // already fallback or not found
+	if idx < 0 {
+		return
 	}
-	// Swap with the first fallback model
-	firstFallback := g.PrimaryCount
-	if firstFallback < len(g.RankedModels) {
-		g.RankedModels[idx], g.RankedModels[firstFallback] = g.RankedModels[firstFallback], g.RankedModels[idx]
-	}
+	model := g.RankedModels[idx]
+	// Remove from current position
+	g.RankedModels = append(g.RankedModels[:idx], g.RankedModels[idx+1:]...)
+	// Append to end
+	g.RankedModels = append(g.RankedModels, model)
+	log.Printf("[ROUTER] Demoted model %s to end of rankings", modelID)
 }
 
 // SetAsFallback moves a model to the first position in the fallback group (position = PrimaryCount)
@@ -1371,6 +2375,95 @@ func (g *Gateway) MoveModelDown(modelID string) {
 		if m.ID == modelID && i < len(g.RankedModels)-1 {
 			g.RankedModels[i], g.RankedModels[i+1] = g.RankedModels[i+1], g.RankedModels[i]
 			return
+		}
+	}
+}
+
+// ShuffleModels promotes the winner and cycles out participants
+func (g *Gateway) ShuffleModels(winner engine.ModelCandidate, participants []engine.ModelCandidate) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if len(g.RankedModels) == 0 {
+		return
+	}
+
+	log.Printf("[SHUFFLE] Winner: %s(%s) from %d participants", winner.ID, winner.Provider, len(participants))
+
+	// 1. Move winner to index 0 (Primary Slot #1)
+	winnerIdx := -1
+	for i, m := range g.RankedModels {
+		if m.ID == winner.ID && m.Provider == winner.Provider {
+			winnerIdx = i
+			break
+		}
+	}
+	if winnerIdx >= 0 {
+		model := g.RankedModels[winnerIdx]
+		// Remove from old position
+		g.RankedModels = append(g.RankedModels[:winnerIdx], g.RankedModels[winnerIdx+1:]...)
+		// Prepend to front
+		g.RankedModels = append(engine.RankedModels{model}, g.RankedModels...)
+	}
+
+	// 2. Demote all participants (except the winner) to fallback group (position = PrimaryCount)
+	for _, p := range participants {
+		if p.ID == winner.ID && p.Provider == winner.Provider {
+			continue
+		}
+		// Find current index of p
+		idx := -1
+		for i, m := range g.RankedModels {
+			if m.ID == p.ID && m.Provider == p.Provider {
+				idx = i
+				break
+			}
+		}
+		if idx >= 0 {
+			// Move to end of PrimaryCount or end of list if already fallback
+			model := g.RankedModels[idx]
+			g.RankedModels = append(g.RankedModels[:idx], g.RankedModels[idx+1:]...)
+			
+			// Insert at PrimaryCount (first fallback slot)
+			target := g.PrimaryCount
+			if target > len(g.RankedModels) {
+				target = len(g.RankedModels)
+			}
+			g.RankedModels = append(g.RankedModels[:target], append(engine.RankedModels{model}, g.RankedModels[target:]...)...)
+		}
+	}
+
+	// 3. To keep it fresh, we promote random models from fallback to Primary if needed.
+	// Actually, the demotion already pushed some fallback models up into Primary range (index < PrimaryCount).
+	// But let's explicitly pick some random fallback models and move them into the top 10
+	// to ensure variety.
+	if len(g.RankedModels) > g.PrimaryCount {
+		fallbackRange := g.RankedModels[g.PrimaryCount:]
+		if len(fallbackRange) > 0 {
+			importCount := len(participants) - 1 // How many we just demoted
+			if importCount < 1 { importCount = 1 }
+			if importCount > 3 { importCount = 3 }
+			
+			for i := 0; i < importCount; i++ {
+				sourceIdx := i % len(fallbackRange)
+				// Promotion logic: move fallback[sourceIdx] to index 1..PrimaryCount-1
+				model := fallbackRange[sourceIdx]
+				
+				// Remove from fallback
+				actualIdx := g.PrimaryCount + sourceIdx
+				if actualIdx < len(g.RankedModels) {
+					g.RankedModels = append(g.RankedModels[:actualIdx], g.RankedModels[actualIdx+1:]...)
+					// Insert at a random position in the primary group (but not index 0)
+					insertPos := 1
+					if g.PrimaryCount > 2 {
+						insertPos = 1 + (time.Now().Nanosecond() % (g.PrimaryCount - 1))
+					}
+					if insertPos >= len(g.RankedModels) {
+						insertPos = len(g.RankedModels)
+					}
+					g.RankedModels = append(g.RankedModels[:insertPos], append(engine.RankedModels{model}, g.RankedModels[insertPos:]...)...)
+				}
+			}
 		}
 	}
 }
