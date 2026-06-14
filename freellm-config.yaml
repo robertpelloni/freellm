@@ -727,6 +727,80 @@ model_list:
     latency: 0.329
     context: 4096
     params: 0
+# ============================================================
+# TOP 5 FREE MODELS (ranked by speed + quality testing)
+# #1: qwen3.6-plus-free - Fastest general purpose (5.79s)
+# #2: free-llm - Catch-all auto-routing
+# #3: qwen/qwen3-coder-flash - Best for code (6.73s)
+# #4: google/gemini-2.5-flash - Strong reasoning (6.94s)
+# #5: stepfun/step-3.7-flash - Good balance (7.83s)
+# ============================================================
+- model_name: top-fast-free
+  freellm_params:
+    model: openai/qwen3.6-plus-free
+    timeout: 30
+    api_base: https://opencode.ai/zen/v1
+    max_tokens: 16384
+  model_info:
+    score: 2.8
+    latency: 5.79
+    context: 128000
+    params: 72
+- model_name: top-coder-free
+  freellm_params:
+    model: openai/qwen/qwen3-coder-flash
+    timeout: 30
+    api_base: https://opencode.ai/zen/v1
+    max_tokens: 16384
+  model_info:
+    score: 2.7
+    latency: 6.73
+    context: 128000
+    params: 70
+- model_name: top-reasoner-free
+  freellm_params:
+    model: openai/google/gemini-2.5-flash
+    timeout: 30
+    api_base: https://opencode.ai/zen/v1
+    max_tokens: 16384
+  model_info:
+    score: 2.6
+    latency: 6.94
+    context: 1048576
+    params: 100
+- model_name: top-balanced-free
+  freellm_params:
+    model: openai/stepfun/step-3.7-flash
+    timeout: 30
+    api_base: https://opencode.ai/zen/v1
+    max_tokens: 16384
+  model_info:
+    score: 2.5
+    latency: 7.83
+    context: 128000
+    params: 70
+- model_name: top-codex-free
+  freellm_params:
+    model: openai/north-mini-code-free
+    timeout: 30
+    api_base: https://opencode.ai/zen/v1
+    max_tokens: 16384
+  model_info:
+    score: 2.5
+    latency: 8.03
+    context: 32768
+    params: 30
+- model_name: free-llm
+  freellm_params:
+    model: openai/qwen3.6-plus-free
+    timeout: 30
+    api_base: https://opencode.ai/zen/v1
+    max_tokens: 16384
+  model_info:
+    score: 2.8
+    latency: 5.79
+    context: 128000
+    params: 72
 - model_name: free-llm
   freellm_params:
     model: openai/deepseek-v4-flash-free
@@ -734,8 +808,8 @@ model_list:
     api_base: https://opencode.ai/zen/v1
     max_tokens: 16384
   model_info:
-    score: 2.54
-    latency: 0.453
+    score: 2.5
+    latency: 26.81
     context: 65536
     params: 671
 - model_name: free-llm
@@ -1348,6 +1422,16 @@ freellm_settings:
   fallbacks:
   - free-llm:
     - free-llm-fallback
+  - top-fast-free:
+    - free-llm-fallback
+  - top-coder-free:
+    - free-llm-fallback
+  - top-reasoner-free:
+    - free-llm-fallback
+  - top-balanced-free:
+    - free-llm-fallback
+  - top-codex-free:
+    - free-llm-fallback
   - gemini:
     - gemini-fallback
   - claude-sonnet-4-20250514:
@@ -1378,6 +1462,11 @@ freellm_settings:
     - claude-haiku-4-fallback
   stream_timeout: 300
   model_aliases:
+    top-fast-free: top-fast-free
+    top-coder-free: top-coder-free
+    top-reasoner-free: top-reasoner-free
+    top-balanced-free: top-balanced-free
+    top-codex-free: top-codex-free
     claude-sonnet-4-20250514: free-llm
     claude-sonnet-4-5-20250929: free-llm
     claude-opus-4-20250514: free-llm

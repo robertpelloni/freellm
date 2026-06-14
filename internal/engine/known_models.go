@@ -108,11 +108,72 @@ var KnownModels = map[string]ModelSpec{
 }
 
 func LookupKnownModel(modelID string) (ModelSpec, bool) {
-    if spec, ok := KnownModels[modelID]; ok { return spec, true }
-    for id, spec := range KnownModels {
-        if strings.HasSuffix(modelID, id) || strings.HasSuffix(id, modelID) { return spec, true }
-    }
-    return ModelSpec{}, false
+	if spec, ok := KnownModels[modelID]; ok { return spec, true }
+	for id, spec := range KnownModels {
+		if strings.HasSuffix(modelID, id) || strings.HasSuffix(id, modelID) { return spec, true }
+	}
+
+	// Dynamic fallback estimator for Go
+	lower := strings.ToLower(modelID)
+	// DeepSeek
+	if strings.Contains(lower, "deepseek") {
+		if strings.Contains(lower, "reasoner") || strings.Contains(lower, "v3") || strings.Contains(lower, "v4") || strings.Contains(lower, "chat") {
+			return ModelSpec{Params: 671, Ctx: 64000}, true
+		}
+		if strings.Contains(lower, "r1-distill-qwen-32") || strings.Contains(lower, "distill-qwen-32") {
+			return ModelSpec{Params: 32, Ctx: 32000}, true
+		}
+		if strings.Contains(lower, "r1-distill-llama-70") || strings.Contains(lower, "distill-llama-70") {
+			return ModelSpec{Params: 70, Ctx: 64000}, true
+		}
+	}
+	// Gemini
+	if strings.Contains(lower, "gemini") {
+		if strings.Contains(lower, "pro") {
+			return ModelSpec{Params: 200, Ctx: 2000000, Provider: "gemini"}, true
+		}
+		if strings.Contains(lower, "flash") || strings.Contains(lower, "lite") {
+			return ModelSpec{Params: 20, Ctx: 1000000, Provider: "gemini"}, true
+		}
+	}
+	// Claude
+	if strings.Contains(lower, "claude") {
+		if strings.Contains(lower, "opus") {
+			return ModelSpec{Params: 300, Ctx: 200000, Provider: "anthropic"}, true
+		}
+		if strings.Contains(lower, "sonnet") {
+			return ModelSpec{Params: 175, Ctx: 200000, Provider: "anthropic"}, true
+		}
+		if strings.Contains(lower, "haiku") {
+			return ModelSpec{Params: 15, Ctx: 200000, Provider: "anthropic"}, true
+		}
+	}
+	// GPT / o-series
+	if strings.Contains(lower, "gpt") || strings.Contains(lower, "o1") || strings.Contains(lower, "o3") || strings.Contains(lower, "o4") || strings.Contains(lower, "o-") {
+		if strings.Contains(lower, "mini") {
+			return ModelSpec{Params: 8, Ctx: 128000, Provider: "openai"}, true
+		}
+		if strings.Contains(lower, "gpt-4o") || strings.Contains(lower, "gpt-4-turbo") {
+			return ModelSpec{Params: 175, Ctx: 128000, Provider: "openai"}, true
+		}
+		if strings.Contains(lower, "o1") {
+			return ModelSpec{Params: 200, Ctx: 200000, Provider: "openai"}, true
+		}
+	}
+	// Qwen Max/Plus/Turbo
+	if strings.Contains(lower, "qwen") {
+		if strings.Contains(lower, "max") {
+			return ModelSpec{Params: 300, Ctx: 32000}, true
+		}
+		if strings.Contains(lower, "plus") {
+			return ModelSpec{Params: 72, Ctx: 32000}, true
+		}
+		if strings.Contains(lower, "turbo") {
+			return ModelSpec{Params: 14, Ctx: 32000}, true
+		}
+	}
+
+	return ModelSpec{}, false
 }
 
 // DeadModels - models known to be 404/dead. Lowercase keys for case-insensitive matching.
@@ -137,6 +198,8 @@ var DeadModels = map[string]bool{
 	"deepseek/deepseek-r1": true,
 	"deepseek-r1": true,
 	"DeepSeek-R1": true,
+	"deepseek-ai/DeepSeek-R1-0528": true,
+	"deepseek-ai/DeepSeek-V3-0324": true,
 }
 
 // RegisterDeadModel adds a model to the runtime dead-model registry.
@@ -162,7 +225,10 @@ func IsDeadModel(modelID string) bool {
 	// Check static registry
 	for dead := range DeadModels {
 		deadLower := strings.ToLower(dead)
-		if lower == deadLower || strings.HasSuffix(lower, "/"+deadLower) {
+		// Match exact, suffix, or contains for these specific problematic strings
+		if lower == deadLower || 
+		   strings.HasSuffix(lower, "/"+deadLower) || 
+		   (len(deadLower) > 10 && strings.Contains(lower, deadLower)) {
 			return true
 		}
 	}
@@ -211,7 +277,7 @@ func IsExcluded(modelID string) bool {
 	sizeMatch := ExplicitSizePattern.FindStringSubmatch(lower)
 	if len(sizeMatch) > 1 {
 		params, err := strconv.Atoi(sizeMatch[1])
-		if err == nil && params < 150 {
+		if err == nil && params < 7 {
 			return true
 		}
 	}
@@ -225,7 +291,7 @@ var StreamTimeoutProviders = map[string]bool{
 }
 
 // IsSmallModel returns true if the model name contains a parameter size
-// indicator (e.g., "8b", "70b") and it is less than 150B parameters.
+// indicator (e.g., "8b", "70b") and it is less than 7B parameters.
 // Models without a size indicator in their name are not filtered.
 func IsSmallModel(modelID string) bool {
 	re := regexp.MustCompile(`(?i)(\d+)\s*[bB]`)
@@ -237,7 +303,7 @@ func IsSmallModel(modelID string) bool {
 	if err != nil {
 		return false
 	}
-	return params < 150
+	return params < 7
 }
 
 func NeedsStreamTimeout(provider string) bool {

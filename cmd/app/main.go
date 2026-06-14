@@ -1,7 +1,7 @@
 package main
 
 import (
-	"bytes"
+	"bufio"
 	"context"
 	"fmt"
 	"log"
@@ -10,7 +10,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
+	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/gen2brain/beeep"
 	"github.com/getlantern/systray"
@@ -23,6 +26,42 @@ import (
 	"github.com/robertpelloni/freellm/internal/ui"
 	"github.com/skratchdot/open-golang/open"
 )
+
+var (
+	kernel32         = syscall.NewLazyDLL("kernel32.dll")
+	procCreateMutex = kernel32.NewProc("CreateMutexW")
+)
+
+// acquireMutex tries to create a Windows named mutex. Returns true if we are the
+// first instance. If the mutex already exists (ERROR_ALREADY_EXISTS) it returns
+// false, meaning another FreeLLM is already running.
+func acquireMutex(name string) (syscall.Handle, bool) {
+	h, _, err := procCreateMutex.Call(0, 0, uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(name))))
+	if h == 0 {
+		log.Printf("CreateMutex failed: %v", err)
+		return 0, false
+	}
+	// ERROR_ALREADY_EXISTS = 183
+	const ERROR_ALREADY_EXISTS = 183
+	lastErr, _, _ := kernel32.NewProc("GetLastError").Call()
+	if lastErr == ERROR_ALREADY_EXISTS {
+		return syscall.Handle(h), false
+	}
+	return syscall.Handle(h), true
+}
+
+// isProcessAlive checks if a PID is actually running on Windows.
+func isProcessAlive(pid int) bool {
+	const PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+	h, err := syscall.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(pid))
+	if err != nil || h == 0 {
+		return false
+	}
+	var exitCode uint32
+	kernel32.NewProc("GetExitCodeProcess").Call(uintptr(h), uintptr(unsafe.Pointer(&exitCode)))
+	syscall.CloseHandle(h)
+	return exitCode == 259 // STILL_ACTIVE
+}
 
 func notify(title, message string) {
 	beeep.Notify(title, message, "")
@@ -54,20 +93,59 @@ func watchMenuItem(item *systray.MenuItem, id, data string) {
 	}()
 }
 
-func main() {
-	lockFile := filepath.Join(os.TempDir(), "freellm.lock")
-	if data, err := os.ReadFile(lockFile); err == nil {
-		if pid, err := strconv.Atoi(string(bytes.TrimSpace(data))); err == nil {
-			if proc, err := os.FindProcess(pid); err == nil {
-				if proc.Signal(nil) == nil {
-					log.Fatalf("Another FreeLLM instance is already running (PID %d)", pid)
-				}
+func loadEnv(path string) {
+	file, err := os.Open(path)
+	if err != nil {
+		return
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+		// Remove quotes if present
+		value = strings.Trim(value, `"'`)
+		
+		// Fix doubled keys (common copy-paste error)
+		if len(value) > 40 && strings.HasPrefix(value, "sk-") {
+			half := len(value) / 2
+			if value[:half] == value[half:] {
+				value = value[:half]
 			}
 		}
-		os.Remove(lockFile)
+
+		if os.Getenv(key) == "" {
+			os.Setenv(key, value)
+		}
 	}
-	os.WriteFile(lockFile, []byte(fmt.Sprintf("%d", os.Getpid())), 0644)
-	defer os.Remove(lockFile)
+}
+
+func main() {
+	loadEnv(".env")
+	// Use a Windows named mutex for single-instance enforcement.
+	// Unlike lockfiles, the mutex is automatically released if the process crashes.
+	const mutexName = "Global\\FreeLLM_SingleInstance"
+	mutex, ok := acquireMutex(mutexName)
+	if !ok {
+		// Another instance is running — try to bring it to focus or just exit
+		log.Println("Another FreeLLM instance is already running. Exiting.")
+		return
+	}
+	defer syscall.CloseHandle(mutex)
+
+	// Also write PID file for the watchdog
+	pidFile := filepath.Join(os.TempDir(), "freellm.pid")
+	os.WriteFile(pidFile, []byte(fmt.Sprintf("%d", os.Getpid())), 0644)
+	defer os.Remove(pidFile)
 
 	systray.Run(onReady, onExit)
 }
@@ -169,9 +247,9 @@ func onReady() {
 	benchmarker.BaseURLs["stepfun"] = "https://api.stepfun.com/v1"
 	benchmarker.BaseURLs["stepfun_models"] = "https://api.stepfun.com/v1/models"
 	benchmarker.BaseURLs["stepfun_completions"] = "https://api.stepfun.com/v1/chat/completions"
-	benchmarker.BaseURLs["zhipu"] = "https://open.bigmodel.cn/api/paas/v1"
-	benchmarker.BaseURLs["zhipu_models"] = "https://open.bigmodel.cn/api/paas/v1/models"
-	benchmarker.BaseURLs["zhipu_completions"] = "https://open.bigmodel.cn/api/paas/v1/chat/completions"
+	benchmarker.BaseURLs["zhipu"] = "https://open.bigmodel.cn/api/paas/v4"
+	benchmarker.BaseURLs["zhipu_models"] = "https://open.bigmodel.cn/api/paas/v4/models"
+	benchmarker.BaseURLs["zhipu_completions"] = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
 	benchmarker.BaseURLs["internlm"] = "https://internlm-chat.intern-ai.org.cn/v1"
 	benchmarker.BaseURLs["internlm_models"] = "https://internlm-chat.intern-ai.org.cn/v1/models"
 	benchmarker.BaseURLs["internlm_completions"] = "https://internlm-chat.intern-ai.org.cn/v1/chat/completions"
@@ -273,9 +351,9 @@ func onReady() {
 	lastFullRefresh := time.Time{}
 	menuBuilt := false
 	primarySlots := make([]*systray.MenuItem, 15)
-	fallbackSlots := make([]*systray.MenuItem, 20)
+	fallbackSlots := make([]*systray.MenuItem, 50)
 	primarySlotIDs := make([]string, 15)
-	fallbackSlotIDs := make([]string, 20)
+	fallbackSlotIDs := make([]string, 50)
 
 	// ============================================================
 	//  Build Static Menu (matches Python version layout)
@@ -288,6 +366,19 @@ func onReady() {
 	// --- Top ---
 	mRouting := systray.AddMenuItemCheckbox("Master Routing", "Enable request routing", true)
 	watchMenuItem(mRouting, "toggle_routing", "")
+
+	mParallel := systray.AddMenuItem("Parallel Fan-out", "Number of parallel requests")
+	mParallel1 := mParallel.AddSubMenuItemCheckbox("1 Model", "", false)
+	mParallel2 := mParallel.AddSubMenuItemCheckbox("2 Models", "", false)
+	mParallel3 := mParallel.AddSubMenuItemCheckbox("3 Models", "", true)
+	mParallel4 := mParallel.AddSubMenuItemCheckbox("4 Models", "", false)
+	mParallel5 := mParallel.AddSubMenuItemCheckbox("5 Models", "", false)
+
+	watchMenuItem(mParallel1, "set_parallel", "1")
+	watchMenuItem(mParallel2, "set_parallel", "2")
+	watchMenuItem(mParallel3, "set_parallel", "3")
+	watchMenuItem(mParallel4, "set_parallel", "4")
+	watchMenuItem(mParallel5, "set_parallel", "5")
 
 	mCopyModel := systray.AddMenuItem("Copy Active Model", "Copy primary model ID to clipboard")
 	watchMenuItem(mCopyModel, "copy_active_model", "")
@@ -352,8 +443,8 @@ func onReady() {
 		watchMenuItem(slot, "model_set_primary_slot", fmt.Sprintf("%d", i))
 	}
 
-	// Pre-create fallback model slots (up to 20)
-	for i := 0; i < 20; i++ {
+	// Pre-create fallback model slots (up to 50)
+	for i := 0; i < 50; i++ {
 		slot := mFallbackGroup.AddSubMenuItem("--", "")
 		fallbackSlots[i] = slot
 		watchMenuItem(slot, "model_set_fallback_slot", fmt.Sprintf("%d", i))
@@ -466,10 +557,10 @@ func onReady() {
 		pCount := gateway.PrimaryCount
 		if pCount > 15 { pCount = 15 }
 		if len(models) < pCount { pCount = len(models) }
-		maxModels := 40
+		maxModels := 65
 		if len(models) < maxModels { maxModels = len(models) }
 		fCount := maxModels - pCount
-		if fCount > 20 { fCount = 20 }
+		if fCount > 50 { fCount = 50 }
 		if fCount < 0 { fCount = 0 }
 
 		mPrimaryGroup.SetTitle(fmt.Sprintf("\u2605 Primary (%d)", pCount))
@@ -494,7 +585,7 @@ func onReady() {
 		}
 
 		// Update fallback slots
-		for i := 0; i < 20; i++ {
+		for i := 0; i < 50; i++ {
 			mi := pCount + i
 			if i < fCount && mi < len(models) {
 				m := models[mi]
@@ -745,6 +836,28 @@ func onReady() {
 			switch action.id {
 
 			// --- Top Section ---
+			case "set_parallel":
+				n, _ := strconv.Atoi(action.data)
+				gateway.FanOutSize = n
+				log.Printf("Parallel Fan-out set to %d", n)
+				
+				// Uncheck all first
+				mParallel1.Uncheck()
+				mParallel2.Uncheck()
+				mParallel3.Uncheck()
+				mParallel4.Uncheck()
+				mParallel5.Uncheck()
+				
+				// Check the selected one
+				switch n {
+				case 1: mParallel1.Check()
+				case 2: mParallel2.Check()
+				case 3: mParallel3.Check()
+				case 4: mParallel4.Check()
+				case 5: mParallel5.Check()
+				}
+				notify("FreeLLM", fmt.Sprintf("Parallel Fan-out: %d models", n))
+
 			case "toggle_routing":
 				routingEnabled = !routingEnabled
 				log.Printf("Master Routing: %v", routingEnabled)
@@ -892,7 +1005,7 @@ func onReady() {
 				}
 			case "model_set_fallback_slot":
 				slotIdx2, _ := strconv.Atoi(action.data)
-				if slotIdx2 >= 0 && slotIdx2 < 20 && fallbackSlotIDs[slotIdx2] != "" {
+				if slotIdx2 >= 0 && slotIdx2 < 50 && fallbackSlotIDs[slotIdx2] != "" {
 					modelID := fallbackSlotIDs[slotIdx2]
 					log.Printf("Setting %s as primary from fallback", modelID)
 					gateway.SetModelPrimary(modelID)

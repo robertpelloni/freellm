@@ -42,7 +42,9 @@ from typing import Optional
 FREELLM_URL = os.environ.get("FREELLM_URL", "http://localhost:4000")
 
 
-async def a2a_send_message(base_url: str, message: str, message_id: Optional[str] = None) -> dict:
+async def a2a_send_message(
+    base_url: str, message: str, message_id: Optional[str] = None
+) -> dict:
     """Send a message to an A2A agent via JSON-RPC 2.0."""
     if message_id is None:
         message_id = f"msg-{uuid.uuid4().hex[:8]}"
@@ -56,9 +58,9 @@ async def a2a_send_message(base_url: str, message: str, message_id: Optional[str
                 "kind": "message",
                 "messageId": message_id,
                 "role": "user",
-                "parts": [{"kind": "text", "text": message}]
+                "parts": [{"kind": "text", "text": message}],
             }
-        }
+        },
     }
 
     async with httpx.AsyncClient(timeout=120.0) as client:
@@ -83,42 +85,48 @@ async def register_agent(swarm_url: str, agent_url: str) -> dict:
 async def dispatch_task(url: str, message: str, skill: str = "llm-chat") -> str:
     """Send a task to an A2A agent."""
     result = await a2a_send_message(url, message)
-    
+
     if "error" in result:
         return f"ERROR: {result['error'].get('message', 'unknown error')}"
-    
+
     task = result.get("result", {})
     artifacts = task.get("artifacts", [])
-    
+
     texts = []
     for artifact in artifacts:
         for part in artifact.get("parts", []):
             if part.get("kind") == "text":
                 texts.append(part.get("text", ""))
-    
+
     return "\n".join(texts) if texts else json.dumps(task, indent=2)[:500]
 
 
 async def broadcast_task(url: str, message: str, skill: str = "llm-chat") -> dict:
     """Broadcast a task to all agents."""
     result = await a2a_send_message(url, message)
-    
+
     if "error" in result:
         return {"error": result["error"].get("message", "unknown error")}
-    
+
     task = result.get("result", {})
     artifacts = task.get("artifacts", [])
-    
+
     texts = []
     for artifact in artifacts:
         for part in artifact.get("parts", []):
             if part.get("kind") == "text":
                 texts.append(part.get("text", ""))
-    
-    return {"response": "\n".join(texts), "task_id": task.get("id"), "state": task.get("status", {}).get("state")}
+
+    return {
+        "response": "\n".join(texts),
+        "task_id": task.get("id"),
+        "state": task.get("status", {}).get("state"),
+    }
 
 
-async def swarm_parallel(url: str, task: str, count: int, skill: str = "llm-chat") -> list:
+async def swarm_parallel(
+    url: str, task: str, count: int, skill: str = "llm-chat"
+) -> list:
     """Run a massive parallel swarm - sends the same task to the A2A server
     multiple times concurrently, each going through FreeLLM's routing to
     potentially different model providers."""
@@ -126,22 +134,27 @@ async def swarm_parallel(url: str, task: str, count: int, skill: str = "llm-chat
     print(f"   Task: {task[:100]}...")
     print(f"   Skill: {skill}")
     print()
-    
+
     tasks = []
     for i in range(count):
         msg_id = f"swarm-{i:04d}-{uuid.uuid4().hex[:6]}"
         tasks.append((i, a2a_send_message(url, task, msg_id)))
-    
+
     results = []
     completed = 0
     failed = 0
-    
+
     for coro in asyncio.as_completed([t[1] for t in tasks]):
         try:
             result = await coro
             if "error" in result:
                 failed += 1
-                results.append({"status": "error", "error": result["error"].get("message", "unknown")})
+                results.append(
+                    {
+                        "status": "error",
+                        "error": result["error"].get("message", "unknown"),
+                    }
+                )
             else:
                 completed += 1
                 task_data = result.get("result", {})
@@ -150,18 +163,27 @@ async def swarm_parallel(url: str, task: str, count: int, skill: str = "llm-chat
                     for part in artifact.get("parts", []):
                         if part.get("kind") == "text":
                             texts.append(part.get("text", ""))
-                results.append({
-                    "status": "ok",
-                    "task_id": task_data.get("id"),
-                    "model": task_data.get("status", {}).get("message", {}).get("parts", [{}])[0].get("text", ""),
-                    "response": "\n".join(texts)[:500],
-                })
-            print(f"  ✅ {completed} completed, ❌ {failed} failed ({completed+failed}/{count})")
+                results.append(
+                    {
+                        "status": "ok",
+                        "task_id": task_data.get("id"),
+                        "model": task_data.get("status", {})
+                        .get("message", {})
+                        .get("parts", [{}])[0]
+                        .get("text", ""),
+                        "response": "\n".join(texts)[:500],
+                    }
+                )
+            print(
+                f"  ✅ {completed} completed, ❌ {failed} failed ({completed + failed}/{count})"
+            )
         except Exception as e:
             failed += 1
             results.append({"status": "error", "error": str(e)})
-            print(f"  ✅ {completed} completed, ❌ {failed} failed ({completed+failed}/{count})")
-    
+            print(
+                f"  ✅ {completed} completed, ❌ {failed} failed ({completed + failed}/{count})"
+            )
+
     print()
     print(f"Swarm complete: {completed}/{count} succeeded")
     return results
@@ -169,7 +191,7 @@ async def swarm_parallel(url: str, task: str, count: int, skill: str = "llm-chat
 
 def spawn_agent_process(name: str, skill: str, port: int) -> subprocess.Popen:
     """Spawn a local A2A agent process that routes through FreeLLM.
-    
+
     This creates a simple A2A server that uses FreeLLM for LLM calls.
     Each spawned agent is a separate process listening on its own port.
     """
@@ -286,48 +308,63 @@ if __name__ == "__main__":
     print(f"[{name}] A2A agent listening on port {port}")
     server.serve_forever()
 '''
-    
+
     # Write script to temp file
     script_path = f"/tmp/freellm_agent_{name}_{port}.py"
     with open(script_path, "w") as f:
         f.write(agent_script)
-    
+
     # Start the process
     proc = subprocess.Popen(
         [sys.executable, script_path],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
+        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
+        if sys.platform == "win32"
+        else 0,
     )
-    
+
     return proc
 
 
 async def main():
     parser = argparse.ArgumentParser(description="FreeLLM A2A Swarm Harness")
-    parser.add_argument("command", choices=[
-        "dispatch", "broadcast", "fanout", "list", "spawn", "swarm", "register"
-    ])
+    parser.add_argument(
+        "command",
+        choices=[
+            "dispatch",
+            "broadcast",
+            "fanout",
+            "list",
+            "spawn",
+            "swarm",
+            "register",
+        ],
+    )
     parser.add_argument("message", nargs="?", default="Hello!")
     parser.add_argument("--skill", default="llm-chat", help="A2A skill ID")
     parser.add_argument("--url", default=FREELLM_URL, help="FreeLLM proxy URL")
     parser.add_argument("--agents", type=int, default=5, help="Number of swarm agents")
     parser.add_argument("--name", default="agent", help="Agent name for spawning")
-    parser.add_argument("--count", type=int, default=1, help="Number of agents to spawn")
-    parser.add_argument("--port", type=int, default=5001, help="Starting port for spawned agents")
-    
+    parser.add_argument(
+        "--count", type=int, default=1, help="Number of agents to spawn"
+    )
+    parser.add_argument(
+        "--port", type=int, default=5001, help="Starting port for spawned agents"
+    )
+
     args = parser.parse_args()
-    
+
     if args.command == "dispatch":
         print(f"📤 Dispatching task to {args.url} (skill: {args.skill})")
         result = await dispatch_task(args.url, args.message, args.skill)
         print(f"\n{result}")
-    
+
     elif args.command == "broadcast":
         print(f"📢 Broadcasting to {args.url} (skill: {args.skill})")
         result = await broadcast_task(args.url, args.message, args.skill)
         print(json.dumps(result, indent=2))
-    
+
     elif args.command == "fanout":
         subtasks = json.loads(args.message)
         print(f"🔀 Fan-out: {len(subtasks)} subtasks")
@@ -337,22 +374,24 @@ async def main():
             result = await dispatch_task(args.url, msg, skill_id)
             results[skill_id] = result
         print(json.dumps(results, indent=2))
-    
+
     elif args.command == "list":
         print(f"📋 Listing agents at {args.url}")
         async with httpx.AsyncClient() as client:
             resp = await client.get(f"{args.url}/a2a/agents")
             agents = resp.json()
             for i, agent in enumerate(agents):
-                print(f"  {i+1}. {agent.get('name', 'unknown')} @ {agent.get('url', '?')}")
+                print(
+                    f"  {i + 1}. {agent.get('name', 'unknown')} @ {agent.get('url', '?')}"
+                )
                 for skill in agent.get("skills", []):
                     print(f"     - {skill.get('id')}: {skill.get('name')}")
-    
+
     elif args.command == "register":
         print(f"🔗 Registering agent: {args.message}")
         card = await register_agent(args.url, args.message)
         print(f"  ✅ Registered: {card.get('name')}")
-    
+
     elif args.command == "spawn":
         print(f"🥚 Spawning {args.count} agent(s): {args.name}")
         processes = []
@@ -363,7 +402,7 @@ async def main():
             proc = spawn_agent_process(name, args.skill, port)
             processes.append((name, port, proc))
             print(f"  ✅ {name} PID={proc.pid} on port {port}")
-        
+
         print(f"\n{len(processes)} agent(s) running. Press Ctrl+C to stop.")
         try:
             for name, port, proc in processes:
@@ -372,17 +411,17 @@ async def main():
             print("\nStopping agents...")
             for name, port, proc in processes:
                 proc.terminate()
-    
+
     elif args.command == "swarm":
         print(f"🐝 SWARM MODE: {args.agents} concurrent requests")
         results = await swarm_parallel(args.url, args.message, args.agents, args.skill)
-        
+
         # Save results
         output_file = f"swarm_results_{uuid.uuid4().hex[:6]}.json"
         with open(output_file, "w") as f:
             json.dump(results, f, indent=2)
         print(f"\nResults saved to {output_file}")
-        
+
         # Print summary
         succeeded = sum(1 for r in results if r.get("status") == "ok")
         print(f"Summary: {succeeded}/{len(results)} succeeded")
