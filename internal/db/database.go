@@ -317,6 +317,11 @@ func GetPendingRequests(db *sql.DB) ([]QueuedRequest, error) {
 	return requests, nil
 }
 
+func ClearPendingRequests(db *sql.DB) error {
+	_, err := db.Exec("DELETE FROM pending_requests")
+	return err
+}
+
 func GetCircuitBreakerList(db *sql.DB) (map[string]bool, error) {
 	// Only circuit-break models with very high consecutive failures (>= 10)
 	// Models with 3-9 failures might just be rate-limited and should still be available

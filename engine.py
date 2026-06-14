@@ -1090,7 +1090,7 @@ class ModelEngine:
             self._log(f"Force-including {len(known_to_force)} known good models not found in provider fetches.")
             valid_candidates.extend(known_to_force)
 
-        # Filter out models < 150B if they specify their size in their name
+        # Filter out models < 7B if they specify their size in their name
         import re
         filtered_candidates = []
         for m in valid_candidates:
@@ -1099,7 +1099,7 @@ class ModelEngine:
             if match:
                 try:
                     size = float(match.group(1))
-                    if size < 150:
+                    if size < 7:
                         continue
                 except ValueError:
                     pass

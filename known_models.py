@@ -126,18 +126,62 @@ KNOWN_MODELS = {
     "ollama/qwen2.5:72b": {"params": 72, "ctx": 131072, "provider": "ollama"},
 
     # -- Gemini (Google AI Studio) --
-    "gemini/gemini-2.5-pro": {"params": 0, "ctx": 2000000, "provider": "gemini"},
-    "gemini/gemini-2.5-flash": {"params": 0, "ctx": 1000000, "provider": "gemini"},
-    "gemini/gemini-2.0-flash": {"params": 0, "ctx": 1000000, "provider": "gemini"},
-    "gemini/gemini-1.5-pro": {"params": 0, "ctx": 2000000, "provider": "gemini"},
-    "gemini/gemini-1.5-flash": {"params": 0, "ctx": 1000000, "provider": "gemini"},
+    "gemini/gemini-2.5-pro": {"params": 250, "ctx": 2000000, "provider": "gemini"},
+    "gemini/gemini-2.5-flash": {"params": 20, "ctx": 1000000, "provider": "gemini"},
+    "gemini/gemini-2.0-flash": {"params": 15, "ctx": 1000000, "provider": "gemini"},
+    "gemini/gemini-1.5-pro": {"params": 200, "ctx": 2000000, "provider": "gemini"},
+    "gemini/gemini-1.5-flash": {"params": 15, "ctx": 1000000, "provider": "gemini"},
 }
+
+
+def estimate_unknown_model(model_id: str) -> dict | None:
+    """Fuzzy fallback estimator for unknown frontier models to calculate score."""
+    lower = model_id.lower()
+    # DeepSeek
+    if "deepseek" in lower:
+        if "reasoner" in lower or "v3" in lower or "v4" in lower or "chat" in lower:
+            return {"params": 671, "ctx": 64000, "provider": ""}
+        if "r1-distill-qwen-32" in lower or "distill-qwen-32" in lower:
+            return {"params": 32, "ctx": 32000, "provider": ""}
+        if "r1-distill-llama-70" in lower or "distill-llama-70" in lower:
+            return {"params": 70, "ctx": 64000, "provider": ""}
+    # Gemini
+    if "gemini" in lower:
+        if "pro" in lower:
+            return {"params": 200, "ctx": 2000000, "provider": "gemini"}
+        if "flash" in lower or "lite" in lower:
+            return {"params": 20, "ctx": 1000000, "provider": "gemini"}
+    # Claude
+    if "claude" in lower:
+        if "opus" in lower:
+            return {"params": 300, "ctx": 200000, "provider": "anthropic"}
+        if "sonnet" in lower:
+            return {"params": 175, "ctx": 200000, "provider": "anthropic"}
+        if "haiku" in lower:
+            return {"params": 15, "ctx": 200000, "provider": "anthropic"}
+    # GPT / o-series
+    if "gpt" in lower or "o1" in lower or "o3" in lower or "o4" in lower or "o-" in lower:
+        if "mini" in lower:
+            return {"params": 8, "ctx": 128000, "provider": "openai"}
+        if "gpt-4o" in lower or "gpt-4-turbo" in lower:
+            return {"params": 175, "ctx": 128000, "provider": "openai"}
+        if "o1" in lower:
+            return {"params": 200, "ctx": 200000, "provider": "openai"}
+    # Qwen Max/Plus/Turbo
+    if "qwen" in lower:
+        if "max" in lower:
+            return {"params": 300, "ctx": 32000, "provider": ""}
+        if "plus" in lower:
+            return {"params": 72, "ctx": 32000, "provider": ""}
+        if "turbo" in lower:
+            return {"params": 14, "ctx": 32000, "provider": ""}
+    return None
 
 
 def lookup(freellm_model: str) -> dict | None:
     """Look up a model by its full freellm model string.
 
-    Tries: exact match, then stripping provider prefix, then tail match.
+    Tries: exact match, then stripping provider prefix, then tail match, then fuzzy estimate.
     Returns {"params": int, "ctx": int, "provider": str} or None.
     """
     # Exact match
@@ -170,7 +214,8 @@ def lookup(freellm_model: str) -> dict | None:
         if freellm_model.endswith(known_tail):
             return info
 
-    return None
+    # Fuzzy estimation fallback
+    return estimate_unknown_model(freellm_model)
 
 
 def add_model(freellm_model: str, params: int, ctx: int, provider: str):
