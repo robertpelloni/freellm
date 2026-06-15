@@ -33,6 +33,8 @@ func (g *Gateway) processJob(job *RequestJob) {
 		maxAttempts = 100
 	}
 	attemptCount := 0
+	// Track unique provider failures for this request
+	failedProviders := make(map[string]int)
 
 	for attemptCount < maxAttempts {
 		attemptCount++
@@ -83,7 +85,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 		if len(availableFanOut) == 0 {
 			log.Printf("[ROUTER] No models available, auto-recovering...")
 			g.autoRecoverCircuitBreakers()
-			time.Sleep(1 * time.Second)
+			time.Sleep(5 * time.Second)
 			continue
 		}
 
@@ -211,8 +213,10 @@ func (g *Gateway) processJob(job *RequestJob) {
 					successes = append(successes, res)
 				}
 			} else {
+				// Track provider failure for early abort
+				failedProviders[res.model.Provider]++
 				// Record failure for cooldown
-				cooldown := 1 * time.Minute
+				cooldown := 5 * time.Second
 				if res.resp.Status == 429 {
 					cooldown = 30 * time.Second
 				} else if res.resp.Status == 503 || res.resp.Status == 504 {
@@ -314,8 +318,10 @@ func (g *Gateway) processJob(job *RequestJob) {
 						break
 					}
 				} else {
+					// Track provider failure for early abort
+					failedProviders[res.model.Provider]++
 					// Handle cooldowns for fallback failures
-					cooldown := 1 * time.Minute
+					cooldown := 5 * time.Second
 					if res.resp.Status == 429 {
 						cooldown = 30 * time.Second
 					}
@@ -340,11 +346,22 @@ func (g *Gateway) processJob(job *RequestJob) {
 				g.onSuccess(job, best.model, best.resp, body)
 				return
 			}
+
+			// Exit fallback loop after one batch to allow cooldowns to expire in outer loop sleep
+			log.Printf("[ROUTER] Fallback batch failed, exiting to wait for cooldowns...")
+			break
+		}
+
+		// Early abort if too many providers have failed
+		if len(failedProviders) >= 20 {
+			log.Printf("[ROUTER] Too many distinct provider failures (%d), aborting routing.", len(failedProviders))
+			job.Response <- &ProxyResponse{Err: fmt.Errorf("too many provider failures (%d)", len(failedProviders))}
+			return
 		}
 
 		log.Printf("[ROUTER] All models failed in attempt %d, auto-recovering...", attemptCount)
 		g.autoRecoverCircuitBreakers()
-		time.Sleep(1 * time.Second)
+		time.Sleep(5 * time.Second)
 	}
 
 	job.Response <- &ProxyResponse{Err: fmt.Errorf("all models exhausted after %d attempts", attemptCount)}

@@ -1,0 +1,244 @@
+[
+  {
+    "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "provider": "openrouter",
+    "status": "error",
+    "latency": 0.47,
+    "error": "{\"error\":{\"message\":\"No cookie auth credentials found\",\"code\":401}}"
+  },
+  {
+    "model": "nousresearch/hermes-3-llama-3.1-405b:free",
+    "provider": "openrouter",
+    "status": "error",
+    "latency": 0.13,
+    "error": "{\"error\":{\"message\":\"No cookie auth credentials found\",\"code\":401}}"
+  },
+  {
+    "model": "nvidia/nemotron-3-super-120b-a12b:free",
+    "provider": "openrouter",
+    "status": "error",
+    "latency": 0.12,
+    "error": "{\"error\":{\"message\":\"No cookie auth credentials found\",\"code\":401}}"
+  },
+  {
+    "model": "openai/gpt-oss-120b:free",
+    "provider": "openrouter",
+    "status": "error",
+    "latency": 0.12,
+    "error": "{\"error\":{\"message\":\"No cookie auth credentials found\",\"code\":401}}"
+  },
+  {
+    "model": "qwen/qwen3-next-80b-a3b-instruct:free",
+    "provider": "openrouter",
+    "status": "error",
+    "latency": 0.09,
+    "error": "{\"error\":{\"message\":\"No cookie auth credentials found\",\"code\":401}}"
+  },
+  {
+    "model": "meta-llama/llama-3.3-70b-instruct:free",
+    "provider": "openrouter",
+    "status": "error",
+    "latency": 0.1,
+    "error": "{\"error\":{\"message\":\"No cookie auth credentials found\",\"code\":401}}"
+  },
+  {
+    "model": "google/gemma-4-31b-it:free",
+    "provider": "openrouter",
+    "status": "error",
+    "latency": 0.07,
+    "error": "{\"error\":{\"message\":\"No cookie auth credentials found\",\"code\":401}}"
+  },
+  {
+    "model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+    "provider": "openrouter",
+    "status": "error",
+    "latency": 0.1,
+    "error": "{\"error\":{\"message\":\"No cookie auth credentials found\",\"code\":401}}"
+  },
+  {
+    "model": "nvidia/nemotron-3-nano-30b-a3b:free",
+    "provider": "openrouter",
+    "status": "error",
+    "latency": 0.12,
+    "error": "{\"error\":{\"message\":\"No cookie auth credentials found\",\"code\":401}}"
+  },
+  {
+    "model": "google/gemma-4-26b-a4b-it:free",
+    "provider": "openrouter",
+    "status": "error",
+    "latency": 0.18,
+    "error": "{\"error\":{\"message\":\"No cookie auth credentials found\",\"code\":401}}"
+  },
+  {
+    "model": "cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
+    "provider": "openrouter",
+    "status": "error",
+    "latency": 0.13,
+    "error": "{\"error\":{\"message\":\"No cookie auth credentials found\",\"code\":401}}"
+  },
+  {
+    "model": "openai/gpt-oss-20b:free",
+    "provider": "openrouter",
+    "status": "error",
+    "latency": 0.1,
+    "error": "{\"error\":{\"message\":\"No cookie auth credentials found\",\"code\":401}}"
+  },
+  {
+    "model": "nvidia/nemotron-nano-12b-v2-vl:free",
+    "provider": "openrouter",
+    "status": "error",
+    "latency": 0.1,
+    "error": "{\"error\":{\"message\":\"No cookie auth credentials found\",\"code\":401}}"
+  },
+  {
+    "model": "nvidia/nemotron-nano-9b-v2:free",
+    "provider": "openrouter",
+    "status": "error",
+    "latency": 0.07,
+    "error": "{\"error\":{\"message\":\"No cookie auth credentials found\",\"code\":401}}"
+  },
+  {
+    "model": "meta-llama/llama-3.2-3b-instruct:free",
+    "provider": "openrouter",
+    "status": "error",
+    "latency": 0.07,
+    "error": "{\"error\":{\"message\":\"No cookie auth credentials found\",\"code\":401}}"
+  },
+  {
+    "model": "qwen3.6-plus-free",
+    "provider": "opencode_zen",
+    "status": "error",
+    "latency": 0.34,
+    "error": "{\"type\":\"error\",\"error\":{\"type\":\"ModelError\",\"message\":\"Free promotion has ended for Qwen3.6 Plus Free. You can continue using the model by subscribing to OpenCode Go - https://opencode.ai/go\"}}"
+  },
+  {
+    "model": "qwen/qwen3-coder-flash",
+    "provider": "opencode_zen",
+    "status": "error",
+    "latency": 0.07,
+    "error": "{\"type\":\"error\",\"error\":{\"type\":\"ModelError\",\"message\":\"Model qwen/qwen3-coder-flash is not supported\"}}"
+  },
+  {
+    "model": "google/gemini-2.5-flash",
+    "provider": "opencode_zen",
+    "status": "error",
+    "latency": 0.05,
+    "error": "{\"type\":\"error\",\"error\":{\"type\":\"ModelError\",\"message\":\"Model google/gemini-2.5-flash is not supported\"}}"
+  },
+  {
+    "model": "stepfun/step-3.7-flash",
+    "provider": "opencode_zen",
+    "status": "error",
+    "latency": 0.05,
+    "error": "{\"type\":\"error\",\"error\":{\"type\":\"ModelError\",\"message\":\"Model stepfun/step-3.7-flash is not supported\"}}"
+  },
+  {
+    "model": "north-mini-code-free",
+    "provider": "opencode_zen",
+    "status": "ok",
+    "latency": 0.25,
+    "content": "The user asks: \"Answer in one sentence:",
+    "usage": {
+      "prompt_tokens": 18,
+      "completion_tokens": 10,
+      "total_tokens": 28,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "audio_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 10,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      }
+    }
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "provider": "opencode_zen",
+    "status": "ok",
+    "latency": 1.31,
+    "content": "",
+    "usage": {
+      "prompt_tokens": 101,
+      "completion_tokens": 10,
+      "total_tokens": 111,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 10
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 101
+    }
+  },
+  {
+    "model": "mimo-v2.5-free",
+    "provider": "opencode_zen",
+    "status": "ok",
+    "latency": 3.84,
+    "content": "2 + 2",
+    "usage": {
+      "prompt_tokens": 29,
+      "completion_tokens": 10,
+      "total_tokens": 39,
+      "cost": 0,
+      "is_byok": true,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 6.86e-06,
+        "upstream_inference_prompt_cost": 4.06e-06,
+        "upstream_inference_completions_cost": 2.8e-06
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 4,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  {
+    "model": "minimax-m3-free",
+    "provider": "opencode_zen",
+    "status": "error",
+    "latency": 0.07,
+    "error": "{\"type\":\"error\",\"error\":{\"type\":\"ModelError\",\"message\":\"Free promotion has ended for MiniMax M3 Free. You can continue using the model by subscribing to OpenCode Go - https://opencode.ai/go\"}}"
+  },
+  {
+    "model": "nemotron-3-ultra-free",
+    "provider": "opencode_zen",
+    "status": "ok",
+    "latency": 1.14,
+    "content": "The user is asking for the answer to 2",
+    "usage": {
+      "prompt_tokens": 34,
+      "completion_tokens": 10,
+      "total_tokens": 44,
+      "cost": 0,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0,
+        "upstream_inference_prompt_cost": 0,
+        "upstream_inference_completions_cost": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 10,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  }
+]
