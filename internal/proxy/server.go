@@ -581,14 +581,15 @@ WaitLoop:
 // and forwards it to the client. It ensures proper [DONE] sentinel
 // and finish_reason even if the upstream drops unexpectedly.
 func (g *Gateway) streamSSE(w http.ResponseWriter, flusher http.Flusher, body io.ReadCloser, modelID string, provider string) {
-	// Strip Content-Length since we may modify chunks
-	w.Header().Del("Content-Length")
+// Strip Content-Length since we may modify chunks
+w.Header().Del("Content-Length")
 
-	bufReader := bufio.NewReader(body)
-	sentFinishReason := false
-	sentDone := false
+bufReader := bufio.NewReader(body)
+sentFinishReason := false
+sentDone := false
+upstreamDone := false // Track if upstream sent [DONE] without forwarding immediately
 
-	for {
+for {
 		line, err := bufReader.ReadString('\n')
 		if err != nil && line == "" {
 			break
@@ -613,11 +614,12 @@ func (g *Gateway) streamSSE(w http.ResponseWriter, flusher http.Flusher, body io
 		data := line[6:]
 
 		if data == "[DONE]" {
-			sentDone = true
-			fmt.Fprintf(w, "data: [DONE]\n\n")
-			flusher.Flush()
-			continue
+			// Upstream signaled completion without a finish_reason. Delay sending [DONE]
+			upstreamDone = true
+			// Break out of loop to allow synthetic finish_reason injection before final DONE
+			break
 		}
+
 
 		// Parse the JSON chunk to sanitize it
 		var chunk map[string]interface{}
@@ -675,9 +677,8 @@ func (g *Gateway) streamSSE(w http.ResponseWriter, flusher http.Flusher, body io
 		flusher.Flush()
 	}
 
-	// If the stream ended without [DONE] or without a finish_reason,
-	// synthesize them so the client doesn't hang or error.
-	if !sentFinishReason {
+// If the stream ended without a finish_reason, synthesize one.
+if !sentFinishReason {
 		id := fmt.Sprintf("chatcmpl-%d", time.Now().UnixNano())
 		synthetic := map[string]interface{}{
 			"id":      id,
@@ -695,12 +696,17 @@ func (g *Gateway) streamSSE(w http.ResponseWriter, flusher http.Flusher, body io
 		synthJSON, _ := json.Marshal(synthetic)
 		fmt.Fprintf(w, "data: %s\n\n", string(synthJSON))
 		flusher.Flush()
-	}
+}
 
-	if !sentDone {
+// Finally, send the [DONE] marker if the upstream indicated completion.
+if upstreamDone {
 		fmt.Fprintf(w, "data: [DONE]\n\n")
 		flusher.Flush()
-	}
+} else if !sentDone {
+		// In case upstream never sent [DONE] (e.g., connection closed), ensure we still send it.
+		fmt.Fprintf(w, "data: [DONE]\n\n")
+		flusher.Flush()
+}
 }
 
 func (g *Gateway) workerLoop() {
@@ -1436,9 +1442,51 @@ func (g *Gateway) autoContinueNonStream(client *http.Client, r *http.Request, in
 			break
 		}
 		contContent, _ := contMsg["content"].(string)
-		if contContent == "" {
-			log.Printf("[AUTO-CONTINUE] Continuation returned empty content, stopping.")
-			break
+		if contContent == "" || len(contContent) < 50 {
+			log.Printf("[AUTO-CONTINUE] Continuation returned too-short content (len=%d), trying fallback...", len(contContent))
+			// Try next fallback model for this iteration
+			for fallbackIdx < len(alternatives) {
+				fallbackModel := alternatives[fallbackIdx]
+				fallbackIdx++
+				log.Printf("[AUTO-CONTINUE] Trying fallback %s for continuation...", fallbackModel.ID)
+				newContResp := g.forwardRequestInternal(client, r, fallbackModel, newBody, true, nil)
+				if newContResp.Err == nil && newContResp.Status == 200 {
+					// Try to parse the fallback response
+					var fbMap map[string]interface{}
+					if err := json.Unmarshal(newContResp.Body, &fbMap); err != nil {
+						continue
+					}
+					fbChoices, ok := fbMap["choices"].([]interface{})
+					if !ok || len(fbChoices) == 0 {
+						continue
+					}
+					fbChoice, ok := fbChoices[0].(map[string]interface{})
+					if !ok {
+						continue
+					}
+					fbMsg, ok := fbChoice["message"].(map[string]interface{})
+					if !ok {
+						continue
+					}
+					fbContent, _ := fbMsg["content"].(string)
+					if len(fbContent) >= 50 {
+						// Found a good fallback
+						currentModel = fallbackModel
+						contResp = newContResp
+						contContent = fbContent
+						contRespMap = fbMap
+						contChoice = fbChoice
+						log.Printf("[AUTO-CONTINUE] Fallback %s produced good continuation (%d chars)", fallbackModel.ID, len(fbContent))
+						break
+					}
+					log.Printf("[AUTO-CONTINUE] Fallback %s content too short (%d chars), trying next...", fallbackModel.ID, len(fbContent))
+				}
+			}
+			// If all fallbacks failed too, check if we still got content
+			if contContent == "" || len(contContent) < 50 {
+				log.Printf("[AUTO-CONTINUE] All fallbacks for this iteration produced too-short content, stopping.")
+				break
+			}
 		}
 
 		// Inject continuation marker
@@ -1465,6 +1513,12 @@ func (g *Gateway) autoContinueNonStream(client *http.Client, r *http.Request, in
 			log.Printf("[AUTO-CONTINUE] Continuation complete with finish_reason: %s", newFinishReason)
 			break
 		}
+	}
+
+	// Ensure we have enough total content
+	if accumulatedContent.Len() < 100 {
+		log.Printf("[AUTO-CONTINUE] Total response too short after all continuations (%d chars), returning first response instead", accumulatedContent.Len())
+		return firstRespBody
 	}
 
 	return currentRespBody
@@ -1684,9 +1738,10 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 			// Only treat tool call as failed if the stream crashed (err != io.EOF) or finishReason is a truncation reason like length.
 			// Clean EOF terminations (err == io.EOF) with tool calls should be treated as successful tool calls.
 			isFailedToolCall := s.isToolCall && err != io.EOF && s.finishReason != "tool_calls" && s.finishReason != "stop" && s.finishReason != ""
-			if ((s.accumulatedText.Len() == 0 && !s.isToolCall) || isFailedToolCall) && s.continuationCount < 20 {
-				log.Printf("[AUTO-CONTINUE] Stream from %s(%s) failed (empty=%v, tool_fail=%v), demoting and trying global fan-out...", 
-					s.model.ID, s.model.Provider, s.accumulatedText.Len() == 0, isFailedToolCall)
+			if ((s.accumulatedText.Len() == 0 && !s.isToolCall) || isFailedToolCall || (s.finishReason == "" && s.accumulatedText.Len() > 0)) && s.continuationCount < 20 {
+				missingFinish := s.finishReason == "" && s.accumulatedText.Len() > 0
+				log.Printf("[AUTO-CONTINUE] Stream from %s(%s) failed (empty=%v, tool_fail=%v, missing_finish=%v), demoting and trying global fan-out...", 
+					s.model.ID, s.model.Provider, s.accumulatedText.Len() == 0, isFailedToolCall, missingFinish)
 				
 				// Demote the model that gave us nothing
 				s.g.DemoteModel(s.model.ID)
@@ -1761,11 +1816,13 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 						s.finishReason = ""
 						s.finishReasonSent = false
 						s.firstChunkParsed = false
-						s.continuationCount++
+s.continuationCount++
+
+						// Reset prefixSent so the new model gets its own attribution
+						s.prefixSent = false
 
 						// Inject switch marker
 						s.injectTextChunk(fmt.Sprintf("\n\n[Switched to Model: %s | Provider: %s via Global Random Retry]\n\n", s.model.ID, s.model.Provider))
-
 						log.Printf("[AUTO-CONTINUE] Failed stream global fan-out retry succeeded with %s(%s)", s.model.ID, s.model.Provider)
 						success = true
 						break
@@ -1774,7 +1831,7 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 				}
 
 				if success {
-					continue // Read from new stream
+					return s.buffer.Read(p)
 				}
 
 				log.Printf("[AUTO-CONTINUE] All retry batches exhausted for empty stream retry")
@@ -1899,15 +1956,135 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 								s.model = winner.model
 								s.currentStream = winner.resp.Stream
 								s.reader = bufio.NewReader(s.currentStream)
-								s.finishReason = "" 
-								
+								s.finishReason = ""
+
 								s.injectTextChunk(fmt.Sprintf("\n\n[Continued with Model: %s | Provider: %s]\n\n", s.model.ID, s.model.Provider))
-								
+
+								// Reset flags so the new model receives its own attribution prefix and extended watchdog timeout
+								s.prefixSent = false
+								s.firstChunkParsed = false
+								s.isToolCall = false
+								s.finishReasonSent = false
+
+								// Wait a bit to see if this continuation produces meaningful content
+								// If the new stream is immediately empty/truncated, we'll try next fallback
+								s.continuationCount++
 								log.Printf("[AUTO-CONTINUE] Continuation attempt %d succeeded with model %s.", s.continuationCount, s.model.ID)
-								continue // Read from new stream
+								return s.buffer.Read(p)
 							}
 						}
 					}
+				}
+			}
+
+			// Try fallback models if response is too short
+			if s.accumulatedText.Len() < 100 && s.continuationCount > 0 {
+				log.Printf("[AUTO-CONTINUE] Response too short after continuation (%d chars), trying fallback models...", s.accumulatedText.Len())
+
+				s.g.DemoteModel(s.model.ID)
+
+				success := false
+				allModels := s.g.GetModels()
+				validModels := s.g.filterCandidates(allModels)
+
+				for batch := 0; batch < 5 && !success && len(validModels) > 0; batch++ {
+					fanOutSize := s.g.FanOutSize
+					if fanOutSize < 3 {
+						fanOutSize = 3
+					}
+					if fanOutSize > 50 {
+						fanOutSize = 50
+					}
+
+					var fanModels []engine.ModelCandidate
+					indices := rand.Perm(len(validModels))
+					for _, idx := range indices {
+						candidate := validModels[idx]
+						if candidate.ID == s.model.ID && candidate.Provider == s.model.Provider {
+							continue
+						}
+						fanModels = append(fanModels, candidate)
+						if len(fanModels) >= fanOutSize {
+							break
+						}
+					}
+
+					if len(fanModels) == 0 {
+						break
+					}
+
+					type fanRes struct {
+						model engine.ModelCandidate
+						resp  *ProxyResponse
+					}
+					fanCh := make(chan fanRes, len(fanModels))
+					for _, m := range fanModels {
+						go func(cand engine.ModelCandidate) {
+							mc := &http.Client{Timeout: 0}
+							fanCh <- fanRes{
+								model: cand,
+								resp:  s.g.forwardRequestInternal(mc, s.req, cand, s.originalBody, true, nil),
+							}
+						}(m)
+					}
+
+					var winner *fanRes
+					for j := 0; j < len(fanModels); j++ {
+						res := <-fanCh
+						if res.resp.Err == nil && res.resp.Status == 200 && res.resp.Stream != nil {
+							if winner == nil {
+								winner = &res
+							} else {
+								res.resp.Stream.Close()
+							}
+						}
+					}
+
+					if winner != nil {
+						s.model = winner.model
+						s.currentStream = winner.resp.Stream
+						s.reader = bufio.NewReader(s.currentStream)
+						s.finishReason = ""
+						s.prefixSent = false
+						s.firstChunkParsed = false
+						s.isToolCall = false
+						s.finishReasonSent = false
+						s.fallbackIdx = 0
+
+						s.injectTextChunk(fmt.Sprintf("\n\n[Continued with Model: %s | Provider: %s]\n\n", s.model.ID, s.model.Provider))
+						s.continuationCount++
+						log.Printf("[AUTO-CONTINUE] Fallback after short response succeeded with model %s (attempt %d).", s.model.ID, s.continuationCount)
+						success = true
+						n, err := s.buffer.Read(p)
+						log.Printf("[AUTO-CONTINUE] Sent %d bytes of continuation notice after switching to %s", n, s.model.ID)
+						return n, err
+					}
+
+					var remaining []engine.ModelCandidate
+					for _, m := range validModels {
+						skip := false
+						for _, fm := range fanModels {
+							if fm.ID == m.ID && fm.Provider == m.Provider {
+								skip = true
+								break
+							}
+						}
+						if !skip {
+							remaining = append(remaining, m)
+						}
+					}
+					validModels = remaining
+				}
+
+				if !success {
+					log.Printf("[AUTO-CONTINUE] Fallback after short response failed, finalizing error.")
+					s.injectTextChunk(fmt.Sprintf("\n\n[FreeLLM Proxy Error: Response too short after all retries. Try again.]\n\n"))
+					s.err = fmt.Errorf("response too short (%d chars)", s.accumulatedText.Len())
+					s.eofReached = true
+					if s.buffer.Len() > 0 {
+						return s.buffer.Read(p)
+					}
+					return 0, s.err
 				}
 			}
 

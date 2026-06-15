@@ -56,4 +56,4 @@ require (
 	modernc.org/memory v1.8.2 // indirect
 )
 
-replace github.com/getlantern/systray => ./third_party/systray
+//replace github.com/getlantern/systray => ./third_party/systray
