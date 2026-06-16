@@ -127,7 +127,7 @@ func ApplyRankedModels(ranked []engine.ModelCandidate, cfgPath string, primaryCo
 		ProxySettings: ProxySettings{
 			DropParams:               true,
 			NumRetries:               2,
-			RequestTimeout:           60,
+			RequestTimeout:           300,
 			StreamTimeout:            300,
 			ConnectTimeout:           30,
 			WatchdogTimeout:          30,
