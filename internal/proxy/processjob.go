@@ -47,8 +47,8 @@ func (g *Gateway) processJob(job *RequestJob) {
 		requestDeadline = time.Now().Add(60 * time.Second)
 	}
 
-	// Try up to 5 batches. This prevents infinite loops and respects typical client timeouts.
-	for attempt := 1; attempt <= 5; attempt++ {
+	// Try up to 10 batches. This prevents infinite loops and respects typical client timeouts.
+	for attempt := 1; attempt <= 10; attempt++ {
 		// Check global context or deadline
 		select {
 		case <-job.Ctx.Done():
@@ -194,7 +194,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 						cooldown = 1 * time.Hour
 						g.DemoteModel(res.model.ID)
 					} else if res.resp.Status == http.StatusTooManyRequests {
-						cooldown = 30 * time.Second
+						cooldown = 10 * time.Second
 					}
 					g.applyProviderCooldown(res.model.Provider, cooldown)
 					continue
@@ -282,17 +282,17 @@ func (g *Gateway) processJob(job *RequestJob) {
 			return
 		}
 
-		if len(failedProviders) >= 20 {
+		if len(failedProviders) >= 50 {
 			log.Printf("[ROUTER] Too many distinct provider failures (%d), aborting routing.", len(failedProviders))
-			job.Response <- &ProxyResponse{Status: 503, Err: fmt.Errorf("too many provider failures (%d)", len(failedProviders))}
+			job.Response <- &ProxyResponse{Status: 503, Err: fmt.Errorf("too many provider failures (%d). Check your API keys and model availability.", len(failedProviders))}
 			return
 		}
 		
 		// Small delay between batches to allow cooldowns to potentially start expiring or just back off
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(200 * time.Millisecond)
 	}
 
-	job.Response <- &ProxyResponse{Status: 503, Err: fmt.Errorf("all models exhausted after 5 batches")}
+	job.Response <- &ProxyResponse{Status: 503, Err: fmt.Errorf("all models exhausted after 10 batches. Common causes: frontier model rate limits (429) or speculative model 404s. Please try again in a moment.")}
 }
 
 // QualityScore calculates a score based on ranking, parameter count, and context window
