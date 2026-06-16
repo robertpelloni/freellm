@@ -1256,9 +1256,11 @@ func (g *Gateway) forwardRequestInternal(client *http.Client, r *http.Request, m
 		return &ProxyResponse{Err: err}
 	}
 	g.transformRequest(req, model.Provider)
+	log.Printf("[PROXY] Sending request to %s via %s (Stream=%v)", model.ID, model.Provider, stream)
 
 	resp, err := client.Do(req)
 	if err != nil {
+		log.Printf("[PROXY] Request error for %s(%s): %v", model.ID, model.Provider, err)
 		return &ProxyResponse{Err: fmt.Errorf("%s: %v", model.Provider, err)}
 	}
 
@@ -1778,33 +1780,14 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 
 		var line string
 		var err error
-		
-		watchdogTimeout := s.g.WatchdogTimeout
-		if !s.firstChunkParsed {
-			watchdogTimeout = s.g.ReasoningWatchdogTimeout // Lenient for first token (reasoning models)
-		} else if s.g.IsProven(s.model.ID, s.model.Provider) {
-			watchdogTimeout = s.g.ProvenWatchdogTimeout
-		}
-
 		select {
 		case res := <-resCh:
 			line = res.line
 			err = res.err
-		case <-time.After(5 * time.Second):
-			// log.Printf("[KEEP-ALIVE] Sending keep-alive comment to client")
-			s.buffer.WriteString(": keep-alive\n\n")
+		case <-time.After(15 * time.Second):
+			// Keep-alive heartbeat: send empty comment to keep connection open
+			s.buffer.WriteString(":\n\n")
 			return s.buffer.Read(p)
-		case <-time.After(watchdogTimeout):
-			log.Printf("[WATCHDOG] [stall-watchdog-retry] Stream stall detected for %s(%s) after %v, closing connection and retrying", s.model.ID, s.model.Provider, watchdogTimeout)
-			s.currentStream.Close()
-			err = fmt.Errorf("stream stalled")
-		case <-s.req.Context().Done():
-			// Client disconnected - STOP EVERYTHING
-			err = s.req.Context().Err()
-			s.currentStream.Close()
-			s.eofReached = true
-			s.err = err
-			return 0, err
 		}
 
 		trimmed := strings.TrimRight(line, "\r\n")

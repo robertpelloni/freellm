@@ -182,8 +182,12 @@ func (g *Gateway) processJob(job *RequestJob) {
 					if candidate.Score < 1.0 {
 						candidate.Score = 1.0
 					}
+				} else if resp.Status == 429 {
+					log.Printf("[ROUTER] Provider %s hit rate limit (429), cooling down.", candidate.Provider)
+					candidate.Score *= 0.8 // Soft penalty for rate limits
+					g.applyProviderCooldown(candidate.Provider, 10*time.Second)
 				} else if resp.Status >= 400 && resp.Status < 500 {
-					log.Printf("[ROUTER] Provider %s returned 4xx (%d), disabling model.", candidate.Provider, resp.Status)
+					log.Printf("[ROUTER] Provider %s returned permanent error (%d), disabling model.", candidate.Provider, resp.Status)
 					candidate.Disabled = true
 					candidate.Score = 0.0
 				} else {
