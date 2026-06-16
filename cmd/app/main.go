@@ -688,6 +688,7 @@ func onReady() {
 			now := time.Now()
 			timeSinceFull := now.Sub(lastFullRefresh)
 
+/*
 			if timeSinceFull >= fullRefreshInterval || lastFullRefresh.IsZero() {
 				log.Println("Full refresh: benchmarking in background...")
 				systray.SetIcon(icon.Yellow)
@@ -698,6 +699,10 @@ func onReady() {
 					notify("FreeLLM Sync", "Full model discovery started...")
 
 					candidates := benchmarker.FetchModels(ctx, database)
+					// ... (rest of logic)
+				}()
+			}
+*/
 					log.Printf("Discovered %d model candidates", len(candidates))
 
 					ranked := benchmarker.RunBenchmark(ctx, candidates, database)

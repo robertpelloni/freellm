@@ -103,30 +103,13 @@ func (g *Gateway) processJob(job *RequestJob) {
 		}
 		
 		var batch []engine.ModelCandidate
-		providerCount := make(map[string]int)
+		providerUsed := make(map[string]bool)
 		for _, m := range fresh {
-			if providerCount[m.Provider] == 0 {
+			if !providerUsed[m.Provider] {
 				batch = append(batch, m)
-				providerCount[m.Provider]++
+				providerUsed[m.Provider] = true
 				if len(batch) >= fanSize {
 					break
-				}
-			}
-		}
-		if len(batch) < fanSize {
-			for _, m := range fresh {
-				alreadyInBatch := false
-				for _, bm := range batch {
-					if bm.ID == m.ID && bm.Provider == m.Provider {
-						alreadyInBatch = true
-						break
-					}
-				}
-				if !alreadyInBatch {
-					batch = append(batch, m)
-					if len(batch) >= fanSize {
-						break
-					}
 				}
 			}
 		}
