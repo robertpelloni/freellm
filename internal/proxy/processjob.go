@@ -145,9 +145,17 @@ func (g *Gateway) processJob(job *RequestJob) {
 					return
 				}
 
+				resp := g.forwardRequestInternal(g.Client, job.Request, candidate, body, false, nil)
+				
+				// Handle transient rate limits
+				if resp.Status == 429 {
+					log.Printf("[ROUTER] Provider %s hit rate limit (429), cooling down for 10s", candidate.Provider)
+					g.applyProviderCooldown(candidate.Provider, 10*time.Second)
+				}
+				
 				resCh <- result{
 					model: candidate,
-					resp:  g.forwardRequestInternal(g.Client, job.Request, candidate, body, false, nil),
+					resp:  resp,
 				}
 			}(m)
 		}
