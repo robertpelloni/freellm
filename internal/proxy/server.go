@@ -959,7 +959,8 @@ func (g *Gateway) filterCandidatesWithOverride(all engine.RankedModels, minParam
 			continue
 		}
 
-		if m.Score < 0 {
+		// Only skip negative scores if we are NOT in emergency mode (minParams == 0)
+		if m.Score < 0 && minParams > 0 {
 			skipped++
 			continue
 		}
@@ -967,7 +968,8 @@ func (g *Gateway) filterCandidatesWithOverride(all engine.RankedModels, minParam
 			skipped++
 			continue
 		}
-		if activeCooldowns[m.Provider] {
+		// Only skip cooldowns if we are NOT in emergency mode (minParams == 0)
+		if activeCooldowns[m.Provider] && minParams > 0 {
 			skipped++
 			continue
 		}
@@ -2477,6 +2479,7 @@ func (g *Gateway) getAPIKey(provider string) string {
 func (g *Gateway) transformRequest(req *http.Request, provider string) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", "FreeLLM/1.0")
 	apiKey := g.getAPIKey(provider)
 	if apiKey == "" {
 		return
