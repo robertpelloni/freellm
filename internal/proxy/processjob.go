@@ -42,24 +42,9 @@ func (g *Gateway) processJob(job *RequestJob) {
 	tried := make(map[string]bool)
 	failedProviders := make(map[string]int)
 
-	// Total request deadline (ensure we don't hang forever)
-	requestDeadline := time.Now().Add(g.RequestTimeout)
-	if g.RequestTimeout == 0 {
-		requestDeadline = time.Now().Add(60 * time.Second)
-	}
-
-	// Try up to 15 batches. This prevents infinite loops and respects typical client timeouts.
-	for attempt := 1; attempt <= 15; attempt++ {
-		// Check global context or deadline
-		select {
-		case <-job.Ctx.Done():
-			return
-		default:
-			if time.Now().After(requestDeadline) {
-				job.Response <- &ProxyResponse{Status: 504, Err: fmt.Errorf("router deadline exceeded after %d attempts", attempt-1)}
-				return
-			}
-		}
+	// Retry indefinitely until successful.
+	for attempt := 1; ; attempt++ {
+		// No deadline: Allow request to persist until completion.
 
 		// Relax filter on later attempts
 		filter := g.MinParamsFilter
