@@ -273,9 +273,50 @@ func onReady() {
 		cfg = &config.Config{Port: 4000}
 	}
 
+	proxyPort := cfg.Port
+	if proxyPort == 0 {
+		proxyPort = 4000
+	}
+	if envPort := os.Getenv("FREELLM_PORT"); envPort != "" {
+		if p, err := strconv.Atoi(envPort); err == nil && p > 0 {
+			proxyPort = p
+		}
+	}
+
+	gateway := proxy.NewGateway(50, database, 4000)
+    // Default exclusions and fan‑out settings
+    // Exclude any model with ≤130 billion parameters unless overridden via config
+    if gateway.MinParamsFilter == 0 {
+        gateway.MinParamsFilter = 130 // 130 billion parameters
+    }
+    // Default fan‑out size – the UI can change this at runtime via the context menu
+    if gateway.FanOutSize == 0 {
+        gateway.FanOutSize = 3
+    }
+	gateway.RestoreQueue()
+
+	// Apply settings from config
+	applyConfigToGateway := func(c *config.Config, g *proxy.Gateway) {
+		if c.RouterSettings.MinParamsFilter > 0 {
+			g.MinParamsFilter = c.RouterSettings.MinParamsFilter
+		}
+		if c.ProxySettings.RequestTimeout > 0 { g.RequestTimeout = time.Duration(c.ProxySettings.RequestTimeout) * time.Second }
+		if c.ProxySettings.StreamTimeout > 0 { g.StreamTimeout = time.Duration(c.ProxySettings.StreamTimeout) * time.Second }
+		if c.ProxySettings.ConnectTimeout > 0 { g.ConnectTimeout = time.Duration(c.ProxySettings.ConnectTimeout) * time.Second }
+		if c.ProxySettings.WatchdogTimeout > 0 { g.WatchdogTimeout = time.Duration(c.ProxySettings.WatchdogTimeout) * time.Second }
+		if c.ProxySettings.ProvenWatchdogTimeout > 0 { g.ProvenWatchdogTimeout = time.Duration(c.ProxySettings.ProvenWatchdogTimeout) * time.Second }
+		if c.ProxySettings.ReasoningWatchdogTimeout > 0 { g.ReasoningWatchdogTimeout = time.Duration(c.ProxySettings.ReasoningWatchdogTimeout) * time.Second }
+		if c.ProxySettings.LockDuration > 0 { g.LockDuration = time.Duration(c.ProxySettings.LockDuration) * time.Second }
+		if c.ProxySettings.SmartSwitchDelay > 0 { g.SmartSwitchDelay = time.Duration(c.ProxySettings.SmartSwitchDelay) * time.Millisecond }
+		if c.ProxySettings.FanOutSize > 0 { g.FanOutSize = c.ProxySettings.FanOutSize }
+	}
+
+	applyConfigToGateway(cfg, gateway)
+
 	config.WatchConfig(cfgPath, func(newCfg *config.Config) {
 		log.Println("Applying new configuration...")
 		cfg = newCfg
+		applyConfigToGateway(newCfg, gateway)
 		if newCfg.Providers != nil {
 			for p, pcfg := range newCfg.Providers {
 				if pcfg.BaseURL != "" {
@@ -290,19 +331,6 @@ func onReady() {
 			}
 		}
 	})
-
-	proxyPort := cfg.Port
-	if proxyPort == 0 {
-		proxyPort = 4000
-	}
-	if envPort := os.Getenv("FREELLM_PORT"); envPort != "" {
-		if p, err := strconv.Atoi(envPort); err == nil && p > 0 {
-			proxyPort = p
-		}
-	}
-
-	gateway := proxy.NewGateway(50, database, 4000)
-	gateway.RestoreQueue()
 
 	// Initialize A2A protocol server for agent-to-agent communication
 	a2aBaseURL := fmt.Sprintf("http://localhost:%d", proxyPort)

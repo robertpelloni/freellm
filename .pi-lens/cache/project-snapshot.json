@@ -1,8 +1,8 @@
 {
   "version": 1,
   "projectRoot": "C:/Users/hyper/workspace/freellm",
-  "generatedAt": "2026-06-15T12:38:54.348Z",
-  "seq": 106,
+  "generatedAt": "2026-06-15T17:28:36.200Z",
+  "seq": 126,
   "files": {
     "C:/Users/hyper/workspace/litellm_control_panel/api_server.py": {
       "path": "C:/Users/hyper/workspace/litellm_control_panel/api_server.py",
@@ -647,6 +647,20 @@
       "size": 6184,
       "imports": [],
       "lastSeq": 0
+    },
+    "C:/Users/hyper/workspace/freellm/internal/transform/transform.go": {
+      "path": "C:/Users/hyper/workspace/freellm/internal/transform/transform.go",
+      "mtimeMs": 1781538133880.36,
+      "size": 5130,
+      "imports": [],
+      "lastSeq": 0
+    },
+    "C:/Users/hyper/workspace/freellm/internal/transform/transform_test.go": {
+      "path": "C:/Users/hyper/workspace/freellm/internal/transform/transform_test.go",
+      "mtimeMs": 1781538737545.9917,
+      "size": 6664,
+      "imports": [],
+      "lastSeq": 0
     }
   },
   "symbols": {},
@@ -682,6 +696,8 @@
     "C:/Users/hyper/workspace/freellm/internal/proxy/server_test.go": [],
     "C:/Users/hyper/workspace/freellm/internal/proxy/server.go": [],
     "C:/Users/hyper/workspace/freellm/internal/proxy/session.go": [],
+    "C:/Users/hyper/workspace/freellm/internal/transform/transform_test.go": [],
+    "C:/Users/hyper/workspace/freellm/internal/transform/transform.go": [],
     "C:/Users/hyper/workspace/freellm/internal/ui/server_test.go": [],
     "C:/Users/hyper/workspace/freellm/internal/ui/server.go": [],
     "C:/Users/hyper/workspace/freellm/internal/ui/static/js/app.js": [],
@@ -710,7 +726,7 @@
     "scanRoot": "C:\\Users\\hyper\\workspace\\freellm",
     "projectRoot": "C:\\Users\\hyper\\workspace\\freellm",
     "canWarmCaches": true,
-    "sourceFileCount": 47
+    "sourceFileCount": 48
   },
   "languageProfile": {
     "present": {
@@ -754,7 +770,7 @@
       "go": true
     },
     "counts": {
-      "python": 23,
+      "python": 24,
       "go": 23,
       "jsts": 1
     },

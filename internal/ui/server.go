@@ -37,7 +37,12 @@ type UIServer struct {
 }
 
 func NewUIServer(database *sql.DB, logger *engine.EventLogger, proxy ProxyHandler) *UIServer {
-	return &UIServer{DB: database, Logger: logger, Proxy: proxy}
+	return &UIServer{
+		DB:           database,
+		Logger:       logger,
+		Proxy:        proxy,
+		RankedModels: engine.RankedModels{}, // Initialize to empty slice, not nil
+	}
 }
 
 func (s *UIServer) UpdateModels(models engine.RankedModels) {

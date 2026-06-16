@@ -194,8 +194,8 @@ func (st *SessionTracker) RecordExplorationResult(sessionID string, model engine
 
 	// Successful alternative - promote if higher quality
 	// Quality is determined by model size (parameters) and benchmark score
-	modelQuality := qualityScore(model)
-	preferredQuality := qualityScore(session.Preferred)
+	modelQuality := QualityScore(model)
+	preferredQuality := QualityScore(session.Preferred)
 
 	if modelQuality > preferredQuality || session.Preferred.ID == "" {
 		log.Printf("[SESSION] %s: Upgrading preferred model %s -> %s (quality %.1f -> %.1f)",
@@ -241,7 +241,7 @@ func (st *SessionTracker) GetRoutingPlan(session *Session, allModels []engine.Mo
 	qualityModels := make([]engine.ModelCandidate, len(allModels))
 	copy(qualityModels, allModels)
 	sort.Slice(qualityModels, func(i, j int) bool {
-		return qualityScore(qualityModels[i]) > qualityScore(qualityModels[j])
+		return QualityScore(qualityModels[i]) > QualityScore(qualityModels[j])
 	})
 
 	// Pick top 3 diverse high-quality alternatives
@@ -293,7 +293,7 @@ func (st *SessionTracker) UpdateAlternatives(sessionID string, allModels []engin
 	qualityModels := make([]engine.ModelCandidate, len(allModels))
 	copy(qualityModels, allModels)
 	sort.Slice(qualityModels, func(i, j int) bool {
-		return qualityScore(qualityModels[i]) > qualityScore(qualityModels[j])
+		return QualityScore(qualityModels[i]) > QualityScore(qualityModels[j])
 	})
 
 	var newAlts []engine.ModelCandidate
@@ -315,50 +315,6 @@ func (st *SessionTracker) ActiveSessionCount() int {
 	st.mu.RLock()
 	defer st.mu.RUnlock()
 	return len(st.sessions)
-}
-
-// qualityScore computes a quality metric for a model, prioritizing
-// model size (parameters) and benchmark score over latency.
-// Higher quality models that need time to think are not penalized.
-func qualityScore(m engine.ModelCandidate) float64 {
-	// Base score from benchmark
-	score := m.Score
-	if score < 0 {
-		return -1
-	}
-
-	// Size bonus: larger models are higher quality
-	// 400B+ models get a significant boost
-	sizeBonus := 0.0
-	switch {
-	case m.Parameters >= 400000:
-		sizeBonus = 2.0
-	case m.Parameters >= 100000:
-		sizeBonus = 1.5
-	case m.Parameters >= 70000:
-		sizeBonus = 1.0
-	case m.Parameters >= 30000:
-		sizeBonus = 0.5
-	default:
-		sizeBonus = 0.0
-	}
-
-	// Context length bonus: longer context = more capable
-	ctxBonus := 0.0
-	switch {
-	case m.ContextLength >= 128000:
-		ctxBonus = 0.3
-	case m.ContextLength >= 64000:
-		ctxBonus = 0.2
-	case m.ContextLength >= 32000:
-		ctxBonus = 0.1
-	}
-
-	// We intentionally DO NOT penalize latency.
-	// Quality models take time to think. High latency from a good model
-	// is acceptable; high latency from a bad model just means it's overloaded.
-
-	return score + sizeBonus + ctxBonus
 }
 
 // RoutingPlan describes which models to try for a session request.

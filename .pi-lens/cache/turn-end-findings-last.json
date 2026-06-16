@@ -1,6 +1,6 @@
 {
-  "signature": "internal/proxy/server.go::ℹ️ Advisory — no action required this turn:\nCode-quality warnings introduced/touched this turn: 1 across 1 file(s).\nTop rules: go-goroutine-loop-capture×1\nDetails written to .pi-lens/cache/code-quality-warnings.json\nNo action required unless you are already refactoring these areas.",
-  "sessionId": "lens-mqedcn64-9a633818",
-  "projectSeqStart": 112,
-  "projectSeqEnd": 113
+  "signature": "internal/proxy/server.go::Unresolved from this turn — internal/proxy/server.go:\n🔴 STOP — 1 issue(s) must be fixed:\n  L911: g.MinParamsFilter undefined (type *Gateway has no field or method MinParamsFilter)\n    💡 Fix: LSP quick fixes: Declare missing method Gateway.filterCandidatesWithOverride",
+  "sessionId": "lens-mqfcz1i8-c6f6a481",
+  "projectSeqStart": 147,
+  "projectSeqEnd": 148
 }

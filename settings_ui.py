@@ -184,7 +184,7 @@ class SettingsUI:
         self.cf_account_id.insert(0, self.settings.get("CLOUDFLARE_ACCOUNT_ID", ""))
         self.cf_account_id.grid(row=16, column=3, sticky='ew', padx=5, pady=2)
 
-                self.openai_key, self.openai_url = add_provider_fields(keys_frame, "OpenAI", "OPENAI_API_KEY", "OPENAI_BASE_URL", 18)
+        self.openai_key, self.openai_url = add_provider_fields(keys_frame, "OpenAI", "OPENAI_API_KEY", "OPENAI_BASE_URL", 18)
 
         ttk.Label(keys_frame, text="OpenCode Zen:").grid(row=19, column=0, sticky='w', padx=5, pady=2)
         self.opencode_zen_url = ttk.Entry(keys_frame)
@@ -254,6 +254,15 @@ class SettingsUI:
 
         self.enable_notifications_var = tk.BooleanVar(value=self.settings.get("ENABLE_NOTIFICATIONS", True))
         ttk.Checkbutton(opt_frame, text="Enable Notifications", variable=self.enable_notifications_var).pack(anchor='w', **padding)
+
+        # ---- Model-size filter toggle ----
+        ttk.Label(opt_frame, text="Maximum model size to keep (B):").pack(anchor='w', **padding)
+        self.max_params_filter = ttk.Spinbox(opt_frame,
+                                            from_=0, to=1000, increment=10,
+                                            width=6)
+        # Load saved value (default 0 = disabled)
+        self.max_params_filter.set(self.settings.get("MAX_PARAMS_FILTER", 0))
+        self.max_params_filter.pack(anchor='w', **padding)
 
         # Weights
         weights_frame = ttk.LabelFrame(container, text="Scoring Weights")
@@ -380,7 +389,8 @@ class SettingsUI:
             self.settings["FIREWORKS_API_KEY"] = self.fireworks_key.get()
             self.settings["HYPERBOLIC_API_KEY"] = self.hyperbolic_key.get()
             self.settings["NEBIUS_API_KEY"] = self.nebius_key.get()
-            self.settings["CLOUDFLARE_API_KEY"] = self.cloudflare_key.get()            self.settings["OPENAI_API_KEY"] = self.openai_key.get()
+            self.settings["CLOUDFLARE_API_KEY"] = self.cloudflare_key.get()
+            self.settings["OPENAI_API_KEY"] = self.openai_key.get()
 
             self.settings["OPENROUTER_BASE_URL"] = self.or_url.get()
             self.settings["GROQ_BASE_URL"] = self.groq_url.get()
@@ -397,7 +407,8 @@ class SettingsUI:
             self.settings["FIREWORKS_BASE_URL"] = self.fireworks_url.get()
             self.settings["HYPERBOLIC_BASE_URL"] = self.hyperbolic_url.get()
             self.settings["NEBIUS_BASE_URL"] = self.nebius_url.get()
-            self.settings["CLOUDFLARE_BASE_URL"] = self.cloudflare_url.get()            self.settings["OPENAI_BASE_URL"] = self.openai_url.get()
+            self.settings["CLOUDFLARE_BASE_URL"] = self.cloudflare_url.get()
+            self.settings["OPENAI_BASE_URL"] = self.openai_url.get()
             self.settings["CLOUDFLARE_ACCOUNT_ID"] = self.cf_account_id.get()
             self.settings["OPENCODE_ZEN_BASE_URL"] = self.opencode_zen_url.get()
             self.settings["OLLAMA_BASE_URL"] = self.ollama_url.get()
@@ -415,6 +426,8 @@ class SettingsUI:
             self.settings["LATENCY_WEIGHT"] = float(self.latency_weight.get())
             self.settings["MIN_PARAMETERS"] = int(self.min_params.get())
             self.settings["PRIMARY_COUNT"] = int(self.primary_count.get())
+            # Persist the model-size filter value
+            self.settings["MAX_PARAMS_FILTER"] = int(self.max_params_filter.get())
         except Exception as e:
             messagebox.showerror("Error", f"Invalid input: {e}")
             return

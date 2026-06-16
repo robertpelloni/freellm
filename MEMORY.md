@@ -5,7 +5,7 @@
 - **Concurrency:** Goroutines and Channels for benchmarking and request queueing.
 - **GUI Framework:** `systray` (System Tray), Web-based or Fyne for dashboards.
 - **Networking:** Native `net/http` for the OpenAI-compatible proxy.
-- **Storage:** SQLite (via `go-sqlite3` or `modernc.org/sqlite`) for persistent tracking.
+- **Storage:** SQLite (modernc.org/sqlite) and PostgreSQL (github.com/lib/pq) for persistent tracking. Supports `DATABASE_URL` and `POSTGRES_*` environment variables.
 
 ## Design Preferences
 - **Buffered Gateway:** Implementation of a request queue to ensure "Highly Stable Network" behavior.

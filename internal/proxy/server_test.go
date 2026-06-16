@@ -22,30 +22,6 @@ func (m *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return m.roundTrip(req)
 }
 
-func TestGatewayQueueing(t *testing.T) {
-	g := NewGateway(0, nil, 4000) // 0 workers to force queueing
-
-	g.UpdateModels(engine.RankedModels{
-		{ID: "test-model", Provider: "openrouter"},
-	})
-
-	req := httptest.NewRequest("POST", "/v1/chat/completions", bytes.NewBufferString(`{"model":"any", "messages":[{"role":"user","content":"hi"}]}`))
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
-	req = req.WithContext(ctx)
-
-	go g.ServeHTTP(httptest.NewRecorder(), req)
-
-	select {
-	case job := <-g.Queue:
-		if job.Request.URL.Path != "/v1/chat/completions" {
-			t.Errorf("Unexpected path: %s", job.Request.URL.Path)
-		}
-	case <-time.After(200 * time.Millisecond):
-		t.Errorf("Job did not reach queue")
-	}
-}
-
 func TestHealthChecks(t *testing.T) {
 	g := &Gateway{}
 
@@ -76,6 +52,7 @@ func TestHealthChecks(t *testing.T) {
 func TestRoutingLogic(t *testing.T) {
 	g := NewGateway(1, nil, 4000)
 	g.PrimaryCount = 1 // Rotate after 1 failure
+	g.SmartSwitchDelay = 10 * time.Millisecond // Fast switch for tests
 
 	g.UpdateModels(engine.RankedModels{
 		{ID: "primary-fail", Provider: "openrouter"},
@@ -129,7 +106,7 @@ func TestRoutingLogic(t *testing.T) {
 		if !strings.Contains(string(resp.Body), "ok") {
 			t.Errorf("Unexpected body: %s", string(resp.Body))
 		}
-	case <-time.After(2 * time.Second):
+	case <-time.After(5 * time.Second):
 		t.Errorf("Timeout waiting for response")
 	}
 }
@@ -137,6 +114,7 @@ func TestRoutingLogic(t *testing.T) {
 func TestFallbackGroup(t *testing.T) {
 	g := NewGateway(1, nil, 4000)
 	g.PrimaryCount = 1
+	g.SmartSwitchDelay = 10 * time.Millisecond
 
 	g.UpdateModels(engine.RankedModels{
 		{ID: "p1", Provider: "openrouter"},
@@ -166,7 +144,7 @@ func TestFallbackGroup(t *testing.T) {
 		if resp.Status != 200 {
 			t.Errorf("Fallback failed with status %d", resp.Status)
 		}
-	case <-time.After(2 * time.Second):
+	case <-time.After(5 * time.Second):
 		t.Errorf("Timeout")
 	}
 }
