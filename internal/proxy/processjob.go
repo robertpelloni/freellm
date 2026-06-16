@@ -21,7 +21,18 @@ func (g *Gateway) applyProviderCooldown(provider string, d time.Duration) {
 	}
 }
 
+// refreshTriedList periodically resets the tried-models map so that models that
+// were on cooldown get another chance as soon as their cooldown expires.
+// This is the core of the "never give up" guarantee.
+func (g *Gateway) refreshTriedList(tried *map[string]bool, failedProviders *map[string]int) {
+	*tried = make(map[string]bool)
+	*failedProviders = make(map[string]int)
+}
+
 // processJob runs the routing loop with fan-out and smart switching.
+// It NEVER gives up. It will cycle through all available models indefinitely,
+// resetting its attempt history periodically so that cooldown-expired models
+// get retried.
 func (g *Gateway) processJob(job *RequestJob) {
 	g.mu.RLock()
 	allModels := g.RankedModels
@@ -42,44 +53,68 @@ func (g *Gateway) processJob(job *RequestJob) {
 	tried := make(map[string]bool)
 	failedProviders := make(map[string]int)
 
-	// Retry indefinitely until successful.
+	// Retry indefinitely until successful. This loop NEVER exits except on success
+	// or client disconnect.
 	for attempt := 1; ; attempt++ {
-		// No deadline: Allow request to persist until completion.
 
-		// Relax filter on later attempts
+		// ── Periodic history reset ──────────────────────────────────────
+		// Every 10 attempts, clear the tried map so models that were on
+		// cooldown get another chance. This is the key to never giving up.
+		if attempt > 1 && attempt%10 == 0 {
+			log.Printf("[ROUTER] Attempt %d: Resetting tried list to allow re-evaluation of all models", attempt)
+			g.refreshTriedList(&tried, &failedProviders)
+		}
+		// Reset failed-providers counter periodically too
+		if len(failedProviders) >= 50 {
+			log.Printf("[ROUTER] Attempt %d: Resetting failed providers list (%d failures) to allow retry", attempt, len(failedProviders))
+			failedProviders = make(map[string]int)
+		}
+
+		// ── Parameter filter relaxation ─────────────────────────────────
+		// Gradually relax the parameter filter so smaller models are tried
+		// if larger ones keep failing.
 		filter := g.MinParamsFilter
 		if attempt > 1 {
 			filter = g.MinParamsFilter / 2
 		}
-		if attempt > 2 {
+		if attempt > 3 {
 			filter = 0
 		}
 
+		// ── Candidate selection ─────────────────────────────────────────
 		candidates := g.filterCandidatesWithOverride(allModels, filter)
 		var fresh []engine.ModelCandidate
 		g.cooldownMu.Lock()
 		for _, m := range candidates {
-			// Skip models tried in THIS request
+			// Skip models already tried in this cycle
 			if tried[m.ID+"|"+m.Provider] {
 				continue
 			}
-			// Skip models on cooldown (only in early attempts)
+			// Skip models on cooldown (only enforce in early attempts;
+			// after 5 attempts we let everything through)
 			if attempt <= 5 {
 				if until, onCooldown := g.providerCooldown[m.Provider]; onCooldown && time.Now().Before(until) {
-					// log.Printf("[ROUTER] Attempt %d: Skipping %s (on cooldown until %v)", attempt, m.ID, until)
 					continue
 				}
+			}
+			// Proactive Health Check: skip providers that are currently unreachable
+			if !g.PreFlightCheck(m) {
+				continue
 			}
 			fresh = append(fresh, m)
 		}
 		g.cooldownMu.Unlock()
 
 		if len(fresh) == 0 {
-			log.Printf("[ROUTER] Attempt %d: No fresh candidates, checking if others are on cooldown", attempt)
-			// Don't break, continue loop to let cooldowns expire
+			log.Printf("[ROUTER] Attempt %d: No fresh candidates available. All models tried or on cooldown. Waiting for cooldowns to expire...", attempt)
+			// Wait a moment then loop again - cooldowns will expire
+			time.Sleep(2 * time.Second)
+			// Reset tried map so models get re-tried after cooldown
+			tried = make(map[string]bool)
 			continue
 		}
-		// Fan-out: try multiple models in parallel with provider diversity
+
+		// ── Fan-out selection with provider diversity ───────────────────
 		fanSize := g.FanOutSize
 		if fanSize < 2 {
 			fanSize = 2
@@ -87,7 +122,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 		if fanSize > len(fresh) {
 			fanSize = len(fresh)
 		}
-		
+
 		var batch []engine.ModelCandidate
 		providerUsed := make(map[string]bool)
 		for _, m := range fresh {
@@ -104,8 +139,15 @@ func (g *Gateway) processJob(job *RequestJob) {
 			tried[m.ID+"|"+m.Provider] = true
 		}
 
-		log.Printf("[ROUTER] Attempt %d: Fanning out to %d models", attempt, len(batch))
+		log.Printf("[ROUTER] Attempt %d: Fanning out to %d models: %v", attempt, len(batch), func() []string {
+			var names []string
+			for _, m := range batch {
+				names = append(names, m.ID+"("+m.Provider+")")
+			}
+			return names
+		}())
 
+		// ── Launch parallel requests ────────────────────────────────────
 		type result struct {
 			model engine.ModelCandidate
 			resp  *ProxyResponse
@@ -114,7 +156,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 
 		for _, m := range batch {
 			go func(candidate engine.ModelCandidate) {
-				// 1. Global limit
+				// Global concurrency limit
 				select {
 				case g.upstreamSem <- struct{}{}:
 					defer func() { <-g.upstreamSem }()
@@ -122,7 +164,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 					return
 				}
 
-				// 2. Per-provider limit
+				// Per-provider concurrency limit
 				sem := g.GetProviderSem(candidate.Provider)
 				select {
 				case sem <- struct{}{}:
@@ -131,14 +173,19 @@ func (g *Gateway) processJob(job *RequestJob) {
 					return
 				}
 
+				log.Printf("[ROUTER] Attempt %d: Sending request to %s(%s)", attempt, candidate.ID, candidate.Provider)
 				resp := g.forwardRequestInternal(g.Client, job.Request, candidate, body, false, nil)
-				
-				// Handle transient rate limits
+
+				// Handle transient rate limits with auto-cooldown
 				if resp.Status == 429 {
 					log.Printf("[ROUTER] Provider %s hit rate limit (429), cooling down for 10s", candidate.Provider)
 					g.applyProviderCooldown(candidate.Provider, 10*time.Second)
 				}
-				
+				if resp.Status == 413 {
+					log.Printf("[ROUTER] Provider %s rejected payload (413), cooling down for 30s", candidate.Provider)
+					g.applyProviderCooldown(candidate.Provider, 30*time.Second)
+				}
+
 				resCh <- result{
 					model: candidate,
 					resp:  resp,
@@ -146,20 +193,23 @@ func (g *Gateway) processJob(job *RequestJob) {
 			}(m)
 		}
 
+		// ── Collect results with smart switching ────────────────────────
 		var winner *result
 		var bestQuality float64 = -1
 
-		// Batch-specific timeout
+		// Batch timeout - how long to wait for ALL responses before moving on
 		batchDeadline := time.After(20 * time.Second)
 		responsesReceived := 0
 		fanActual := len(batch)
-		
+
 		for responsesReceived < fanActual {
 			select {
 			case res := <-resCh:
 				responsesReceived++
+
 				if res.resp.Err != nil || res.resp.Status >= 400 {
-					g.LogRouterEvent("Model %s(%s) failed: %v (Status %d)", res.model.ID, res.model.Provider, res.resp.Err, res.resp.Status)
+					log.Printf("[ROUTER] Attempt %d: %s(%s) failed: %v (Status %d)",
+						attempt, res.model.ID, res.model.Provider, res.resp.Err, res.resp.Status)
 					if g.DB != nil {
 						db.RecordFailure(g.DB, res.model.ID)
 					}
@@ -169,27 +219,36 @@ func (g *Gateway) processJob(job *RequestJob) {
 					g.cooldownMu.Unlock()
 
 					cooldown := 5 * time.Second
-					if res.resp.Status == http.StatusUnauthorized || res.resp.Status == http.StatusPaymentRequired || res.resp.Status == http.StatusForbidden {
+					if res.resp.Status == http.StatusUnauthorized ||
+						res.resp.Status == http.StatusPaymentRequired ||
+						res.resp.Status == http.StatusForbidden {
 						cooldown = 5 * time.Minute
 						g.DemoteModel(res.model.ID)
 					} else if res.resp.Status == http.StatusTooManyRequests {
 						cooldown = 10 * time.Second
+					} else if res.resp.Status >= 500 {
+						cooldown = 15 * time.Second
 					}
 					g.applyProviderCooldown(res.model.Provider, cooldown)
 					continue
 				}
 
 				q := QualityScore(res.model)
-				g.LogRouterEvent("Received response from %s(%s), quality %.1f", res.model.ID, res.model.Provider, q)
+				log.Printf("[ROUTER] Attempt %d: Received response from %s(%s), quality %.1f",
+					attempt, res.model.ID, res.model.Provider, q)
 
 				if winner == nil {
 					winner = &res
 					bestQuality = q
+
+					// Smart switching window: wait a bit to see if a better model responds
 					window := g.SmartSwitchDelay
 					if bestQuality < 2.0 {
 						window = 1 * time.Second
 					}
-					
+					log.Printf("[ROUTER] Attempt %d: Got first response from %s(%.1f), waiting %v for potentially better models...",
+						attempt, res.model.ID, bestQuality, window)
+
 					winDeadline := time.After(window)
 				WindowWait:
 					for {
@@ -199,7 +258,8 @@ func (g *Gateway) processJob(job *RequestJob) {
 							if r2.resp.Err == nil && r2.resp.Status < 400 {
 								q2 := QualityScore(r2.model)
 								if q2 > bestQuality {
-									g.LogRouterEvent("SMART SWITCH: Found better model %s(%s) with quality %.1f > %.1f", r2.model.ID, r2.model.Provider, q2, bestQuality)
+									log.Printf("[ROUTER] SMART SWITCH: %s(%.1f) > %s(%.1f) - switching!",
+										r2.model.ID, q2, winner.model.ID, bestQuality)
 									if winner.resp.Stream != nil {
 										winner.resp.Stream.Close()
 									}
@@ -209,6 +269,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 										break WindowWait
 									}
 								} else {
+									// Close the inferior response
 									if r2.resp.Stream != nil {
 										r2.resp.Stream.Close()
 									}
@@ -219,6 +280,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 						case <-batchDeadline:
 							break WindowWait
 						case <-job.Ctx.Done():
+							log.Printf("[ROUTER] Client disconnected during fan-out")
 							if winner != nil && winner.resp.Stream != nil {
 								winner.resp.Stream.Close()
 							}
@@ -228,9 +290,10 @@ func (g *Gateway) processJob(job *RequestJob) {
 					break // break out of the responsesReceived loop
 				}
 			case <-batchDeadline:
-				log.Printf("[ROUTER] Batch timeout reached")
+				log.Printf("[ROUTER] Attempt %d: Batch timeout reached", attempt)
 				goto BatchDone
 			case <-job.Ctx.Done():
+				log.Printf("[ROUTER] Client disconnected while waiting for responses")
 				return
 			}
 			if winner != nil {
@@ -240,9 +303,11 @@ func (g *Gateway) processJob(job *RequestJob) {
 
 	BatchDone:
 		if winner != nil {
+			log.Printf("[ROUTER] Attempt %d: WINNER = %s(%s) with quality %.1f",
+				attempt, winner.model.ID, winner.model.Provider, bestQuality)
 			g.onSuccess(job, winner.model, winner.resp, body)
 			g.LockModelForSession(winner.model.ID, winner.model.Provider)
-			
+
 			// Clean up other pending successful streams in background
 			go func() {
 				for i := responsesReceived; i < fanActual; i++ {
@@ -259,16 +324,10 @@ func (g *Gateway) processJob(job *RequestJob) {
 			return
 		}
 
-		if len(failedProviders) >= 200 {
-			log.Printf("[ROUTER] Too many distinct provider failures (%d), aborting routing.", len(failedProviders))
-			job.Response <- &ProxyResponse{Status: 503, Err: fmt.Errorf("too many provider failures (%d). Check your API keys and model availability.", len(failedProviders))}
-			return
-		}
-		
+		// No winner this batch - log and retry
+		log.Printf("[ROUTER] Attempt %d: No winner from batch of %d models. Waiting before retry...", attempt, len(batch))
 		time.Sleep(200 * time.Millisecond)
 	}
-
-	job.Response <- &ProxyResponse{Status: 503, Err: fmt.Errorf("all models exhausted after 15 batches. Common causes: frontier model rate limits (429), speculative model 404s, or request too large (413). Please try again in a moment.")}
 }
 
 // QualityScore calculates a score based on ranking, parameter count, and context window
@@ -277,28 +336,21 @@ func QualityScore(m engine.ModelCandidate) float64 {
 	if score < 0 {
 		return -1
 	}
-
-	sizeBonus := 0.0
-	switch {
-	case m.Parameters >= 400000:
-		sizeBonus = 2.0
-	case m.Parameters >= 100000:
-		sizeBonus = 1.5
-	case m.Parameters >= 70000:
-		sizeBonus = 1.0
-	case m.Parameters >= 30000:
-		sizeBonus = 0.5
+	// Bonus for larger models (more parameters = generally smarter)
+	if m.Parameters > 0 {
+		paramBonus := float64(m.Parameters) / 100_000_000_000.0 // Normalize to 100B
+		if paramBonus > 2.0 {
+			paramBonus = 2.0
+		}
+		score += paramBonus
 	}
-
-	ctxBonus := 0.0
-	switch {
-	case m.ContextLength >= 128000:
-		ctxBonus = 0.3
-	case m.ContextLength >= 64000:
-		ctxBonus = 0.2
-	case m.ContextLength >= 32000:
-		ctxBonus = 0.1
+	// Bonus for larger context windows
+	if m.ContextLength > 0 {
+		ctxBonus := float64(m.ContextLength) / 100_000.0 // Normalize to 100K
+		if ctxBonus > 1.0 {
+			ctxBonus = 1.0
+		}
+		score += ctxBonus
 	}
-
-	return score + sizeBonus + ctxBonus
+	return score
 }
