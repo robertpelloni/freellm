@@ -81,6 +81,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 			// Skip models on cooldown (only in early attempts)
 			if attempt <= 5 {
 				if until, onCooldown := g.providerCooldown[m.Provider]; onCooldown && time.Now().Before(until) {
+					// log.Printf("[ROUTER] Attempt %d: Skipping %s (on cooldown until %v)", attempt, m.ID, until)
 					continue
 				}
 			}
@@ -89,10 +90,9 @@ func (g *Gateway) processJob(job *RequestJob) {
 		g.cooldownMu.Unlock()
 
 		if len(fresh) == 0 {
-			log.Printf("[ROUTER] Attempt %d: Exhausted all candidate models", attempt)
+			log.Printf("[ROUTER] Attempt %d: Exhausted all candidate models (tried=%d, all=%d)", attempt, len(tried), len(candidates))
 			break
 		}
-
 		// Fan-out: try multiple models in parallel with provider diversity
 		fanSize := g.FanOutSize
 		if fanSize < 2 {
