@@ -184,7 +184,7 @@ func NewGateway(maxActive int, database *sql.DB, port int) *Gateway {
 		upstreamSem:        make(chan struct{}, 100), // Global limit for all upstream calls
 
 		// Default Timeouts
-		RequestTimeout:           60 * time.Second,
+		RequestTimeout:           300 * time.Second,
 		StreamTimeout:            300 * time.Second,
 		ConnectTimeout:           30 * time.Second,
 		WatchdogTimeout:          30 * time.Second,
