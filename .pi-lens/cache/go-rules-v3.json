@@ -1,7 +1,7 @@
 {
   "version": "v3",
-  "timestamp": 1781450596230,
-  "ruleHash": "f0a0c6b017f4d89f",
+  "timestamp": 1781538133992,
+  "ruleHash": "584c1d75804d03b9",
   "queries": [
     {
       "id": "go-bare-error",

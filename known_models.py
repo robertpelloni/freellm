@@ -125,6 +125,26 @@ KNOWN_MODELS = {
     "ollama/deepseek-r1:671b": {"params": 671, "ctx": 65536, "provider": "ollama"},
     "ollama/qwen2.5:72b": {"params": 72, "ctx": 131072, "provider": "ollama"},
 
+    # -- Kluster AI (new June 2026) --
+    "kluster/meta-llama/Llama-3.3-70B-Instruct": {"params": 70, "ctx": 128000, "provider": "kluster"},
+    "kluster/deepseek-ai/DeepSeek-V3": {"params": 671, "ctx": 65536, "provider": "kluster"},
+    "kluster/deepseek-ai/DeepSeek-R1": {"params": 671, "ctx": 65536, "provider": "kluster"},
+
+    # -- LLM7.io (new June 2026) --
+    "llm7/deepseek-v4-flash": {"params": 671, "ctx": 128000, "provider": "llm7"},
+    "llm7/nemotron-3-120b": {"params": 120, "ctx": 4096, "provider": "llm7"},
+    "llm7/llama-4-scout": {"params": 109, "ctx": 128000, "provider": "llm7"},
+
+    # -- Lepton AI (new June 2026) --
+    "lepton/llama-3.3-70b": {"params": 70, "ctx": 128000, "provider": "lepton"},
+    "lepton/mistral-large-3": {"params": 675, "ctx": 128000, "provider": "lepton"},
+    "lepton/deepseek-v3": {"params": 671, "ctx": 65536, "provider": "lepton"},
+
+    # -- Pollinations AI (new June 2026) --
+    "pollinations/gpt-4o": {"params": 175, "ctx": 128000, "provider": "pollinations"},
+    "pollinations/llama-3.3-70b": {"params": 70, "ctx": 128000, "provider": "pollinations"},
+    "pollinations/mistral-large": {"params": 123, "ctx": 128000, "provider": "pollinations"},
+
     # -- Gemini (Google AI Studio) --
     "gemini/gemini-2.5-pro": {"params": 250, "ctx": 2000000, "provider": "gemini"},
     "gemini/gemini-2.5-flash": {"params": 20, "ctx": 1000000, "provider": "gemini"},

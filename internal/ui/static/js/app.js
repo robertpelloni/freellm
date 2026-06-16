@@ -157,10 +157,10 @@ async function refresh() {
         const pdata = await presp.json();
         const ptbody = document.querySelector('#providers tbody');
         ptbody.innerHTML = '';
-        if (pdata && pdata.length > 0) {
-            const labels = pdata.map(p => p.name);
-            const latData = pdata.map(p => p.avg_latency);
-            const srData = pdata.map(p => p.success_rate);
+        if (pdata && typeof pdata === 'object' && !Array.isArray(pdata)) {
+            const labels = Object.keys(pdata);
+            const latData = labels.map(name => pdata[name].avg_latency);
+            const srData = labels.map(name => pdata[name].success_rate);
 
             if (!providerChart) {
                 const ctx = document.getElementById('providerChart').getContext('2d');
@@ -187,17 +187,18 @@ async function refresh() {
                 providerChart.update('none');
             }
 
-            pdata.forEach(p => {
+            labels.forEach(name => {
+                const p = pdata[name];
                 const row = document.createElement('tr');
-                const btn = "<button class='inline-action' style='background: " + (p.enabled ? "#f44336" : "#4caf50") + "' onclick=\"toggleProvider('" + p.name + "', " + !p.enabled + ")\">" + (p.enabled ? "Disable" : "Enable") + "</button>";
-                row.innerHTML = "<td>" + p.name + "</td>" +
+                const btn = "<button class='inline-action' style='background: " + (p.enabled ? "#f44336" : "#4caf50") + "' onclick=\"toggleProvider('" + name + "', " + !p.enabled + ")\">" + (p.enabled ? "Disable" : "Enable") + "</button>";
+                row.innerHTML = "<td>" + name + "</td>" +
                                "<td>" + p.avg_latency.toFixed(3) + "s</td>" +
                                "<td>" + p.success_rate.toFixed(1) + "%</td>" +
                                "<td>" + btn + "</td>";
                 ptbody.appendChild(row);
             });
         }
-    } catch (e) {}
+    } catch (e) { console.error('Error loading provider health:', e); }
 
     try {
         const sresp = await fetch('/api/savings');
@@ -210,19 +211,23 @@ async function refresh() {
         const data = await resp.json();
         const tbody = document.querySelector('#rankings tbody');
         tbody.innerHTML = '';
-        lastRanked = data;
-        data.forEach((m, i) => {
-            const row = document.createElement('tr');
-            row.innerHTML = "<td>" + (i === 0 ? '★ ' : '') + m.id + "</td>" +
-                           "<td>" + m.provider + "</td>" +
-                           "<td class='score'>" + Math.round(m.score) + "</td>" +
-                           "<td class='latency'>" + m.latency.toFixed(3) + "s</td>" +
-                           "<td>" +
-                           "<button class='inline-action' onclick=\"doAction('/api/models/skip?id=' + encodeURIComponent('" + m.id + "'))\">Skip</button>" +
-                           "<button class='inline-action' onclick=\"doAction('/api/models/blacklist?id=' + encodeURIComponent('" + m.id + "'))\">Blacklist</button>" +
-                           "</td>";
-            tbody.appendChild(row);
-        });
+        if (data && Array.isArray(data)) {
+            lastRanked = data;
+            data.forEach((m, i) => {
+                const row = document.createElement('tr');
+                row.innerHTML = "<td>" + (i === 0 ? '★ ' : '') + m.id + "</td>" +
+                               "<td>" + m.provider + "</td>" +
+                               "<td class='score'>" + Math.round(m.score) + "</td>" +
+                               "<td class='latency'>" + m.latency.toFixed(3) + "s</td>" +
+                               "<td>" +
+                               "<button class='inline-action' onclick=\"doAction('/api/models/skip?id=' + encodeURIComponent('" + m.id + "'))\">Skip</button>" +
+                               "<button class='inline-action' onclick=\"doAction('/api/models/blacklist?id=' + encodeURIComponent('" + m.id + "'))\">Blacklist</button>" +
+                               "</td>";
+                tbody.appendChild(row);
+            });
+        } else {
+            tbody.innerHTML = '<tr><td colspan="5">No models ranked yet</td></tr>';
+        }
         document.getElementById('status').innerText = 'Last updated: ' + new Date().toLocaleTimeString();
     } catch (e) {
         document.getElementById('status').innerText = 'Error loading rankings: ' + e;

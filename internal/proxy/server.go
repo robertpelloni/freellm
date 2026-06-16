@@ -52,8 +52,23 @@ type Gateway struct {
 	activeSem  chan struct{} // main proxy path concurrency semaphore (MaxActive)
 	FanOutSize int           // number of parallel requests in fan-out
 	ShuffleEnabled bool      // whether to shuffle models after successful request
+	MinParamsFilter int // filter out models with params <= this value (billions); 0 = disabled
 	provenModels     map[string]bool // map of modelID+provider that have successfully worked
 	provenMu         sync.RWMutex
+	sessionModelLocks map[string]time.Time // modelID+provider -> locked until
+	sessionLockMu    sync.RWMutex
+
+	// Configurable Timeouts & Settings
+	RequestTimeout           time.Duration
+	StreamTimeout            time.Duration
+	ConnectTimeout           time.Duration
+	WatchdogTimeout          time.Duration
+	ProvenWatchdogTimeout    time.Duration
+	ReasoningWatchdogTimeout time.Duration
+	LockDuration             time.Duration
+	SmartSwitchDelay         time.Duration // Wait window to see if a better model responds
+
+	RouterLogger *log.Logger
 }
 
 // A2ARouter is the interface for A2A protocol route handling.
@@ -156,14 +171,35 @@ func NewGateway(maxActive int, database *sql.DB, port int) *Gateway {
 		PrimaryCount: 10,
 		Cache: make(map[string][]byte),
 		providerCooldown: make(map[string]time.Time),
-		Client: &http.Client{Timeout: 30 * time.Second},
+		Client: &http.Client{Timeout: 60 * time.Second},
 		preflightCache: make(map[string]preflightEntry),
 		Sessions:   NewSessionTracker(),
 		activeSem: make(chan struct{}, maxActive),
-		FanOutSize: 5,
+		FanOutSize: 15,
 		ShuffleEnabled: true,
+		MinParamsFilter: 130, // Exclude models <= 130B by default
 		provenModels: make(map[string]bool),
-		}
+		sessionModelLocks: make(map[string]time.Time),
+		providerSems:      make(map[string]chan struct{}),
+		upstreamSem:        make(chan struct{}, 100), // Global limit for all upstream calls
+
+		// Default Timeouts
+		RequestTimeout:           60 * time.Second,
+		StreamTimeout:            300 * time.Second,
+		ConnectTimeout:           30 * time.Second,
+		WatchdogTimeout:          30 * time.Second,
+		ProvenWatchdogTimeout:    60 * time.Second,
+		ReasoningWatchdogTimeout: 80 * time.Second,
+		LockDuration:             30 * time.Second,
+		SmartSwitchDelay:         500 * time.Millisecond,
+	}
+
+	os.MkdirAll("logs", 0755)
+	logFile, err := os.OpenFile("logs/router.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err == nil {
+		g.RouterLogger = log.New(logFile, "", log.LstdFlags)
+	}
+
 	go g.workerLoop()
 	return g
 }
@@ -183,10 +219,55 @@ func (g *Gateway) MarkProven(modelID, provider string) {
 	}
 }
 
+func (g *Gateway) IsModelLocked(modelID, provider string) bool {
+	g.sessionLockMu.RLock()
+	defer g.sessionLockMu.RUnlock()
+	until, ok := g.sessionModelLocks[modelID+provider]
+	return ok && time.Now().Before(until)
+}
+
+func (g *Gateway) LockModelForSession(modelID, provider string) {
+	g.sessionLockMu.Lock()
+	defer g.sessionLockMu.Unlock()
+	g.sessionModelLocks[modelID+provider] = time.Now().Add(g.LockDuration)
+	log.Printf("[SESSION] Locked model %s(%s) for %v", modelID, provider, g.LockDuration)
+}
+
+func (g *Gateway) cleanupExpiredLocks() {
+	g.sessionLockMu.Lock()
+	defer g.sessionLockMu.Unlock()
+	now := time.Now()
+	for k, until := range g.sessionModelLocks {
+		if now.After(until) {
+			delete(g.sessionModelLocks, k)
+		}
+	}
+}
+
+func (g *Gateway) GetProviderSem(provider string) chan struct{} {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if sem, ok := g.providerSems[provider]; ok {
+		return sem
+	}
+	// Default: 3 concurrent requests per provider
+	sem := make(chan struct{}, 3)
+	g.providerSems[provider] = sem
+	return sem
+}
+
 func (g *Gateway) UpdateModels(models engine.RankedModels) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.RankedModels = models
+}
+
+func (g *Gateway) LogRouterEvent(format string, v ...interface{}) {
+	msg := fmt.Sprintf(format, v...)
+	log.Printf("[ROUTER] %s", msg)
+	if g.RouterLogger != nil {
+		g.RouterLogger.Println(msg)
+	}
 }
 
 func (g *Gateway) GetModels() engine.RankedModels {
@@ -329,16 +410,8 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			isStream = s
 		}
 	}
-	job := &RequestJob{Request: r, Response: make(chan *ProxyResponse, 1), Ctx: ctx, DBID: dbID, IsStream: isStream}
-	// Process job with concurrency control: up to MaxActive (50) concurrent
-	// requests. Additional requests wait for a slot via the semaphore.
-	g.activeSem <- struct{}{} // acquire slot
-	go func() {
-		defer func() { <-g.activeSem }() // release slot
-		g.processJob(job)
-	}()
 
-		wroteHeader := false
+	wroteHeader := false
 	// For streaming requests, send SSE headers IMMEDIATELY so the client
 	// knows the connection is alive. This prevents "terminated" errors
 	// from clients that timeout waiting for the initial response headers.
@@ -355,6 +428,21 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		log.Printf("[PROXY] Sent SSE headers immediately (stream=true)")
 	}
+
+	job := &RequestJob{Request: r, Response: make(chan *ProxyResponse, 1), Ctx: ctx, DBID: dbID, IsStream: isStream}
+	
+	// Process job with concurrency control: up to MaxActive (50) concurrent
+	// requests. Additional requests wait for a slot via the semaphore in the background.
+	go func() {
+		select {
+		case g.activeSem <- struct{}{}:
+			defer func() { <-g.activeSem }() // release slot
+			g.processJob(job)
+		case <-ctx.Done():
+			// Client disconnected before we even started processing
+			return
+		}
+	}()
 
 	log.Printf("[PROXY] Waiting for job response (stream=%v)...", isStream)
 	var resp *ProxyResponse
@@ -756,7 +844,7 @@ func (g *Gateway) onSuccess(job *RequestJob, model engine.ModelCandidate, proxyR
 	g.LastUsedModel = model.ID
 	g.LastUsedProvider = model.Provider
 	g.mu.Unlock()
-	if job.DBID > 0 {
+	if job.DBID > 0 && g.DB != nil {
 		db.DequeueRequest(g.DB, job.DBID)
 	}
 	if g.DB != nil {
@@ -820,6 +908,12 @@ func (g *Gateway) classifyRequest(body []byte, models []engine.ModelCandidate) (
 
 // filterCandidates removes circuit-broken models
 func (g *Gateway) filterCandidates(all engine.RankedModels) []engine.ModelCandidate {
+	return g.filterCandidatesWithOverride(all, g.MinParamsFilter)
+}
+
+func (g *Gateway) filterCandidatesWithOverride(all engine.RankedModels, minParams int) []engine.ModelCandidate {
+	g.cleanupExpiredLocks()
+
 	skipProvider := map[string]bool{"ollama": true, "lm_studio": true}
 	valid := make([]engine.ModelCandidate, 0, len(all))
 	skipped := 0
@@ -846,6 +940,18 @@ func (g *Gateway) filterCandidates(all engine.RankedModels) []engine.ModelCandid
 	}
 
 	for _, m := range all {
+		// Param filter: skip models with params <= minParams threshold
+		if minParams > 0 && m.Parameters > 0 && m.Parameters <= minParams {
+			skipped++
+			continue
+		}
+
+		// Session lock: skip models currently locked by another session
+		if g.IsModelLocked(m.ID, m.Provider) {
+			skipped++
+			continue
+		}
+
 		if m.Score < 0 {
 			skipped++
 			continue
@@ -1545,6 +1651,7 @@ type continuationStream struct {
 	isToolCall        bool
 	finishReasonSent  bool
 	lastAccumulatedLen int
+	failedInRequest   map[string]bool // modelID -> true if failed in this request
 }
 
 func (g *Gateway) newContinuationStream(client *http.Client, r *http.Request, model engine.ModelCandidate, originalBody []byte, firstStream io.ReadCloser, alternatives []engine.ModelCandidate) *continuationStream {
@@ -1558,6 +1665,7 @@ func (g *Gateway) newContinuationStream(client *http.Client, r *http.Request, mo
 		currentStream: firstStream,
 		reader:        bufio.NewReader(firstStream),
 		lastAccumulatedLen: 0,
+		failedInRequest: make(map[string]bool),
 	}
 }
 
@@ -1639,19 +1747,23 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 		var line string
 		var err error
 		
-		watchdogTimeout := 60 * time.Second
+		watchdogTimeout := s.g.WatchdogTimeout
 		if !s.firstChunkParsed {
-			watchdogTimeout = 120 * time.Second // Lenient for first token (reasoning models)
+			watchdogTimeout = s.g.ReasoningWatchdogTimeout // Lenient for first token (reasoning models)
 		} else if s.g.IsProven(s.model.ID, s.model.Provider) {
-			watchdogTimeout = 300 * time.Second
+			watchdogTimeout = s.g.ProvenWatchdogTimeout
 		}
 
 		select {
 		case res := <-resCh:
 			line = res.line
 			err = res.err
+		case <-time.After(5 * time.Second):
+			// log.Printf("[KEEP-ALIVE] Sending keep-alive comment to client")
+			s.buffer.WriteString(": keep-alive\n\n")
+			return s.buffer.Read(p)
 		case <-time.After(watchdogTimeout):
-			log.Printf("[WATCHDOG] Stream stall detected for %s(%s) after %v, closing connection", s.model.ID, s.model.Provider, watchdogTimeout)
+			log.Printf("[WATCHDOG] [stall-watchdog-retry] Stream stall detected for %s(%s) after %v, closing connection and retrying", s.model.ID, s.model.Provider, watchdogTimeout)
 			s.currentStream.Close()
 			err = fmt.Errorf("stream stalled")
 		case <-s.req.Context().Done():
@@ -1745,6 +1857,10 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 				
 				// Demote the model that gave us nothing
 				s.g.DemoteModel(s.model.ID)
+				if s.failedInRequest == nil {
+					s.failedInRequest = make(map[string]bool)
+				}
+				s.failedInRequest[s.model.ID] = true
 
 				// Try up to 10 batches of 10 models each (total 100 potential models)
 				success := false
@@ -1764,8 +1880,8 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 					indices := rand.Perm(len(validModels))
 					for _, idx := range indices {
 						candidate := validModels[idx]
-						// Skip models we've already tried if possible, or just skip current failing one
-						if candidate.ID == s.model.ID && candidate.Provider == s.model.Provider {
+						// Skip models that have already failed in this request to avoid cycles
+						if s.failedInRequest[candidate.ID] {
 							continue
 						}
 						
@@ -2101,9 +2217,8 @@ s.continuationCount++
 				s.finishReasonSent = true
 			}
 
-			if err == io.EOF {
-				s.buffer.WriteString("data: [DONE]\n\n")
-			}
+			// Always send [DONE] to ensure client doesn't hang or report aborted request
+			s.buffer.WriteString("data: [DONE]\n\n")
 
 			if s.buffer.Len() > 0 {
 				return s.buffer.Read(p)
@@ -2227,6 +2342,14 @@ func (g *Gateway) getProviderURL(modelID, provider string) string {
 		return "https://api.x.ai/v1/chat/completions"
 	case "hunyuan":
 		return "https://api.hunyuan.cloud.tencent.com/v1/chat/completions"
+	case "kluster":
+		return "https://api.kluster.ai/v1/chat/completions"
+	case "llm7":
+		return "https://api.llm7.io/v1/chat/completions"
+	case "lepton":
+		return "https://api.lepton.ai/chat/completions"
+	case "pollinations":
+		return "https://text.pollinations.ai/openai/chat/completions"
 	}
 	return ""
 }
@@ -2306,6 +2429,14 @@ func (g *Gateway) getAPIKey(provider string) string {
 		key = os.Getenv("XAI_API_KEY")
 	case "hunyuan":
 		key = os.Getenv("HUNYUAN_API_KEY")
+	case "kluster":
+		key = os.Getenv("KLUSTER_API_KEY")
+	case "llm7":
+		key = os.Getenv("LLM7_API_KEY")
+	case "lepton":
+		key = os.Getenv("LEPTON_API_KEY")
+	case "pollinations":
+		key = os.Getenv("POLLINATIONS_API_KEY")
 	}
 
 	// Dynamic provider fallback:

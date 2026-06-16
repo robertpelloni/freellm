@@ -96,7 +96,6 @@ var KnownModels = map[string]ModelSpec{
 	"perplexity/sonar-reasoning": {Params: 70, Ctx: 128000, Provider: "perplexity"},
 	"perplexity/r1-1776": {Params: 685, Ctx: 128000, Provider: "perplexity"},
 	// xAI (Grok) models
-	"xai/grok-3": {Params: 314, Ctx: 131072, Provider: "xai"},
 	"xai/grok-3-mini": {Params: 314, Ctx: 131072, Provider: "xai"},
 	"xai/grok-3-fast": {Params: 314, Ctx: 131072, Provider: "xai"},
 	"xai/grok-4.20": {Params: 500, Ctx: 128000, Provider: "xai"},
@@ -105,6 +104,26 @@ var KnownModels = map[string]ModelSpec{
 	"hunyuan/hunyuan-standard": {Params: 70, Ctx: 128000, Provider: "hunyuan"},
 	"hunyuan/hunyuan-pro": {Params: 200, Ctx: 128000, Provider: "hunyuan"},
 	"hunyuan/hunyuan-turbos": {Params: 70, Ctx: 128000, Provider: "hunyuan"},
+	// June 2026 Verified Models
+	"google/gemini-2.5-flash": {Params: 200, Ctx: 1000000, Provider: "gemini"},
+	"google/gemini-2.5-flash-lite": {Params: 20, Ctx: 1000000, Provider: "gemini"},
+	"google/gemma-3-27b": {Params: 27, Ctx: 128000, Provider: "gemini"},
+	"xai/grok-3": {Params: 314, Ctx: 131072, Provider: "xai"},
+	"mistral/codestral-latest": {Params: 22, Ctx: 32000, Provider: "mistral"},
+	"cloudflare/llama-4-scout-17b": {Params: 17, Ctx: 128000, Provider: "cloudflare"},
+	"cloudflare/qwen-qwq-32b": {Params: 32, Ctx: 128000, Provider: "cloudflare"},
+	"llm7/deepseek-r1": {Params: 671, Ctx: 128000, Provider: "llm7"},
+	"cerebras/qwen3-235b": {Params: 235, Ctx: 131072, Provider: "cerebras"},
+	"groq/llama-4-scout": {Params: 17, Ctx: 128000, Provider: "groq"},
+	"groq/kimi-k2": {Params: 100, Ctx: 128000, Provider: "groq"},
+	// Kluster AI
+	"kluster/DeepSeek-R1": {Params: 671, Ctx: 128000, Provider: "kluster"},
+	"kluster/Qwen3-235B-A22B": {Params: 235, Ctx: 128000, Provider: "kluster"},
+	// Lepton AI
+	"lepton/llama-3.3-70b": {Params: 70, Ctx: 128000, Provider: "lepton"},
+	// Pollinations AI
+	"pollinations/openai/gpt-4o": {Params: 175, Ctx: 128000, Provider: "pollinations"},
+	"pollinations/deepseek-r1": {Params: 671, Ctx: 128000, Provider: "pollinations"},
 }
 
 func LookupKnownModel(modelID string) (ModelSpec, bool) {
@@ -200,6 +219,22 @@ var DeadModels = map[string]bool{
 	"DeepSeek-R1": true,
 	"deepseek-ai/DeepSeek-R1-0528": true,
 	"deepseek-ai/DeepSeek-V3-0324": true,
+	// Speculative/non-existent June 2026 models (404ing)
+	"openai/gpt-5": true,
+	"openai/gpt-5.1": true,
+	"openai/gpt-5.2": true,
+	"openai/gpt-5.5": true,
+	"openai/gpt-5-mini": true,
+	"xai/grok-4.20": true,
+	"xai/grok-4.3": true,
+	"anthropic/claude-opus-4-6": true,
+	"anthropic/claude-opus-4-7": true,
+	"anthropic/claude-opus-4-8": true,
+	"anthropic/claude-sonnet-4-6": true,
+	"anthropic/claude-haiku-4-5": true,
+	"sonar-reasoning": true,
+	"aion-labs/aion-1.0": true,
+	"r1-1776": true,
 }
 
 // RegisterDeadModel adds a model to the runtime dead-model registry.
