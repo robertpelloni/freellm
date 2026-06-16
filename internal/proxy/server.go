@@ -1262,9 +1262,18 @@ func (g *Gateway) forwardRequestInternal(client *http.Client, r *http.Request, m
 		return &ProxyResponse{Err: fmt.Errorf("%s: %v", model.Provider, err)}
 	}
 
-	if resp.StatusCode == http.StatusNotFound {
-		log.Printf("[ROUTER] Model %s(%s) returned 404, registering as DEAD.", model.ID, model.Provider)
-		engine.RegisterDeadModel(model.ID)
+	if resp.StatusCode == http.StatusRequestEntityTooLarge {
+		log.Printf("[PROXY] Model %s(%s) returned 413, attempting to truncate context...", model.ID, model.Provider)
+		
+		// Truncate messages (usually the biggest part of payload) by 10%
+		if msgs, ok := payload["messages"].([]interface{}); ok && len(msgs) > 1 {
+			newMsgs := msgs[len(msgs)/10:]
+			payload["messages"] = newMsgs
+			newBody, _ := json.Marshal(payload)
+			
+			// Retry with truncated payload
+			return g.forwardRequestInternal(client, r, model, newBody, isContinuation, alternatives)
+		}
 	}
 
 	isHTML := strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "text/html")
