@@ -37,6 +37,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 		job.Response <- &ProxyResponse{Status: 400, Err: fmt.Errorf("read body: %v", err)}
 		return
 	}
+	log.Printf("[ROUTER] Processing request (size: %d bytes)", len(body))
 
 	tried := make(map[string]bool)
 	failedProviders := make(map[string]int)
@@ -77,9 +78,11 @@ func (g *Gateway) processJob(job *RequestJob) {
 			if tried[m.ID+"|"+m.Provider] {
 				continue
 			}
-			// Skip models on cooldown
-			if until, onCooldown := g.providerCooldown[m.Provider]; onCooldown && time.Now().Before(until) {
-				continue
+			// Skip models on cooldown (only in early attempts)
+			if attempt <= 5 {
+				if until, onCooldown := g.providerCooldown[m.Provider]; onCooldown && time.Now().Before(until) {
+					continue
+				}
 			}
 			fresh = append(fresh, m)
 		}
@@ -159,7 +162,6 @@ func (g *Gateway) processJob(job *RequestJob) {
 					return
 				}
 
-				// Note: Use a sub-context for the individual request that honors the overall job context
 				resCh <- result{
 					model: candidate,
 					resp:  g.forwardRequestInternal(g.Client, job.Request, candidate, body, false, nil),
@@ -170,7 +172,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 		var winner *result
 		var bestQuality float64 = -1
 
-		// Batch-specific timeout (ensure we don't wait too long for one slow provider)
+		// Batch-specific timeout
 		batchDeadline := time.After(20 * time.Second)
 		responsesReceived := 0
 		fanActual := len(batch)
@@ -191,7 +193,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 
 					cooldown := 5 * time.Second
 					if res.resp.Status == http.StatusUnauthorized || res.resp.Status == http.StatusPaymentRequired || res.resp.Status == http.StatusForbidden {
-						cooldown = 1 * time.Hour
+						cooldown = 5 * time.Minute
 						g.DemoteModel(res.model.ID)
 					} else if res.resp.Status == http.StatusTooManyRequests {
 						cooldown = 10 * time.Second
@@ -206,14 +208,12 @@ func (g *Gateway) processJob(job *RequestJob) {
 				if winner == nil {
 					winner = &res
 					bestQuality = q
-					
 					window := g.SmartSwitchDelay
 					if bestQuality < 2.0 {
-						window = 1 * time.Second // Tighten switch window for lower quality models
+						window = 1 * time.Second
 					}
 					
 					winDeadline := time.After(window)
-					
 				WindowWait:
 					for {
 						select {
@@ -282,13 +282,12 @@ func (g *Gateway) processJob(job *RequestJob) {
 			return
 		}
 
-		if len(failedProviders) >= 100 {
+		if len(failedProviders) >= 200 {
 			log.Printf("[ROUTER] Too many distinct provider failures (%d), aborting routing.", len(failedProviders))
 			job.Response <- &ProxyResponse{Status: 503, Err: fmt.Errorf("too many provider failures (%d). Check your API keys and model availability.", len(failedProviders))}
 			return
 		}
 		
-		// Small delay between batches to allow cooldowns to potentially start expiring or just back off
 		time.Sleep(200 * time.Millisecond)
 	}
 
