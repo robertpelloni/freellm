@@ -186,12 +186,12 @@ func NewGateway(maxActive int, database *sql.DB, port int) *Gateway {
 		// Default Timeouts
 		RequestTimeout:           300 * time.Second,
 		StreamTimeout:            300 * time.Second,
-		ConnectTimeout:           30 * time.Second,
-		WatchdogTimeout:          30 * time.Second,
-		ProvenWatchdogTimeout:    60 * time.Second,
-		ReasoningWatchdogTimeout: 80 * time.Second,
-		LockDuration:             30 * time.Second,
-		SmartSwitchDelay:         500 * time.Millisecond,
+		ConnectTimeout:           60 * time.Second,
+		WatchdogTimeout:          60 * time.Second,
+		ProvenWatchdogTimeout:    120 * time.Second,
+		ReasoningWatchdogTimeout: 120 * time.Second,
+		LockDuration:             60 * time.Second,
+		SmartSwitchDelay:         2 * time.Second,
 	}
 
 	os.MkdirAll("logs", 0755)
@@ -448,7 +448,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[PROXY] Waiting for job response (stream=%v)...", isStream)
 	var resp *ProxyResponse
 	// Keepalive loop: send periodic pings to prevent client timeouts
-	keepaliveInterval := 10 * time.Second
+	keepaliveInterval := 5 * time.Second
 	if isStream {
 		keepaliveInterval = 5 * time.Second
 	}
@@ -471,9 +471,6 @@ WaitLoop:
 			} else {
 				log.Printf("[PROXY] Still waiting for model response...")
 			}
-		case <-ctx.Done():
-			log.Printf("[PROXY] Client disconnected while waiting")
-			return
 		}
 	}
 	log.Printf("[PROXY] Got response, err=%v status=%d", resp.Err, resp.Status)
@@ -1740,7 +1737,7 @@ func (s *continuationStream) injectFinishReasonChunk(fr string) {
 
 func (s *continuationStream) Read(p []byte) (int, error) {
 	// Heartbeat: periodically send an empty comment to keep connection alive
-	if time.Since(s.lastActivity) > 15*time.Second {
+	if time.Since(s.lastActivity) > 5*time.Second {
 		s.buffer.WriteString(":\n\n")
 		s.lastActivity = time.Now()
 	}
