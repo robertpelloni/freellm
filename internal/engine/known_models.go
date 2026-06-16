@@ -235,6 +235,8 @@ var DeadModels = map[string]bool{
 	"sonar-reasoning": true,
 	"aion-labs/aion-1.0": true,
 	"r1-1776": true,
+	"mistralai/mistral-small-4-119b-2603": true,
+	"openai/gpt-oss-120b": true,
 }
 
 // RegisterDeadModel adds a model to the runtime dead-model registry.

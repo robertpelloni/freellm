@@ -207,15 +207,16 @@ func NewGateway(maxActive int, database *sql.DB, port int) *Gateway {
 func (g *Gateway) IsProven(modelID, provider string) bool {
 	g.provenMu.RLock()
 	defer g.provenMu.RUnlock()
-	return g.provenModels[modelID+provider]
+	return g.provenModels[modelID+"|"+provider]
 }
 
 func (g *Gateway) MarkProven(modelID, provider string) {
 	g.provenMu.Lock()
 	defer g.provenMu.Unlock()
-	if !g.provenModels[modelID+provider] {
+	key := modelID + "|" + provider
+	if !g.provenModels[key] {
 		log.Printf("[ROUTER] Marking model %s(%s) as PROVEN - will receive extended timeouts", modelID, provider)
-		g.provenModels[modelID+provider] = true
+		g.provenModels[key] = true
 	}
 }
 
@@ -1793,6 +1794,10 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 								if delta, ok := choice["delta"].(map[string]interface{}); ok {
 									if content, ok := delta["content"].(string); ok {
 										s.accumulatedText.WriteString(content)
+										// Detect text-based tool calls (like Qwen uses)
+										if strings.Contains(s.accumulatedText.String(), "<tool_call") {
+											s.isToolCall = true
+										}
 									}
 									if rc, ok := delta["reasoning_content"].(string); ok {
 										s.accumulatedText.WriteString(rc)
@@ -1867,7 +1872,7 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 				allModels := s.g.GetModels()
 				validModels := s.g.filterCandidates(allModels)
 				
-				for batch := 0; batch < 5; batch++ {
+				for batch := 0; batch < 10; batch++ {
 					fanOutSize := s.g.FanOutSize
 					if fanOutSize < 3 {
 						fanOutSize = 3
@@ -1964,18 +1969,23 @@ s.continuationCount++
 				isTruncated = true
 			}
 
+			// Check for unclosed text-based tool calls (e.g. Qwen format)
+			fullText := s.accumulatedText.String()
+			if strings.Contains(fullText, "<tool_call") && !strings.Contains(fullText, "</tool_call") && !strings.Contains(fullText, "</function>") {
+				isTruncated = true
+				s.isToolCall = true 
+				log.Printf("[AUTO-CONTINUE] Unclosed text tool call detected, marking as truncated and triggering retry.")
+			}
+
 			// If tool call is truncated, we can't "continue" it easily,
 			// but we SHOULD retry the original request with a different model.
 			if s.isToolCall && isTruncated {
 				log.Printf("[AUTO-CONTINUE] Tool call truncated, triggering full retry instead of continuation.")
-				// We reuse the "failed tool call" logic by ensuring it hits the retry block above in next loop
-				// or just manually trigger a retry here.
-				// For now, let's treat it as a failure so it might hit the retry block if we loop back.
-				// But we are already at the end of the error handling.
-				// Let's force a retry by resetting state and continuing the loop.
-				if s.continuationCount < 5 {
-					s.finishReason = "failed_tool_call" // This will trigger the retry block above in the next turn of the loop
-					s.accumulatedText.Reset() // Treat it as empty to force a full retry
+				if s.continuationCount < 15 {
+					s.finishReason = "failed_tool_call" 
+					s.accumulatedText.Reset()
+					s.firstChunkParsed = false
+					s.isToolCall = false
 					continue
 				}
 			}
@@ -2207,9 +2217,11 @@ s.continuationCount++
 			s.eofReached = true
 			s.err = err
 
-			if err == io.EOF && s.g.ShuffleEnabled && !s.isToolCall {
-				s.g.SetModelPrimary(s.model.ID)
+			if err == io.EOF && !s.isToolCall {
 				s.g.MarkProven(s.model.ID, s.model.Provider)
+				if s.g.ShuffleEnabled {
+					s.g.SetModelPrimary(s.model.ID)
+				}
 			}
 
 			if !s.finishReasonSent {
