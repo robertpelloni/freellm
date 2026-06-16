@@ -1251,7 +1251,7 @@ func (g *Gateway) forwardRequestInternal(client *http.Client, r *http.Request, m
 		return &ProxyResponse{Err: fmt.Errorf("unsupported provider: %s", model.Provider)}
 	}
 
-	req, err := http.NewRequestWithContext(r.Context(), "POST", targetURL, bytes.NewBuffer(newBody))
+	req, err := http.NewRequestWithContext(context.Background(), "POST", targetURL, bytes.NewBuffer(newBody))
 	if err != nil {
 		return &ProxyResponse{Err: err}
 	}
