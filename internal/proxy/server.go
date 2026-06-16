@@ -175,9 +175,9 @@ func NewGateway(maxActive int, database *sql.DB, port int) *Gateway {
 		preflightCache: make(map[string]preflightEntry),
 		Sessions:   NewSessionTracker(),
 		activeSem: make(chan struct{}, maxActive),
-		FanOutSize: 15,
+		FanOutSize: 25,
 		ShuffleEnabled: true,
-		MinParamsFilter: 130, // Exclude models <= 130B by default
+		MinParamsFilter: 70, // Exclude models <= 70B by default (include 70B+)
 		provenModels: make(map[string]bool),
 		sessionModelLocks: make(map[string]time.Time),
 		providerSems:      make(map[string]chan struct{}),
@@ -941,6 +941,12 @@ func (g *Gateway) filterCandidatesWithOverride(all engine.RankedModels, minParam
 	}
 
 	for _, m := range all {
+		// Dead model filter
+		if engine.IsDeadModel(m.ID) {
+			skipped++
+			continue
+		}
+
 		// Param filter: skip models with params <= minParams threshold
 		if minParams > 0 && m.Parameters > 0 && m.Parameters <= minParams {
 			skipped++
@@ -1252,6 +1258,11 @@ func (g *Gateway) forwardRequestInternal(client *http.Client, r *http.Request, m
 	resp, err := client.Do(req)
 	if err != nil {
 		return &ProxyResponse{Err: fmt.Errorf("%s: %v", model.Provider, err)}
+	}
+
+	if resp.StatusCode == http.StatusNotFound {
+		log.Printf("[ROUTER] Model %s(%s) returned 404, registering as DEAD.", model.ID, model.Provider)
+		engine.RegisterDeadModel(model.ID)
 	}
 
 	isHTML := strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "text/html")
@@ -1872,7 +1883,7 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 				allModels := s.g.GetModels()
 				validModels := s.g.filterCandidates(allModels)
 				
-				for batch := 0; batch < 10; batch++ {
+				for batch := 0; batch < 15; batch++ {
 					fanOutSize := s.g.FanOutSize
 					if fanOutSize < 3 {
 						fanOutSize = 3
@@ -2465,6 +2476,7 @@ func (g *Gateway) getAPIKey(provider string) string {
 
 func (g *Gateway) transformRequest(req *http.Request, provider string) {
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
 	apiKey := g.getAPIKey(provider)
 	if apiKey == "" {
 		return
