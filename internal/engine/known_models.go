@@ -246,6 +246,9 @@ var DeadModels = map[string]bool{
 	"llama-4-scout-17b": true,
 	"qwen3.5-397b-a17b": false, // Keep this one as it works on nvidia
 	"qwen3.5-plus-2026-02-15": true,
+	"microsoft/phi-4-multimodal-instruct": true, // Nvidia endpoint is returning 400 DEGRADED
+	"minimaxai/minimax-m3": true,                // Nvidia endpoint is returning 500 Internal Server Error
+	"mistralai/mistral-medium-3.5-128b": true,   // Failing frequently on Nvidia
 }
 
 // RegisterDeadModel adds a model to the runtime dead-model registry.
