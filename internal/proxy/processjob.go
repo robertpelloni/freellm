@@ -176,11 +176,27 @@ func (g *Gateway) processJob(job *RequestJob) {
 				log.Printf("[ROUTER] Attempt %d: Sending request to %s(%s)", attempt, candidate.ID, candidate.Provider)
 				resp := g.forwardRequestInternal(g.Client, job.Request, candidate, body, false, nil)
 
-				// Handle transient rate limits with auto-cooldown
-				if resp.Status == 429 {
-					log.Printf("[ROUTER] Provider %s hit rate limit (429), cooling down for 10s", candidate.Provider)
-					g.applyProviderCooldown(candidate.Provider, 10*time.Second)
+				// Update score based on response success
+				if resp.Status == 200 {
+					candidate.Score *= 2.0
+					if candidate.Score < 1.0 {
+						candidate.Score = 1.0
+					}
+				} else if resp.Status >= 400 && resp.Status < 500 {
+					log.Printf("[ROUTER] Provider %s returned 4xx (%d), disabling model.", candidate.Provider, resp.Status)
+					candidate.Disabled = true
+					candidate.Score = 0.0
+				} else {
+					candidate.Score *= 0.5
+					if candidate.Score < 0.1 {
+						candidate.Score = 0.1
+					}
 				}
+				// Force disabled models to 0.0
+				if candidate.Disabled {
+					candidate.Score = 0.0
+				}
+
 				if resp.Status == 413 {
 					log.Printf("[ROUTER] Provider %s rejected payload (413), cooling down for 30s", candidate.Provider)
 					g.applyProviderCooldown(candidate.Provider, 30*time.Second)
