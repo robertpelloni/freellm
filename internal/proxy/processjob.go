@@ -47,8 +47,8 @@ func (g *Gateway) processJob(job *RequestJob) {
 		requestDeadline = time.Now().Add(60 * time.Second)
 	}
 
-	// Try up to 10 batches. This prevents infinite loops and respects typical client timeouts.
-	for attempt := 1; attempt <= 10; attempt++ {
+	// Try up to 15 batches. This prevents infinite loops and respects typical client timeouts.
+	for attempt := 1; attempt <= 15; attempt++ {
 		// Check global context or deadline
 		select {
 		case <-job.Ctx.Done():
@@ -65,7 +65,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 		if attempt > 1 {
 			filter = g.MinParamsFilter / 2
 		}
-		if attempt > 3 {
+		if attempt > 2 {
 			filter = 0
 		}
 
@@ -282,7 +282,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 			return
 		}
 
-		if len(failedProviders) >= 50 {
+		if len(failedProviders) >= 100 {
 			log.Printf("[ROUTER] Too many distinct provider failures (%d), aborting routing.", len(failedProviders))
 			job.Response <- &ProxyResponse{Status: 503, Err: fmt.Errorf("too many provider failures (%d). Check your API keys and model availability.", len(failedProviders))}
 			return
@@ -292,7 +292,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 		time.Sleep(200 * time.Millisecond)
 	}
 
-	job.Response <- &ProxyResponse{Status: 503, Err: fmt.Errorf("all models exhausted after 10 batches. Common causes: frontier model rate limits (429) or speculative model 404s. Please try again in a moment.")}
+	job.Response <- &ProxyResponse{Status: 503, Err: fmt.Errorf("all models exhausted after 15 batches. Common causes: frontier model rate limits (429), speculative model 404s, or request too large (413). Please try again in a moment.")}
 }
 
 // QualityScore calculates a score based on ranking, parameter count, and context window

@@ -237,6 +237,15 @@ var DeadModels = map[string]bool{
 	"r1-1776": true,
 	"mistralai/mistral-small-4-119b-2603": true,
 	"openai/gpt-oss-120b": true,
+	"anthropic/claude-opus-4-5": true,
+	"anthropic/claude-sonnet-4-5": true,
+	"google/gemini-3.1-pro-preview": true,
+	"deepseek-ai/deepseek-v4": true,
+	"meta/llama-4-scout-17b-16e-instruct": true,
+	"llama-4-scout": true,
+	"llama-4-scout-17b": true,
+	"qwen3.5-397b-a17b": false, // Keep this one as it works on nvidia
+	"qwen3.5-plus-2026-02-15": true,
 }
 
 // RegisterDeadModel adds a model to the runtime dead-model registry.
