@@ -90,8 +90,9 @@ func (g *Gateway) processJob(job *RequestJob) {
 		g.cooldownMu.Unlock()
 
 		if len(fresh) == 0 {
-			log.Printf("[ROUTER] Attempt %d: Exhausted all candidate models (tried=%d, all=%d)", attempt, len(tried), len(candidates))
-			break
+			log.Printf("[ROUTER] Attempt %d: No fresh candidates, checking if others are on cooldown", attempt)
+			// Don't break, continue loop to let cooldowns expire
+			continue
 		}
 		// Fan-out: try multiple models in parallel with provider diversity
 		fanSize := g.FanOutSize
