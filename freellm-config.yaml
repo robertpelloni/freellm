@@ -1,12 +1,12 @@
 router_settings:
-  routing_strategy: simple-shuffle
-  cooldown_time: 30
-  allowed_fails: 2
-  num_retries: 2
-  timeout: 30
-  enable_pre_call_checks: false
+  routing_strategy: priority-ranked
+  cooldown_time: 60
+  allowed_fails: 1
+  num_retries: 5
+  timeout: 10
+  enable_pre_call_checks: true
   ignore_cooldown_on_fallbacks: true
-  min_params_filter: 130
+  min_params_filter: 10
 
 proxy_settings:
   drop_params: true
