@@ -1674,8 +1674,10 @@ type continuationStream struct {
 	isToolCall        bool
 	finishReasonSent  bool
 	lastAccumulatedLen int
-	failedInRequest   map[string]bool // modelID -> true if failed in this request
-}
+	failedInRequest    map[string]bool // modelID -> true if failed in this request
+	lastActivity       time.Time
+	}
+
 
 func (g *Gateway) newContinuationStream(client *http.Client, r *http.Request, model engine.ModelCandidate, originalBody []byte, firstStream io.ReadCloser, alternatives []engine.ModelCandidate) *continuationStream {
 	return &continuationStream{
@@ -1688,7 +1690,8 @@ func (g *Gateway) newContinuationStream(client *http.Client, r *http.Request, mo
 		currentStream: firstStream,
 		reader:        bufio.NewReader(firstStream),
 		lastAccumulatedLen: 0,
-		failedInRequest: make(map[string]bool),
+		failedInRequest:    make(map[string]bool),
+		lastActivity:       time.Now(),
 	}
 }
 
@@ -1734,6 +1737,12 @@ func (s *continuationStream) injectFinishReasonChunk(fr string) {
 }
 
 func (s *continuationStream) Read(p []byte) (int, error) {
+	// Heartbeat: periodically send an empty comment to keep connection alive
+	if time.Since(s.lastActivity) > 15*time.Second {
+		s.buffer.WriteString(":\n\n")
+		s.lastActivity = time.Now()
+	}
+
 	// If there are bytes in the buffer, read them first
 	if s.buffer.Len() > 0 {
 		return s.buffer.Read(p)
