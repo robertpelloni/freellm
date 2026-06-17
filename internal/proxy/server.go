@@ -11,7 +11,6 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
-	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -21,7 +20,13 @@ import (
 	"github.com/xeipuuv/gojsonschema"
 	"github.com/robertpelloni/freellm/internal/db"
 	"github.com/robertpelloni/freellm/internal/engine"
+	"github.com/robertpelloni/freellm/internal/tokdiet"
 )
+
+type cacheEntry struct {
+	data   []byte
+	expiry time.Time
+}
 
 type Gateway struct {
 	Port int
@@ -32,7 +37,7 @@ type Gateway struct {
 	MaxActive int
 	DB *sql.DB
 	PrimaryCount int
-	Cache map[string][]byte
+	Cache map[string]cacheEntry
 	cacheMu sync.RWMutex
 	cooldownMu sync.Mutex
 	providerCooldown map[string]time.Time // provider -> cooldown until
@@ -57,6 +62,17 @@ type Gateway struct {
 	provenMu         sync.RWMutex
 	sessionModelLocks map[string]time.Time // modelID+provider -> locked until
 	sessionLockMu    sync.RWMutex
+
+	// Persistent circuit breaker state (lives in-process; cleared on restart).
+	// After modelFailureThreshold consecutive fatal errors, the model is
+	// blocked for modelDisableDuration. The same applies at the provider
+	// level: after providerFailureThreshold failures across any of its
+	// models, the whole provider is put on cooldown.
+	modelFailureMu        sync.RWMutex
+	modelFailureCount     map[string]int       // modelID+provider -> consecutive fatal failures
+	modelDisabledUntil    map[string]time.Time // modelID+provider -> blocked until
+	providerFailureMu     sync.RWMutex
+	providerFailureCount  map[string]int       // provider -> consecutive failures across all its models
 
 	// Configurable Timeouts & Settings
 	RequestTimeout           time.Duration
@@ -169,19 +185,22 @@ func NewGateway(maxActive int, database *sql.DB, port int) *Gateway {
 		MaxActive: 50,
 		DB: database,
 		PrimaryCount: 10,
-		Cache: make(map[string][]byte),
+		Cache: make(map[string]cacheEntry),
 		providerCooldown: make(map[string]time.Time),
-		Client: &http.Client{Timeout: 60 * time.Second},
+		Client: tokdiet.NewClient(60 * time.Second),
 		preflightCache: make(map[string]preflightEntry),
 		Sessions:   NewSessionTracker(),
 		activeSem: make(chan struct{}, maxActive),
-		FanOutSize: 25,
+		FanOutSize: 1,
 		ShuffleEnabled: true,
 		MinParamsFilter: 70, // Exclude models <= 70B by default (include 70B+)
 		provenModels: make(map[string]bool),
 		sessionModelLocks: make(map[string]time.Time),
 		providerSems:      make(map[string]chan struct{}),
-		upstreamSem:        make(chan struct{}, 100), // Global limit for all upstream calls
+		upstreamSem:        make(chan struct{}, 1000), // Global limit increased to 1000
+		modelFailureCount:    make(map[string]int),
+		modelDisabledUntil:   make(map[string]time.Time),
+		providerFailureCount: make(map[string]int),
 
 		// Default Timeouts
 		RequestTimeout:           300 * time.Second,
@@ -200,7 +219,11 @@ func NewGateway(maxActive int, database *sql.DB, port int) *Gateway {
 		g.RouterLogger = log.New(logFile, "", log.LstdFlags)
 	}
 
+	// Update client timeout to match RequestTimeout
+	g.Client.Timeout = 300 * time.Second
+
 	go g.workerLoop()
+	go g.cacheMaintenanceLoop()
 	return g
 }
 
@@ -241,6 +264,142 @@ func (g *Gateway) cleanupExpiredLocks() {
 	for k, until := range g.sessionModelLocks {
 		if now.After(until) {
 			delete(g.sessionModelLocks, k)
+		}
+	}
+}
+
+// Circuit breaker thresholds. Tuned to clear dead models out of the
+// rotation quickly while still allowing legitimate transient blips to
+// recover. The key tradeoff: if the duration is too long, the pool
+// drains faster than it refills and the proxy stalls in a "no fresh
+// candidates" sleep loop; if it's too short, broken models never get
+// pruned. 5 minutes is the sweet spot — a permanently broken model
+// keeps re-tripping on every probe and stays sidelined, while a model
+// with a genuine transient issue comes back into rotation.
+const (
+	modelFailureThreshold    = 3             // consecutive fatal errors before model is disabled
+	modelDisableDuration     = 5 * time.Minute
+	providerFailureThreshold = 3             // consecutive failures (across any of its models) before provider cooldown
+	providerCooldownOnTrip   = 2 * time.Minute
+)
+
+// isModelFatalStatus reports whether a status code indicates the model is
+// fundamentally broken (vs transient: 408/413/429/5xx). Only fatal codes
+// contribute to the model circuit breaker; transient codes just trigger
+// short cooldowns.
+func isModelFatalStatus(status int) bool {
+	switch status {
+	case 400, 401, 402, 403, 404, 413, 422:
+		return true
+	default:
+		return false
+	}
+}
+
+// recordModelFailure increments the consecutive-failure counter for a model.
+// When the counter crosses modelFailureThreshold, the model is disabled for
+// modelDisableDuration and the function returns true.
+func (g *Gateway) recordModelFailure(modelID, provider string, status int) bool {
+	if !isModelFatalStatus(status) {
+		return false
+	}
+	key := modelID + "|" + provider
+	g.modelFailureMu.Lock()
+	defer g.modelFailureMu.Unlock()
+	g.modelFailureCount[key]++
+	count := g.modelFailureCount[key]
+	if count >= modelFailureThreshold {
+		g.modelDisabledUntil[key] = time.Now().Add(modelDisableDuration)
+		log.Printf("[CB] Model %s(%s) disabled for %v after %d consecutive fatal errors (last status %d)",
+			modelID, provider, modelDisableDuration, count, status)
+		// Reset counter so the model gets a fresh start after the disable expires.
+		g.modelFailureCount[key] = 0
+		return true
+	}
+	return false
+}
+
+// recordModelSuccess clears any pending failure counter / disable for a model.
+func (g *Gateway) recordModelSuccess(modelID, provider string) {
+	key := modelID + "|" + provider
+	g.modelFailureMu.Lock()
+	defer g.modelFailureMu.Unlock()
+	if _, ok := g.modelFailureCount[key]; ok {
+		delete(g.modelFailureCount, key)
+	}
+	if _, ok := g.modelDisabledUntil[key]; ok {
+		delete(g.modelDisabledUntil, key)
+	}
+}
+
+// AdjustModelScore updates the score of a model in the global list.
+// multiplier > 1.0 promotes, < 1.0 demotes.
+func (g *Gateway) AdjustModelScore(modelID, provider string, multiplier float64) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	for i := range g.RankedModels {
+		if g.RankedModels[i].ID == modelID && g.RankedModels[i].Provider == provider {
+			g.RankedModels[i].Score *= multiplier
+			// Apply bounds
+			if g.RankedModels[i].Score < 0.1 {
+				g.RankedModels[i].Score = 0.1
+			}
+			if g.RankedModels[i].Score > 10.0 {
+				g.RankedModels[i].Score = 10.0
+			}
+			log.Printf("[ROUTER] Adjusted score for %s(%s) to %.2f (multiplier %.2f)",
+				modelID, provider, g.RankedModels[i].Score, multiplier)
+			break
+		}
+	}
+}
+
+// isModelDisabled returns true if the model is currently circuit-broken.
+func (g *Gateway) isModelDisabled(modelID, provider string) bool {
+	key := modelID + "|" + provider
+	g.modelFailureMu.RLock()
+	defer g.modelFailureMu.RUnlock()
+	until, ok := g.modelDisabledUntil[key]
+	return ok && time.Now().Before(until)
+}
+
+// recordProviderFailure increments the provider failure counter. When the
+// threshold is crossed, the whole provider is put on cooldown and the
+// counter resets so the next trip can fire again.
+func (g *Gateway) recordProviderFailure(provider string) {
+	g.providerFailureMu.Lock()
+	g.providerFailureCount[provider]++
+	count := g.providerFailureCount[provider]
+	trip := count >= providerFailureThreshold
+	if trip {
+		g.providerFailureCount[provider] = 0
+	}
+	g.providerFailureMu.Unlock()
+
+	if trip {
+		g.applyProviderCooldown(provider, providerCooldownOnTrip)
+		log.Printf("[CB] Provider %s cooldown triggered for %v after %d consecutive failures across its models",
+			provider, providerCooldownOnTrip, count)
+	}
+}
+
+// recordProviderSuccess clears the provider failure counter.
+func (g *Gateway) recordProviderSuccess(provider string) {
+	g.providerFailureMu.Lock()
+	defer g.providerFailureMu.Unlock()
+	delete(g.providerFailureCount, provider)
+}
+
+// cleanupExpiredModelBlocks removes expired disables from the in-memory map.
+// Called from filterCandidates so expired entries free up automatically.
+func (g *Gateway) cleanupExpiredModelBlocks() {
+	g.modelFailureMu.Lock()
+	defer g.modelFailureMu.Unlock()
+	now := time.Now()
+	for k, until := range g.modelDisabledUntil {
+		if now.After(until) {
+			delete(g.modelDisabledUntil, k)
+			delete(g.modelFailureCount, k)
 		}
 	}
 }
@@ -373,7 +532,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	cacheKey := string(body)
+	cacheKey := g.normalizeBody(body)
 
 	if g.Redis != nil {
 		if val, err := g.Redis.Get(ctx, cacheKey).Bytes(); err == nil {
@@ -384,11 +543,11 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		g.cacheMu.RLock()
-		if cached, ok := g.Cache[cacheKey]; ok {
+		if entry, ok := g.Cache[cacheKey]; ok && time.Now().Before(entry.expiry) {
 			g.cacheMu.RUnlock()
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("X-FreeLLM-Cache", "HIT")
-			w.Write(cached)
+			w.Write(entry.data)
 			return
 		}
 		g.cacheMu.RUnlock()
@@ -460,6 +619,15 @@ WaitLoop:
 		select {
 		case resp = <-job.Response:
 			break WaitLoop
+		case <-ctx.Done():
+			log.Printf("[PROXY] Request context cancelled: %v", ctx.Err())
+			// Attempt to send a timeout error if we haven't sent headers yet
+			if !wroteHeader {
+				if ctx.Err() == context.DeadlineExceeded {
+					writeJSONError(w, 504, "Gateway Timeout", "timeout", "request")
+				}
+			}
+			return
 		case <-keepaliveTicker.C:
 			if isStream {
 				// SSE headers already sent, just send keepalive comment
@@ -667,15 +835,13 @@ WaitLoop:
 // and forwards it to the client. It ensures proper [DONE] sentinel
 // and finish_reason even if the upstream drops unexpectedly.
 func (g *Gateway) streamSSE(w http.ResponseWriter, flusher http.Flusher, body io.ReadCloser, modelID string, provider string) {
-// Strip Content-Length since we may modify chunks
-w.Header().Del("Content-Length")
+	// Strip Content-Length since we may modify chunks
+	w.Header().Del("Content-Length")
 
-bufReader := bufio.NewReader(body)
-sentFinishReason := false
-sentDone := false
-upstreamDone := false // Track if upstream sent [DONE] without forwarding immediately
+	bufReader := bufio.NewReader(body)
+	sentFinishReason := false
 
-for {
+	for {
 		line, err := bufReader.ReadString('\n')
 		if err != nil && line == "" {
 			break
@@ -700,9 +866,9 @@ for {
 		data := line[6:]
 
 		if data == "[DONE]" {
-			// Upstream signaled completion without a finish_reason. Delay sending [DONE]
-			upstreamDone = true
-			// Break out of loop to allow synthetic finish_reason injection before final DONE
+			// Upstream signaled completion. Break out of the read loop so we
+			// can inject a synthetic finish_reason (if needed) before
+			// emitting the final [DONE] below.
 			break
 		}
 
@@ -784,15 +950,12 @@ if !sentFinishReason {
 		flusher.Flush()
 }
 
-// Finally, send the [DONE] marker if the upstream indicated completion.
-if upstreamDone {
-		fmt.Fprintf(w, "data: [DONE]\n\n")
-		flusher.Flush()
-} else if !sentDone {
-		// In case upstream never sent [DONE] (e.g., connection closed), ensure we still send it.
-		fmt.Fprintf(w, "data: [DONE]\n\n")
-		flusher.Flush()
-}
+// Always send the [DONE] sentinel so the client never hangs.
+// If upstream sent [DONE] (upstreamDone=true) we still emit one here
+// since the break above skipped forwarding it; if upstream closed
+// without it, this guarantees a clean stream termination.
+fmt.Fprintf(w, "data: [DONE]\n\n")
+flusher.Flush()
 }
 
 func (g *Gateway) workerLoop() {
@@ -836,6 +999,47 @@ func isTransientError(status int) bool {
 }
 
 
+func (g *Gateway) normalizeBody(body []byte) string {
+	var m map[string]interface{}
+	if err := json.Unmarshal(body, &m); err != nil {
+		return string(body)
+	}
+	// json.Marshal recursively sorts map keys, providing a canonical representation.
+	normalized, err := json.Marshal(m)
+	if err != nil {
+		return string(body)
+	}
+	return string(normalized)
+}
+
+func (g *Gateway) cacheMaintenanceLoop() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		g.cacheMu.Lock()
+		now := time.Now()
+		for k, v := range g.Cache {
+			if now.After(v.expiry) {
+				delete(g.Cache, k)
+			}
+		}
+		if len(g.Cache) > 1000 {
+			// If cache exceeds limit, reset to prevent OOM
+			log.Printf("[CACHE] Cache limit exceeded (%d), resetting.", len(g.Cache))
+			g.Cache = make(map[string]cacheEntry)
+		}
+		g.cacheMu.Unlock()
+
+		g.preflightCacheMu.Lock()
+		for k, v := range g.preflightCache {
+			if now.Sub(v.checkedAt) > 10*time.Minute {
+				delete(g.preflightCache, k)
+			}
+		}
+		g.preflightCacheMu.Unlock()
+	}
+}
+
 func (g *Gateway) onSuccess(job *RequestJob, model engine.ModelCandidate, proxyResp *ProxyResponse, body []byte) {
 	log.Printf("[PROXY] Routed to: %s (%s) score=%.1f", model.ID, model.Provider, model.Score)
 	g.mu.Lock()
@@ -850,13 +1054,27 @@ func (g *Gateway) onSuccess(job *RequestJob, model engine.ModelCandidate, proxyR
 	}
 	g.logUsage(model.ID, body, proxyResp.Body)
 	if proxyResp.Stream == nil {
+		normalizedKey := g.normalizeBody(body)
 		if g.Redis != nil {
-			g.Redis.Set(job.Ctx, string(body), proxyResp.Body, 1*time.Hour)
+			g.Redis.Set(job.Ctx, normalizedKey, proxyResp.Body, 1*time.Hour)
 		} else {
 			g.cacheMu.Lock()
-			g.Cache[string(body)] = proxyResp.Body
+			g.Cache[normalizedKey] = cacheEntry{
+				data:   proxyResp.Body,
+				expiry: time.Now().Add(1 * time.Hour),
+			}
 			g.cacheMu.Unlock()
 		}
+	}
+	// Reset circuit breaker counters and promote the winner so subsequent
+	// requests are biased toward models that just produced a 200. The old
+	// code only did this for streaming success via SetModelPrimary, which
+	// meant non-stream winners (the more common case in this workload)
+	// never got the boost.
+	g.recordModelSuccess(model.ID, model.Provider)
+	g.recordProviderSuccess(model.Provider)
+	if g.ShuffleEnabled {
+		g.SetModelPrimary(model.ID)
 	}
 	// Set model/provider metadata on the response so ServeHTTP can expose them
 	proxyResp.ModelID = model.ID
@@ -893,6 +1111,9 @@ func (g *Gateway) classifyRequest(body []byte, models []engine.ModelCandidate) (
 	noTool := map[string]bool{
 		"cloudflare": true,
 		"deepinfra":  true,
+		"nvidia":     true,
+		"nvidia_nim": true,
+		"cerebras":   true,
 	}
 	for _, m := range models {
 		if noTool[m.Provider] {
@@ -911,6 +1132,7 @@ func (g *Gateway) filterCandidates(all engine.RankedModels) []engine.ModelCandid
 
 func (g *Gateway) filterCandidatesWithOverride(all engine.RankedModels, minParams int) []engine.ModelCandidate {
 	g.cleanupExpiredLocks()
+	g.cleanupExpiredModelBlocks()
 
 	skipProvider := map[string]bool{"ollama": true, "lm_studio": true}
 	valid := make([]engine.ModelCandidate, 0, len(all))
@@ -952,6 +1174,12 @@ func (g *Gateway) filterCandidatesWithOverride(all engine.RankedModels, minParam
 
 		// Session lock: skip models currently locked by another session
 		if g.IsModelLocked(m.ID, m.Provider) {
+			skipped++
+			continue
+		}
+
+		// In-memory circuit breaker: skip models that have failed repeatedly
+		if g.isModelDisabled(m.ID, m.Provider) {
 			skipped++
 			continue
 		}
@@ -1049,6 +1277,9 @@ func (g *Gateway) sanitizeRequestBody(provider string, body []byte, hasTools boo
 	noTool := map[string]bool{
 		"cloudflare": true,
 		"deepinfra":  true,
+		"nvidia":     true,
+		"nvidia_nim": true,
+		"cerebras":   true,
 	}
 	var payload map[string]interface{}
 	if err := json.Unmarshal(body, &payload); err != nil {
@@ -1080,13 +1311,6 @@ func (g *Gateway) sanitizeRequestBody(provider string, body []byte, hasTools boo
 			delete(m, "reasoning_content")
 			delete(m, "reasoning")
 
-			// Fix null assistant content -> ""
-			if r, ok := m["role"].(string); ok && r == "assistant" {
-				if content, exists := m["content"]; exists && content == nil {
-					m["content"] = ""
-				}
-			}
-
 			// For no-tool providers: strip tool-related fields
 			if noTool[provider] && hasTools {
 				if r, ok := m["role"].(string); ok && r == "tool" {
@@ -1095,6 +1319,20 @@ func (g *Gateway) sanitizeRequestBody(provider string, body []byte, hasTools boo
 				delete(m, "tool_calls")
 				delete(m, "tool_call_id")
 			}
+
+			// Fix null assistant content -> ""
+			if r, ok := m["role"].(string); ok && r == "assistant" {
+				if content, exists := m["content"]; exists && content == nil {
+					m["content"] = ""
+				}
+				// If we stripped tools and the assistant message is now completely empty, skip it
+				if noTool[provider] && hasTools {
+					if c, ok := m["content"].(string); ok && strings.TrimSpace(c) == "" {
+						continue
+					}
+				}
+			}
+
 			clean = append(clean, m)
 		}
 		payload["messages"] = clean
@@ -1172,54 +1410,23 @@ func (g *Gateway) sanitizeRequestBody(provider string, body []byte, hasTools boo
 
 // PreFlightCheck with 5-minute cache
 func (g *Gateway) PreFlightCheck(model engine.ModelCandidate) bool {
+	// If the provider has no URL mapped, it's definitely not ready
 	targetURL := g.getProviderURL(model.ID, model.Provider)
 	if targetURL == "" {
 		return false
 	}
-	parsed, err := url.Parse(targetURL)
-	if err != nil {
-		return false
-	}
-	host := parsed.Host
 
-	g.preflightCacheMu.RLock()
-	if e, ok := g.preflightCache[host]; ok && time.Since(e.checkedAt) < 5*time.Minute {
-		g.preflightCacheMu.RUnlock()
-		return e.ok
+	// For FreeLLM, we mainly care if we have an API key for the provider
+	// (except for local or special providers that don't need them)
+	if model.Provider == "opencode_zen" || model.Provider == "ollama" || model.Provider == "lm_studio" {
+		return true
 	}
-	g.preflightCacheMu.RUnlock()
 
-	client := &http.Client{Timeout: 3 * time.Second}
-	resp, err := client.Head(parsed.Scheme + "://" + host)
-	ok := err == nil
-	if ok {
-		resp.Body.Close()
-	}
-	g.preflightCacheMu.Lock()
-	g.preflightCache[host] = preflightEntry{ok: ok, checkedAt: time.Now()}
-	g.preflightCacheMu.Unlock()
-	return ok
+	return g.getAPIKey(model.Provider) != ""
 }
 
-// forwardRequest sends the request to a specific provider
-func (g *Gateway) forwardRequest(client *http.Client, r *http.Request, model engine.ModelCandidate, body []byte) *ProxyResponse {
-	// Fetch fallback alternatives from RankedModels
-	g.mu.RLock()
-	allModels := g.RankedModels
-	g.mu.RUnlock()
-
-	candidates := g.filterCandidates(allModels)
-	var alternatives []engine.ModelCandidate
-	for _, c := range candidates {
-		if c.ID != model.ID || c.Provider != model.Provider {
-			alternatives = append(alternatives, c)
-		}
-	}
-
-	return g.forwardRequestInternal(client, r, model, body, false, alternatives)
-}
-
-func (g *Gateway) forwardRequestInternal(client *http.Client, r *http.Request, model engine.ModelCandidate, body []byte, isContinuation bool, alternatives []engine.ModelCandidate) *ProxyResponse {
+// forwardRequestInternal sends the request to a specific provider.
+func (g *Gateway) forwardRequestInternal(ctx context.Context, client *http.Client, r *http.Request, model engine.ModelCandidate, body []byte, isContinuation bool, alternatives []engine.ModelCandidate) *ProxyResponse {
 	trimmedBody := strings.TrimSpace(string(body))
 	if len(trimmedBody) == 0 || (trimmedBody[0] != '{' && trimmedBody[0] != '[') {
 		return &ProxyResponse{Err: fmt.Errorf("invalid request body: must be JSON object or array")}
@@ -1238,40 +1445,101 @@ func (g *Gateway) forwardRequestInternal(client *http.Client, r *http.Request, m
 	payload["model"] = modelForAPI
 
 	stream, _ := payload["stream"].(bool)
-	newBody, _ := json.Marshal(payload)
-	if mapped, err := TransformRequestBody(model.Provider, newBody); err == nil {
-		newBody = mapped
-	}
 
 	targetURL := g.getProviderURL(model.ID, model.Provider)
 	if targetURL == "" {
 		return &ProxyResponse{Err: fmt.Errorf("unsupported provider: %s", model.Provider)}
 	}
 
-	req, err := http.NewRequestWithContext(context.Background(), "POST", targetURL, bytes.NewBuffer(newBody))
-	if err != nil {
-		return &ProxyResponse{Err: err}
-	}
-	g.transformRequest(req, model.Provider)
-	log.Printf("[PROXY] Sending request to %s via %s (Stream=%v)", model.ID, model.Provider, stream)
+	// 413 handling: providers reject oversized payloads. We progressively
+	// truncate the message history and retry the SAME model, but BOUNDED
+	// (at most 5 attempts). If unable to reduce size after that, we return
+	// a 413 response so the outer fan-out router can demote this model
+	// and switch to an alternative. This avoids the old infinite-recursion
+	// bug where a small slice was barely shrunk on each pass and the loop
+	// could re-send the still-too-large body forever.
+	const maxTruncationSteps = 5
+	var resp *http.Response
+	var sendErr error
+	var req *http.Request
+	var err error
+	var newBody []byte
+	for truncStep := 0; truncStep < maxTruncationSteps; truncStep++ {
+		newBody, _ = json.Marshal(payload)
+		if mapped, mapErr := TransformRequestBody(model.Provider, newBody); mapErr == nil {
+			newBody = mapped
+			// IMPORTANT: Update the 'payload' map from the sanitized body 
+			// so that future retries/continuations use the sanitized fields.
+			var sanitizedPayload map[string]interface{}
+			if json.Unmarshal(newBody, &sanitizedPayload) == nil {
+				payload = sanitizedPayload
+			}
+		}
 
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Printf("[PROXY] Request error for %s(%s): %v", model.ID, model.Provider, err)
-		return &ProxyResponse{Err: fmt.Errorf("%s: %v", model.Provider, err)}
-	}
+		req, err = http.NewRequestWithContext(ctx, "POST", targetURL, bytes.NewBuffer(newBody))
+		if err != nil {
+			return &ProxyResponse{Err: err}
+		}
+		g.transformRequest(req, model.Provider)
+		log.Printf("[PROXY] Sending request to %s via %s (Stream=%v)", model.ID, model.Provider, stream)
 
-	if resp.StatusCode == http.StatusRequestEntityTooLarge {
-		log.Printf("[PROXY] Model %s(%s) returned 413, attempting to truncate context...", model.ID, model.Provider)
+		resp, sendErr = client.Do(req)
+		if sendErr != nil {
+			log.Printf("[PROXY] Request error for %s(%s): %v", model.ID, model.Provider, sendErr)
+			return &ProxyResponse{Err: fmt.Errorf("%s: %v", model.Provider, sendErr)}
+		}
+
+		isTooLarge := resp.StatusCode == http.StatusRequestEntityTooLarge
+		var bodyStr string
+		if resp.StatusCode == http.StatusBadRequest || isTooLarge {
+			// Some providers return 400 with a "too large" or "token limit" message instead of 413.
+			// NVIDIA NIM often returns 400 for validation errors or large payloads.
+			bodyBytes, _ := io.ReadAll(resp.Body)
+			bodyStr = strings.ToLower(string(bodyBytes))
+			if resp.StatusCode == http.StatusBadRequest {
+				if strings.Contains(bodyStr, "too large") || strings.Contains(bodyStr, "token limit") || 
+					strings.Contains(bodyStr, "maximum context") || strings.Contains(bodyStr, "validation error") ||
+					strings.Contains(bodyStr, "tool choice") || strings.Contains(bodyStr, "tool-call-parser") {
+					isTooLarge = true
+					log.Printf("[PROXY] Detected context limit or tool validation error in 400 response from %s, triggering recovery loop...", model.Provider)
+				}
+			}
+			// Re-wrap body for later use if we don't truncate
+			resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+		}
+
+		if !isTooLarge {
+			break // not a size/validation error, proceed to normal handling
+		}
+
+		// 413 or Validation Error: try to recovery, but stop after bounded attempts.
+		resp.Body.Close()
 		
-		// Truncate messages (usually the biggest part of payload) by 10%
-		if msgs, ok := payload["messages"].([]interface{}); ok && len(msgs) > 1 {
-			newMsgs := msgs[len(msgs)/10:]
-			payload["messages"] = newMsgs
-			newBody, _ := json.Marshal(payload)
-			
-			// Retry with truncated payload
-			return g.forwardRequestInternal(client, r, model, newBody, isContinuation, alternatives)
+		msgs, ok := payload["messages"].([]interface{})
+		// If we can't truncate further AND this doesn't look like a tool/validation error 
+		// that could be fixed by sanitization, then we bail out.
+		isValidationError := strings.Contains(bodyStr, "tool") || strings.Contains(bodyStr, "validation") || strings.Contains(bodyStr, "parameter")
+		if (!ok || len(msgs) <= 1) && !isValidationError {
+			log.Printf("[PROXY] Model %s(%s) still 413 after %d truncation step(s) and cannot shrink further; giving up.",
+				model.ID, model.Provider, truncStep+1)
+			return &ProxyResponse{
+				Status:   http.StatusRequestEntityTooLarge,
+				ModelID:  model.ID,
+				Provider: model.Provider,
+				Err:      fmt.Errorf("%s: payload too large or invalid for model context", model.Provider),
+			}
+		}
+
+		if ok && len(msgs) > 1 {
+			// Drop the oldest half of the conversation each step (aggressive but bounded).
+			log.Printf("[PROXY] Model %s(%s) returned 413/400, truncating context (step %d, %d -> %d messages)...",
+				model.ID, model.Provider, truncStep+1, len(msgs), len(msgs)/2)
+			payload["messages"] = msgs[len(msgs)/2:]
+		} else {
+			log.Printf("[PROXY] Model %s(%s) returned validation error, retrying with sanitization (step %d)...",
+				model.ID, model.Provider, truncStep+1)
+			// We don't truncate messages, but the next loop iteration will call TransformRequestBody
+			// which applies provider-specific sanitization (like stripping tool_choice).
 		}
 	}
 
@@ -1521,7 +1789,7 @@ func (g *Gateway) autoContinueNonStream(client *http.Client, r *http.Request, in
 		log.Printf("[AUTO-CONTINUE] Sending non-stream continuation attempt %d for model %s", i+1, currentModel.ID)
 
 		// Make the request using forwardRequestInternal with isContinuation = true
-		contResp := g.forwardRequestInternal(client, r, currentModel, newBody, true, nil)
+		contResp := g.forwardRequestInternal(r.Context(), client, r, currentModel, newBody, true, nil)
 
 		// Fallback switching if the continuation fails
 		for (contResp.Err != nil || contResp.Status != 200) && fallbackIdx < len(alternatives) {
@@ -1529,7 +1797,7 @@ func (g *Gateway) autoContinueNonStream(client *http.Client, r *http.Request, in
 			fallbackIdx++
 			log.Printf("[AUTO-CONTINUE] Model %s failed in continuation, switching to fallback %s...", currentModel.ID, fallbackModel.ID)
 
-			contResp = g.forwardRequestInternal(client, r, fallbackModel, newBody, true, nil)
+			contResp = g.forwardRequestInternal(r.Context(), client, r, fallbackModel, newBody, true, nil)
 			if contResp.Err == nil && contResp.Status == 200 {
 				currentModel = fallbackModel
 				accumulatedContent.WriteString(fmt.Sprintf("\n\n[Switched to Model: %s | Provider: %s due to error/cutoff]\n\n", currentModel.ID, currentModel.Provider))
@@ -1577,7 +1845,7 @@ func (g *Gateway) autoContinueNonStream(client *http.Client, r *http.Request, in
 				fallbackModel := alternatives[fallbackIdx]
 				fallbackIdx++
 				log.Printf("[AUTO-CONTINUE] Trying fallback %s for continuation...", fallbackModel.ID)
-				newContResp := g.forwardRequestInternal(client, r, fallbackModel, newBody, true, nil)
+				newContResp := g.forwardRequestInternal(r.Context(), client, r, fallbackModel, newBody, true, nil)
 				if newContResp.Err == nil && newContResp.Status == 200 {
 					// Try to parse the fallback response
 					var fbMap map[string]interface{}
@@ -1675,11 +1943,18 @@ type continuationStream struct {
 	lastAccumulatedLen int
 	failedInRequest    map[string]bool // modelID -> true if failed in this request
 	lastActivity       time.Time
-	}
+	
+	lineChan chan result
+	stopChan chan struct{}
+}
 
+type result struct {
+	line string
+	err  error
+}
 
 func (g *Gateway) newContinuationStream(client *http.Client, r *http.Request, model engine.ModelCandidate, originalBody []byte, firstStream io.ReadCloser, alternatives []engine.ModelCandidate) *continuationStream {
-	return &continuationStream{
+	s := &continuationStream{
 		g:             g,
 		client:        client,
 		req:           r,
@@ -1691,7 +1966,32 @@ func (g *Gateway) newContinuationStream(client *http.Client, r *http.Request, mo
 		lastAccumulatedLen: 0,
 		failedInRequest:    make(map[string]bool),
 		lastActivity:       time.Now(),
+		lineChan:           make(chan result, 100),
+		stopChan:           make(chan struct{}),
 	}
+	go s.runReader(s.stopChan)
+	return s
+}
+
+func (s *continuationStream) runReader(stop chan struct{}) {
+	for {
+		line, err := s.reader.ReadString('\n')
+		select {
+		case <-stop:
+			return
+		case s.lineChan <- result{line, err}:
+		}
+		if err != nil {
+			return
+		}
+	}
+}
+
+func (s *continuationStream) resetReader() {
+	close(s.stopChan)
+	s.stopChan = make(chan struct{})
+	s.reader = bufio.NewReader(s.currentStream)
+	go s.runReader(s.stopChan)
 }
 
 func (s *continuationStream) injectTextChunk(text string) {
@@ -1736,12 +2036,6 @@ func (s *continuationStream) injectFinishReasonChunk(fr string) {
 }
 
 func (s *continuationStream) Read(p []byte) (int, error) {
-	// Heartbeat: periodically send an empty comment to keep connection alive
-	if time.Since(s.lastActivity) > 5*time.Second {
-		s.buffer.WriteString(":\n\n")
-		s.lastActivity = time.Now()
-	}
-
 	// If there are bytes in the buffer, read them first
 	if s.buffer.Len() > 0 {
 		return s.buffer.Read(p)
@@ -1760,36 +2054,31 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 		if !s.prefixSent && !s.isToolCall {
 			s.injectTextChunk(fmt.Sprintf("[Model: %s | Provider: %s]\n\n", s.model.ID, s.model.Provider))
 			s.prefixSent = true
-			// After injecting prefix, we must return it immediately to avoid delays
 			return s.buffer.Read(p)
 		}
 
-		type result struct {
-			line string
-			err  error
-		}
-		resCh := make(chan result, 1)
-
-		go func() {
-			line, err := s.reader.ReadString('\n')
-			resCh <- result{line, err}
-		}()
-
 		var line string
 		var err error
+		
+		timeout := 15 * time.Second
+		if s.g.WatchdogTimeout > 0 {
+			timeout = s.g.WatchdogTimeout
+		}
+
 		select {
-		case res := <-resCh:
+		case res := <-s.lineChan:
 			line = res.line
 			err = res.err
-		case <-time.After(15 * time.Second):
-			// Keep-alive heartbeat: send empty comment to keep connection open
+			s.lastActivity = time.Now()
+		case <-time.After(timeout):
+			// Heartbeat: send empty comment to keep connection open
 			s.buffer.WriteString(":\n\n")
+			s.lastActivity = time.Now()
 			return s.buffer.Read(p)
 		}
 
 		trimmed := strings.TrimRight(line, "\r\n")
 		if trimmed != "" {
-			log.Printf("[STREAM-RAW] %s", trimmed)
 			if strings.HasPrefix(trimmed, "data: ") {
 				data := trimmed[6:]
 				if data != "[DONE]" {
@@ -1805,7 +2094,6 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 								if delta, ok := choice["delta"].(map[string]interface{}); ok {
 									if content, ok := delta["content"].(string); ok {
 										s.accumulatedText.WriteString(content)
-										// Detect text-based tool calls (like Qwen uses)
 										if strings.Contains(s.accumulatedText.String(), "<tool_call") {
 											s.isToolCall = true
 										}
@@ -1829,102 +2117,74 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 				// Pass through comments/etc, but detect JSON errors
 				lineTrimmed := strings.TrimSpace(trimmed)
 				if lineTrimmed != "" {
-					// Detect JSON error even if we have some text already
 					isError := (strings.Contains(lineTrimmed, "\"error\"") || 
 						strings.Contains(lineTrimmed, "\"success\":false") || 
 						strings.Contains(lineTrimmed, "\"code\":")) && 
 						strings.Contains(lineTrimmed, "{")
 					
 					if isError || (s.accumulatedText.Len() == 0 && (strings.Contains(lineTrimmed, "Authorization") || strings.Contains(lineTrimmed, "auth"))) {
-						log.Printf("[STREAM-ERROR] Provider %s sent invalid SSE line (likely JSON error): %s", s.model.Provider, lineTrimmed)
-						// Force demotion of this model
+						log.Printf("[STREAM-ERROR] Provider %s sent invalid SSE line: %s", s.model.Provider, lineTrimmed)
 						s.g.DemoteModel(s.model.ID)
-						
-						// If it looks like an auth error, cooldown the whole provider
 						if strings.Contains(lineTrimmed, "Authorization") || strings.Contains(lineTrimmed, "auth") || strings.Contains(lineTrimmed, "key") {
 							s.g.recordProviderAuthFail(s.model.Provider)
 						}
-						
-						// Terminate this stream immediately and trigger retry
 						s.currentStream.Close()
 						err = fmt.Errorf("provider error: %s", lineTrimmed)
-						break
+					} else {
+						s.buffer.WriteString(line)
 					}
+				} else {
+					s.buffer.WriteString(line)
 				}
-				s.buffer.WriteString(line)
 			}
-		} else if line != "" {
-			// This was just a newline, but keep reading until we have a chunk or EOF
 		}
 
 		if err != nil {
 			// Current stream ended or failed
 			s.currentStream.Close()
-			log.Printf("[STREAM-END] Stream from %s(%s) ended with: %v (accumulated=%d chars)", s.model.ID, s.model.Provider, err, s.accumulatedText.Len())
+			log.Printf("[STREAM-END] Stream from %s(%s) ended with: %v", s.model.ID, s.model.Provider, err)
 
-			// ── Empty or Failed Tool Call Retry (Multi-Batch) ─────────────
-			// Only treat tool call as failed if the stream crashed (err != io.EOF) or finishReason is a truncation reason like length.
-			// Clean EOF terminations (err == io.EOF) with tool calls should be treated as successful tool calls.
 			isFailedToolCall := s.isToolCall && err != io.EOF && s.finishReason != "tool_calls" && s.finishReason != "stop" && s.finishReason != ""
 			if ((s.accumulatedText.Len() == 0 && !s.isToolCall) || isFailedToolCall || (s.finishReason == "" && s.accumulatedText.Len() > 0)) && s.continuationCount < 20 {
-				missingFinish := s.finishReason == "" && s.accumulatedText.Len() > 0
-				log.Printf("[AUTO-CONTINUE] Stream from %s(%s) failed (empty=%v, tool_fail=%v, missing_finish=%v), demoting and trying global fan-out...", 
-					s.model.ID, s.model.Provider, s.accumulatedText.Len() == 0, isFailedToolCall, missingFinish)
+				log.Printf("[AUTO-CONTINUE] Stream failed, retrying global fan-out...")
 				
-				// Demote the model that gave us nothing
 				s.g.DemoteModel(s.model.ID)
 				if s.failedInRequest == nil {
 					s.failedInRequest = make(map[string]bool)
 				}
 				s.failedInRequest[s.model.ID] = true
 
-				// Try up to 10 batches of 10 models each (total 100 potential models)
 				success := false
 				allModels := s.g.GetModels()
 				validModels := s.g.filterCandidates(allModels)
 				
 				for batch := 0; batch < 15; batch++ {
 					fanOutSize := s.g.FanOutSize
-					if fanOutSize < 3 {
-						fanOutSize = 3
-					}
-					if fanOutSize > 50 {
-						fanOutSize = 50 // Cap global search to avoid local system exhaust
-					}
+					if fanOutSize < 3 { fanOutSize = 3 }
+					if fanOutSize > 50 { fanOutSize = 50 }
 					
 					var fanModels []engine.ModelCandidate
 					indices := rand.Perm(len(validModels))
 					for _, idx := range indices {
 						candidate := validModels[idx]
-						// Skip models that have already failed in this request to avoid cycles
-						if s.failedInRequest[candidate.ID] {
-							continue
-						}
-						
+						if s.failedInRequest[candidate.ID] { continue }
 						fanModels = append(fanModels, candidate)
-						if len(fanModels) >= fanOutSize {
-							break
-						}
+						if len(fanModels) >= fanOutSize { break }
 					}
 					
-					if len(fanModels) == 0 {
-						break
-					}
+					if len(fanModels) == 0 { break }
 
-					log.Printf("[AUTO-CONTINUE] Batch %d: Global random fan-out with %d models...", batch+1, len(fanModels))
-					
 					type fanRes struct {
 						model engine.ModelCandidate
 						resp  *ProxyResponse
 					}
 					fanCh := make(chan fanRes, len(fanModels))
-					
 					for _, m := range fanModels {
 						go func(candidate engine.ModelCandidate) {
-							mc := &http.Client{Timeout: 45 * time.Second} // Longer timeout for global search
+							mc := tokdiet.NewClient(45 * time.Second)
 							fanCh <- fanRes{
 								model: candidate,
-								resp:  s.g.forwardRequestInternal(mc, s.req, candidate, s.originalBody, true, nil),
+								resp:  s.g.forwardRequestInternal(s.req.Context(), mc, s.req, candidate, s.originalBody, true, nil),
 							}
 						}(m)
 					}
@@ -1933,86 +2193,47 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 					for j := 0; j < len(fanModels); j++ {
 						res := <-fanCh
 						if res.resp.Err == nil && res.resp.Status == 200 && res.resp.Stream != nil {
-							if winner == nil {
-								winner = &res
-							} else {
-								res.resp.Stream.Close()
-							}
+							if winner == nil { winner = &res } else { res.resp.Stream.Close() }
 						}
 					}
 
 					if winner != nil {
 						s.model = winner.model
 						s.currentStream = winner.resp.Stream
-						s.reader = bufio.NewReader(s.currentStream)
 						s.finishReason = ""
 						s.finishReasonSent = false
 						s.firstChunkParsed = false
-s.continuationCount++
-
-						// Reset prefixSent so the new model gets its own attribution
+						s.continuationCount++
 						s.prefixSent = false
-
-						// Inject switch marker
+						s.resetReader()
 						s.injectTextChunk(fmt.Sprintf("\n\n[Switched to Model: %s | Provider: %s via Global Random Retry]\n\n", s.model.ID, s.model.Provider))
-						log.Printf("[AUTO-CONTINUE] Failed stream global fan-out retry succeeded with %s(%s)", s.model.ID, s.model.Provider)
 						success = true
 						break
 					}
-					log.Printf("[AUTO-CONTINUE] Batch %d failed to find a working model.", batch+1)
 				}
 
-				if success {
-					return s.buffer.Read(p)
-				}
-
-				log.Printf("[AUTO-CONTINUE] All retry batches exhausted for empty stream retry")
-				s.injectTextChunk("\n\n[FreeLLM Proxy Error: Empty or failed response from all providers after multiple retries. Connection closed.]\n\n")
+				if success { return s.buffer.Read(p) }
+				s.injectTextChunk("\n\n[FreeLLM Proxy Error: Connection closed after multiple retries.]\n\n")
 			}
 
-			// Check if we should continue (truncation)
 			isTruncated := false
 			if s.finishReason == "" && s.accumulatedText.Len() > 0 {
 				isTruncated = true
-				log.Printf("[AUTO-CONTINUE] Stream from %s(%s) terminated without finish_reason, demoting.", s.model.ID, s.model.Provider)
 				s.g.DemoteModel(s.model.ID)
 			} else if s.finishReason == "length" || s.finishReason == "max_tokens" {
 				isTruncated = true
 			}
 
-			// Check for unclosed text-based tool calls (e.g. Qwen format)
 			fullText := s.accumulatedText.String()
 			if strings.Contains(fullText, "<tool_call") && !strings.Contains(fullText, "</tool_call") && !strings.Contains(fullText, "</function>") {
 				isTruncated = true
 				s.isToolCall = true 
-				log.Printf("[AUTO-CONTINUE] Unclosed text tool call detected, marking as truncated and triggering retry.")
-			}
-
-			// If tool call is truncated, we can't "continue" it easily,
-			// but we SHOULD retry the original request with a different model.
-			if s.isToolCall && isTruncated {
-				log.Printf("[AUTO-CONTINUE] Tool call truncated, triggering full retry instead of continuation.")
-				if s.continuationCount < 15 {
-					s.finishReason = "failed_tool_call" 
-					s.accumulatedText.Reset()
-					s.firstChunkParsed = false
-					s.isToolCall = false
-					continue
-				}
-			}
-
-			// If last continuation added NO text, don't continue again
-			if isTruncated && s.continuationCount > 0 && s.accumulatedText.Len() == s.lastAccumulatedLen {
-				log.Printf("[AUTO-CONTINUE] No new text added in last continuation, stopping.")
-				isTruncated = false
 			}
 
 			if isTruncated && s.continuationCount < 5 {
 				s.lastAccumulatedLen = s.accumulatedText.Len()
 				s.continuationCount++
-				log.Printf("[AUTO-CONTINUE] Stream truncated, starting continuation attempt %d...", s.continuationCount)
-
-				// Construct continuation payload
+				
 				var currentPayload map[string]interface{}
 				if json.Unmarshal(s.originalBody, &currentPayload) == nil {
 					if originalMsgs, ok := currentPayload["messages"].([]interface{}); ok {
@@ -2028,26 +2249,18 @@ s.continuationCount++
 						})
 
 						newPayload := make(map[string]interface{})
-						for k, v := range currentPayload {
-							newPayload[k] = v
-						}
+						for k, v := range currentPayload { newPayload[k] = v }
 						newPayload["messages"] = newMsgs
 						newPayload["max_tokens"] = 8192
 						newPayload["stream"] = true
 
 						if newBody, err := json.Marshal(newPayload); err == nil {
 							s.originalBody = newBody
-
 							fanOutSize := 3
 							remainingAlts := s.alternatives[s.fallbackIdx:]
-							if fanOutSize > len(remainingAlts) {
-								fanOutSize = len(remainingAlts)
-							}
-							
+							if fanOutSize > len(remainingAlts) { fanOutSize = len(remainingAlts) }
 							fanModels := remainingAlts
-							if len(fanModels) > fanOutSize {
-								fanModels = remainingAlts[:fanOutSize]
-							}
+							if len(fanModels) > fanOutSize { fanModels = remainingAlts[:fanOutSize] }
 							s.fallbackIdx += len(fanModels)
 							
 							type fanRes struct {
@@ -2055,25 +2268,14 @@ s.continuationCount++
 								resp  *ProxyResponse
 							}
 							fanCh := make(chan fanRes, len(fanModels)+1)
-							
-							// Race original model (if not demoted above) + alternatives
 							go func() {
-								// If we already demoted it due to abrupt stop, maybe we shouldn't race it first
-								// but for "length" truncation it's fine.
-								mc := &http.Client{Timeout: 0}
-								fanCh <- fanRes{
-									model: s.model,
-									resp:  s.g.forwardRequestInternal(mc, s.req, s.model, newBody, true, nil),
-								}
+								mc := tokdiet.NewClient(0)
+								fanCh <- fanRes{model: s.model, resp: s.g.forwardRequestInternal(s.req.Context(), mc, s.req, s.model, newBody, true, nil)}
 							}()
-
 							for _, m := range fanModels {
 								go func(candidate engine.ModelCandidate) {
-									mc := &http.Client{Timeout: 0}
-									fanCh <- fanRes{
-										model: candidate,
-										resp:  s.g.forwardRequestInternal(mc, s.req, candidate, newBody, true, nil),
-									}
+									mc := tokdiet.NewClient(0)
+									fanCh <- fanRes{model: candidate, resp: s.g.forwardRequestInternal(s.req.Context(), mc, s.req, candidate, newBody, true, nil)}
 								}(m)
 							}
 							
@@ -2081,32 +2283,21 @@ s.continuationCount++
 							for j := 0; j < len(fanModels)+1; j++ {
 								res := <-fanCh
 								if res.resp.Err == nil && res.resp.Status == 200 && res.resp.Stream != nil {
-									if winner == nil {
-										winner = &res
-									} else {
-										res.resp.Stream.Close()
-									}
+									if winner == nil { winner = &res } else { res.resp.Stream.Close() }
 								}
 							}
 
 							if winner != nil {
 								s.model = winner.model
 								s.currentStream = winner.resp.Stream
-								s.reader = bufio.NewReader(s.currentStream)
 								s.finishReason = ""
-
 								s.injectTextChunk(fmt.Sprintf("\n\n[Continued with Model: %s | Provider: %s]\n\n", s.model.ID, s.model.Provider))
-
-								// Reset flags so the new model receives its own attribution prefix and extended watchdog timeout
 								s.prefixSent = false
 								s.firstChunkParsed = false
 								s.isToolCall = false
 								s.finishReasonSent = false
-
-								// Wait a bit to see if this continuation produces meaningful content
-								// If the new stream is immediately empty/truncated, we'll try next fallback
+								s.resetReader()
 								s.continuationCount++
-								log.Printf("[AUTO-CONTINUE] Continuation attempt %d succeeded with model %s.", s.continuationCount, s.model.ID)
 								return s.buffer.Read(p)
 							}
 						}
@@ -2114,42 +2305,24 @@ s.continuationCount++
 				}
 			}
 
-			// Try fallback models if response is too short
 			if s.accumulatedText.Len() < 100 && s.continuationCount > 0 {
-				log.Printf("[AUTO-CONTINUE] Response too short after continuation (%d chars), trying fallback models...", s.accumulatedText.Len())
-
 				s.g.DemoteModel(s.model.ID)
-
 				success := false
 				allModels := s.g.GetModels()
 				validModels := s.g.filterCandidates(allModels)
-
 				for batch := 0; batch < 5 && !success && len(validModels) > 0; batch++ {
 					fanOutSize := s.g.FanOutSize
-					if fanOutSize < 3 {
-						fanOutSize = 3
-					}
-					if fanOutSize > 50 {
-						fanOutSize = 50
-					}
-
+					if fanOutSize < 3 { fanOutSize = 3 }
+					if fanOutSize > 50 { fanOutSize = 50 }
 					var fanModels []engine.ModelCandidate
 					indices := rand.Perm(len(validModels))
 					for _, idx := range indices {
 						candidate := validModels[idx]
-						if candidate.ID == s.model.ID && candidate.Provider == s.model.Provider {
-							continue
-						}
+						if candidate.ID == s.model.ID && candidate.Provider == s.model.Provider { continue }
 						fanModels = append(fanModels, candidate)
-						if len(fanModels) >= fanOutSize {
-							break
-						}
+						if len(fanModels) >= fanOutSize { break }
 					}
-
-					if len(fanModels) == 0 {
-						break
-					}
-
+					if len(fanModels) == 0 { break }
 					type fanRes struct {
 						model engine.ModelCandidate
 						resp  *ProxyResponse
@@ -2157,103 +2330,59 @@ s.continuationCount++
 					fanCh := make(chan fanRes, len(fanModels))
 					for _, m := range fanModels {
 						go func(cand engine.ModelCandidate) {
-							mc := &http.Client{Timeout: 0}
-							fanCh <- fanRes{
-								model: cand,
-								resp:  s.g.forwardRequestInternal(mc, s.req, cand, s.originalBody, true, nil),
-							}
+							mc := tokdiet.NewClient(0)
+							fanCh <- fanRes{model: cand, resp: s.g.forwardRequestInternal(s.req.Context(), mc, s.req, cand, s.originalBody, true, nil)}
 						}(m)
 					}
-
 					var winner *fanRes
 					for j := 0; j < len(fanModels); j++ {
 						res := <-fanCh
 						if res.resp.Err == nil && res.resp.Status == 200 && res.resp.Stream != nil {
-							if winner == nil {
-								winner = &res
-							} else {
-								res.resp.Stream.Close()
-							}
+							if winner == nil { winner = &res } else { res.resp.Stream.Close() }
 						}
 					}
-
 					if winner != nil {
 						s.model = winner.model
 						s.currentStream = winner.resp.Stream
-						s.reader = bufio.NewReader(s.currentStream)
 						s.finishReason = ""
 						s.prefixSent = false
 						s.firstChunkParsed = false
 						s.isToolCall = false
 						s.finishReasonSent = false
 						s.fallbackIdx = 0
-
+						s.resetReader()
 						s.injectTextChunk(fmt.Sprintf("\n\n[Continued with Model: %s | Provider: %s]\n\n", s.model.ID, s.model.Provider))
 						s.continuationCount++
-						log.Printf("[AUTO-CONTINUE] Fallback after short response succeeded with model %s (attempt %d).", s.model.ID, s.continuationCount)
 						success = true
-						n, err := s.buffer.Read(p)
-						log.Printf("[AUTO-CONTINUE] Sent %d bytes of continuation notice after switching to %s", n, s.model.ID)
-						return n, err
-					}
-
-					var remaining []engine.ModelCandidate
-					for _, m := range validModels {
-						skip := false
-						for _, fm := range fanModels {
-							if fm.ID == m.ID && fm.Provider == m.Provider {
-								skip = true
-								break
-							}
-						}
-						if !skip {
-							remaining = append(remaining, m)
-						}
-					}
-					validModels = remaining
-				}
-
-				if !success {
-					log.Printf("[AUTO-CONTINUE] Fallback after short response failed, finalizing error.")
-					s.injectTextChunk(fmt.Sprintf("\n\n[FreeLLM Proxy Error: Response too short after all retries. Try again.]\n\n"))
-					s.err = fmt.Errorf("response too short (%d chars)", s.accumulatedText.Len())
-					s.eofReached = true
-					if s.buffer.Len() > 0 {
 						return s.buffer.Read(p)
 					}
-					return 0, s.err
+				}
+				if !success {
+					s.injectTextChunk(fmt.Sprintf("\n\n[FreeLLM Proxy Error: Response too short.]\n\n"))
+					s.err = fmt.Errorf("response too short (%d chars)", s.accumulatedText.Len())
+					s.eofReached = true
+					return s.buffer.Read(p)
 				}
 			}
 
 			s.eofReached = true
 			s.err = err
-
 			if err == io.EOF && !s.isToolCall {
 				s.g.MarkProven(s.model.ID, s.model.Provider)
-				if s.g.ShuffleEnabled {
-					s.g.SetModelPrimary(s.model.ID)
-				}
+				if s.g.ShuffleEnabled { s.g.SetModelPrimary(s.model.ID) }
 			}
-
 			if !s.finishReasonSent {
 				s.injectFinishReasonChunk("stop")
 				s.finishReasonSent = true
 			}
-
-			// Always send [DONE] to ensure client doesn't hang or report aborted request
-			s.buffer.WriteString("data: [DONE]\n\n")
-
-			if s.buffer.Len() > 0 {
-				return s.buffer.Read(p)
-			}
-			return 0, err
+			return s.buffer.Read(p)
 		}
 	}
-
 	return s.buffer.Read(p)
 }
 
 func (s *continuationStream) Close() error {
+	close(s.stopChan)
 	if s.currentStream != nil {
 		return s.currentStream.Close()
 	}
@@ -2590,13 +2719,6 @@ func writeJSONError(w http.ResponseWriter, status int, message, code, param stri
 	})
 }
 
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // SetModelPrimary moves a model to position 0 (top of rankings)
 func (g *Gateway) SetModelPrimary(modelID string) {
 	g.mu.Lock()
@@ -2708,95 +2830,6 @@ func (g *Gateway) MoveModelDown(modelID string) {
 		if m.ID == modelID && i < len(g.RankedModels)-1 {
 			g.RankedModels[i], g.RankedModels[i+1] = g.RankedModels[i+1], g.RankedModels[i]
 			return
-		}
-	}
-}
-
-// ShuffleModels promotes the winner and cycles out participants
-func (g *Gateway) ShuffleModels(winner engine.ModelCandidate, participants []engine.ModelCandidate) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-
-	if len(g.RankedModels) == 0 {
-		return
-	}
-
-	log.Printf("[SHUFFLE] Winner: %s(%s) from %d participants", winner.ID, winner.Provider, len(participants))
-
-	// 1. Move winner to index 0 (Primary Slot #1)
-	winnerIdx := -1
-	for i, m := range g.RankedModels {
-		if m.ID == winner.ID && m.Provider == winner.Provider {
-			winnerIdx = i
-			break
-		}
-	}
-	if winnerIdx >= 0 {
-		model := g.RankedModels[winnerIdx]
-		// Remove from old position
-		g.RankedModels = append(g.RankedModels[:winnerIdx], g.RankedModels[winnerIdx+1:]...)
-		// Prepend to front
-		g.RankedModels = append(engine.RankedModels{model}, g.RankedModels...)
-	}
-
-	// 2. Demote all participants (except the winner) to fallback group (position = PrimaryCount)
-	for _, p := range participants {
-		if p.ID == winner.ID && p.Provider == winner.Provider {
-			continue
-		}
-		// Find current index of p
-		idx := -1
-		for i, m := range g.RankedModels {
-			if m.ID == p.ID && m.Provider == p.Provider {
-				idx = i
-				break
-			}
-		}
-		if idx >= 0 {
-			// Move to end of PrimaryCount or end of list if already fallback
-			model := g.RankedModels[idx]
-			g.RankedModels = append(g.RankedModels[:idx], g.RankedModels[idx+1:]...)
-			
-			// Insert at PrimaryCount (first fallback slot)
-			target := g.PrimaryCount
-			if target > len(g.RankedModels) {
-				target = len(g.RankedModels)
-			}
-			g.RankedModels = append(g.RankedModels[:target], append(engine.RankedModels{model}, g.RankedModels[target:]...)...)
-		}
-	}
-
-	// 3. To keep it fresh, we promote random models from fallback to Primary if needed.
-	// Actually, the demotion already pushed some fallback models up into Primary range (index < PrimaryCount).
-	// But let's explicitly pick some random fallback models and move them into the top 10
-	// to ensure variety.
-	if len(g.RankedModels) > g.PrimaryCount {
-		fallbackRange := g.RankedModels[g.PrimaryCount:]
-		if len(fallbackRange) > 0 {
-			importCount := len(participants) - 1 // How many we just demoted
-			if importCount < 1 { importCount = 1 }
-			if importCount > 3 { importCount = 3 }
-			
-			for i := 0; i < importCount; i++ {
-				sourceIdx := i % len(fallbackRange)
-				// Promotion logic: move fallback[sourceIdx] to index 1..PrimaryCount-1
-				model := fallbackRange[sourceIdx]
-				
-				// Remove from fallback
-				actualIdx := g.PrimaryCount + sourceIdx
-				if actualIdx < len(g.RankedModels) {
-					g.RankedModels = append(g.RankedModels[:actualIdx], g.RankedModels[actualIdx+1:]...)
-					// Insert at a random position in the primary group (but not index 0)
-					insertPos := 1
-					if g.PrimaryCount > 2 {
-						insertPos = 1 + (time.Now().Nanosecond() % (g.PrimaryCount - 1))
-					}
-					if insertPos >= len(g.RankedModels) {
-						insertPos = len(g.RankedModels)
-					}
-					g.RankedModels = append(g.RankedModels[:insertPos], append(engine.RankedModels{model}, g.RankedModels[insertPos:]...)...)
-				}
-			}
 		}
 	}
 }

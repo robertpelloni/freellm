@@ -30,7 +30,39 @@ import (
 var (
 	kernel32         = syscall.NewLazyDLL("kernel32.dll")
 	procCreateMutex = kernel32.NewProc("CreateMutexW")
+	tokdietCmd       *exec.Cmd
 )
+
+func startTokdiet() {
+	// Path to the tokdiet entry point relative to the freellm root
+	tokdietPath := filepath.Join("third_party", "tokdiet", "dist", "cli.js")
+
+	// Check if node exists
+	_, err := exec.LookPath("node")
+	if err != nil {
+		log.Printf("[TOKDIET] Error: Node.js not found in PATH. tokdiet will not start.")
+		return
+	}
+
+	// Check if tokdiet build exists
+	if _, err := os.Stat(tokdietPath); os.IsNotExist(err) {
+		log.Printf("[TOKDIET] Error: tokdiet build not found at %s. Please run 'pnpm build' in third_party/tokdiet.", tokdietPath)
+		return
+	}
+
+	tokdietCmd = exec.Command("node", tokdietPath, "start", "--port", "7787")
+
+	// Set working directory to tokdiet folder so it can find its config/pricing
+	tokdietCmd.Dir = filepath.Join("third_party", "tokdiet")
+
+	// Run in background
+	err = tokdietCmd.Start()
+	if err != nil {
+		log.Printf("[TOKDIET] Failed to start: %v", err)
+	} else {
+		log.Printf("[TOKDIET] Started successfully on port 7787 (PID: %d)", tokdietCmd.Process.Pid)
+	}
+}
 
 // acquireMutex tries to create a Windows named mutex. Returns true if we are the
 // first instance. If the mutex already exists (ERROR_ALREADY_EXISTS) it returns
@@ -159,6 +191,8 @@ func onReady() {
 	systray.SetTitle("FreeLLM")
 	systray.SetTooltip("FreeLLM - Starting...")
 
+	startTokdiet()
+
 	database, err := db.InitDB()
 	if err != nil {
 		log.Fatalf("Failed to init DB: %v", err)
@@ -283,15 +317,15 @@ func onReady() {
 		}
 	}
 
-	gateway := proxy.NewGateway(50, database, 4000)
+	gateway := proxy.NewGateway(100, database, 4000)
     // Default exclusions and fan‑out settings
     // Exclude any model with ≤130 billion parameters unless overridden via config
     if gateway.MinParamsFilter == 0 {
-        gateway.MinParamsFilter = 130 // 130 billion parameters
+        gateway.MinParamsFilter = 120 // 120 billion parameters
     }
     // Default fan‑out size – the UI can change this at runtime via the context menu
     if gateway.FanOutSize == 0 {
-        gateway.FanOutSize = 3
+        gateway.FanOutSize = 5
     }
 	gateway.RestoreQueue()
 
@@ -1056,4 +1090,9 @@ func onReady() {
 	}()
 }
 
-func onExit() {}
+func onExit() {
+	if tokdietCmd != nil && tokdietCmd.Process != nil {
+		log.Printf("[TOKDIET] Stopping process %d...", tokdietCmd.Process.Pid)
+		tokdietCmd.Process.Kill()
+	}
+}

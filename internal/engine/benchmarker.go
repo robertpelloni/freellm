@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"regexp"
 	"sort"
@@ -17,6 +18,7 @@ import (
 	"time"
 
 	"github.com/robertpelloni/freellm/internal/db"
+	"github.com/robertpelloni/freellm/internal/tokdiet"
 )
 
 var SizePattern = regexp.MustCompile(`(\d+)[bB]`)
@@ -28,6 +30,7 @@ type ModelCandidate struct {
 	ContextLength   int       `json:"context_length"`
 	Latency         float64   `json:"latency"`
 	Score           float64   `json:"score"`
+	Disabled        bool      `json:"disabled"`
 	LastBenchmark   time.Time `json:"last_benchmark"`
 	PromptPrice     float64   `json:"prompt_price"`
 	CompletionPrice float64   `json:"completion_price"`
@@ -54,7 +57,7 @@ func NewBenchmarker(apiKeys map[string]string, minParams int, logger *EventLogge
 			"latency": 0.2,
 		},
 		MinParams:  minParams,
-		Client:     &http.Client{Timeout: 30 * time.Second},
+		Client:     tokdiet.NewClient(30 * time.Second),
 		smartCache: make(map[string]ModelCandidate),
 		Logger:     logger,
 	}
@@ -194,6 +197,7 @@ func (b *Benchmarker) fetchProviderModels(ctx context.Context, provider string) 
 			ContextLength:   ctxLength,
 			PromptPrice:     promptPrice,
 			CompletionPrice: completionPrice,
+			Score:           1.0,
 		})
 	}
 	b.log(fmt.Sprintf("Provider %s: %d models after filtering", provider, len(models)))
@@ -714,7 +718,7 @@ func (b *Benchmarker) QuickPulse(ctx context.Context, ranked RankedModels, topN 
 	b.log(fmt.Sprintf("Quick pulse: re-checking top %d models...", topN))
 	oldOrder := make([]string, topN)
 	for i, m := range ranked[:topN] { oldOrder[i] = m.ID }
-	sem := make(chan struct{}, 3)
+	sem := make(chan struct{}, 10) // Boosted to 10 for faster pulse checks
 	var wg sync.WaitGroup
 	type result struct{ idx int; lat float64; err error }
 	results := make(chan result, topN)
@@ -724,6 +728,8 @@ func (b *Benchmarker) QuickPulse(ctx context.Context, ranked RankedModels, topN 
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
+			// Add 0-2s jitter to avoid hammering providers
+			time.Sleep(time.Duration(rand.Intn(2000)) * time.Millisecond)
 			lat, err := b.MeasureLatency(ctx, m.ID, m.Provider)
 			results <- result{idx, lat, err}
 		}(i, m)
@@ -779,7 +785,7 @@ func (b *Benchmarker) RunBenchmark(ctx context.Context, candidates []ModelCandid
 	b.log(fmt.Sprintf("Benchmarking %d candidates...", len(candidates)))
 	var wg sync.WaitGroup
 	results := make(chan ModelCandidate, len(candidates))
-	semaphore := make(chan struct{}, 5) // Limit concurrency
+	semaphore := make(chan struct{}, 20) // Boosted to 20 for faster initial benchmarking
 
 	for _, m := range candidates {
 		// Smart Cache: Reuse local results for 15m
@@ -798,6 +804,9 @@ func (b *Benchmarker) RunBenchmark(ctx context.Context, candidates []ModelCandid
 			defer wg.Done()
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
+			
+			// Add 0-3s jitter to avoid hammering providers during bulk benchmark
+			time.Sleep(time.Duration(rand.Intn(3000)) * time.Millisecond)
 
 			lat, err := b.MeasureLatency(ctx, m.ID, m.Provider)
 			success := err == nil
