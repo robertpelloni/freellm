@@ -4,3 +4,12 @@ url = https://github.com/robertpelloni/freellm
 [submodule "third_party/tokdiet"]
 	path = third_party/tokdiet
 	url = https://github.com/robertpelloni/tokdiet.git
+[submodule "third_party/rtk"]
+	path = third_party/rtk
+	url = https://github.com/rtk-ai/rtk
+[submodule "third_party/headroom"]
+	path = third_party/headroom
+	url = https://github.com/chopratejas/headroom
+[submodule "third_party/LLMLingua"]
+	path = third_party/LLMLingua
+	url = https://github.com/microsoft/LLMLingua

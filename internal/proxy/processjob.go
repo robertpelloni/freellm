@@ -62,6 +62,13 @@ func (g *Gateway) processJob(job *RequestJob) {
 		job.Response <- &ProxyResponse{Status: 400, Err: fmt.Errorf("read body: %v", err)}
 		return
 	}
+
+	// Apply multi-layered context compression if enabled (rtk, Headroom, LLMLingua)
+	compressedBody, err := g.CompressContext(body)
+	if err == nil {
+		body = compressedBody
+	}
+
 	log.Printf("[ROUTER] Processing request (size: %d bytes)", len(body))
 
 	tried := make(map[string]bool)

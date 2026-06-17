@@ -10,11 +10,21 @@ import (
 )
 
 type Config struct {
-	ModelList       []ModelEntry              `yaml:"model_list"`
-	RouterSettings  RouterSettings            `yaml:"router_settings"`
-	ProxySettings   ProxySettings             `yaml:"proxy_settings"`
-	Port            int                       `yaml:"port"`
-	Providers       map[string]ProviderCfg    `yaml:"providers"`
+	ModelList           []ModelEntry              `yaml:"model_list"`
+	RouterSettings      RouterSettings            `yaml:"router_settings"`
+	ProxySettings       ProxySettings             `yaml:"proxy_settings"`
+	CompressionSettings CompressionSettings       `yaml:"compression_settings"`
+	Port                int                       `yaml:"port"`
+	Providers           map[string]ProviderCfg    `yaml:"providers"`
+}
+
+type CompressionSettings struct {
+	EnableRTK       bool   `yaml:"enable_rtk"`
+	RTKPath         string `yaml:"rtk_path"`
+	EnableHeadroom  bool   `yaml:"enable_headroom"`
+	HeadroomURL     string `yaml:"headroom_url"`
+	EnableLLMLingua bool   `yaml:"enable_llmlingua"`
+	LLMLinguaURL    string `yaml:"llmlingua_url"`
 }
 
 type RouterSettings struct {
