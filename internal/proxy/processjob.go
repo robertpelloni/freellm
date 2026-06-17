@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/robertpelloni/freellm/internal/engine"
@@ -16,6 +17,21 @@ func (g *Gateway) applyProviderCooldown(provider string, d time.Duration) {
 	exp := time.Now().Add(d)
 	if cur, ok := g.providerCooldown[provider]; !ok || exp.After(cur) {
 		g.providerCooldown[provider] = exp
+	}
+}
+
+// emit ships a notable router event to the job's client-facing event
+// channel. It is non-blocking: if no one is listening or the buffer is
+// full (e.g. ServeHTTP already returned, or the client disconnected), the
+// event is dropped so the router is never stalled by a slow consumer. A
+// nil job or nil channel is a no-op.
+func emit(job *RequestJob, tag, message string) {
+	if job == nil || job.Events == nil {
+		return
+	}
+	select {
+	case job.Events <- RouterEvent{Tag: tag, Message: message}:
+	default:
 	}
 }
 
@@ -77,6 +93,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 
 		if len(fresh) == 0 {
 			log.Printf("[ROUTER] Attempt %d: No fresh candidates available. Waiting...", attempt)
+			emit(job, "ROUTER", fmt.Sprintf("attempt %d: no fresh candidates available, waiting", attempt))
 			time.Sleep(2 * time.Second)
 			tried = make(map[string]bool)
 			continue
@@ -101,11 +118,15 @@ func (g *Gateway) processJob(job *RequestJob) {
 			tried[m.ID+"|"+m.Provider] = true
 		}
 
-		log.Printf("[ROUTER] Attempt %d: Fanning out to %d models: %v", attempt, len(batch), func() []string {
+		batchNames := func() []string {
 			var names []string
-			for _, m := range batch { names = append(names, m.ID+"("+m.Provider+")") }
+			for _, m := range batch {
+				names = append(names, m.ID+"("+m.Provider+")")
+			}
 			return names
-		}())
+		}()
+		log.Printf("[ROUTER] Attempt %d: Fanning out to %d models: %v", attempt, len(batch), batchNames)
+		emit(job, "ROUTER", fmt.Sprintf("attempt %d: fanning out to %d models: %s", attempt, len(batch), strings.Join(batchNames, ", ")))
 
 		// ── Launch parallel requests ────────────────────────────────────
 		type result struct {
@@ -138,10 +159,12 @@ func (g *Gateway) processJob(job *RequestJob) {
 					if candidate.Score < 1.0 { candidate.Score = 1.0 }
 				} else if resp.Status == 429 {
 					log.Printf("[ROUTER] Provider %s hit rate limit (429), cooling down.", candidate.Provider)
+					emit(job, "ROUTER", fmt.Sprintf("%s(%s) rate-limited (429), cooling down", candidate.ID, candidate.Provider))
 					candidate.Score *= 0.8
 					g.applyProviderCooldown(candidate.Provider, 10*time.Second)
 				} else if resp.Status >= 400 && resp.Status < 500 {
 					log.Printf("[ROUTER] Provider %s returned permanent error (%d), disabling model.", candidate.Provider, resp.Status)
+					emit(job, "ROUTER", fmt.Sprintf("%s(%s) permanent error (%d), disabling", candidate.ID, candidate.Provider, resp.Status))
 					candidate.Disabled = true
 					candidate.Score = 0.0
 				} else {
@@ -157,7 +180,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 		// ── Result Collection ───────────────────────────────────────────
 		var winner *result
 		var bestQuality float64 = -1
-		batchDeadline := time.After(20 * time.Second)
+		batchDeadline := time.After(120 * time.Second)
 		responsesReceived := 0
 		fanActual := len(batch)
 
@@ -167,6 +190,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 				responsesReceived++
 				if res.resp.Err != nil || res.resp.Status >= 400 {
 					log.Printf("[ROUTER] Attempt %d: %s(%s) failed: %v (Status %d)", attempt, res.model.ID, res.model.Provider, res.resp.Err, res.resp.Status)
+					emit(job, "ROUTER", fmt.Sprintf("attempt %d: %s(%s) failed (status %d)", attempt, res.model.ID, res.model.Provider, res.resp.Status))
 					if res.resp.Status == 401 || res.resp.Status == 403 || res.resp.Status == 404 { g.DemoteModel(res.model.ID) }
 					continue
 				}
@@ -175,7 +199,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 				if winner == nil {
 					winner = &res
 					bestQuality = q
-					winDeadline := time.After(1 * time.Second)
+					winDeadline := time.After(g.SmartSwitchDelay)
 				WindowWait:
 					for {
 						select {

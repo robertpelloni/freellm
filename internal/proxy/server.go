@@ -106,6 +106,31 @@ type RequestJob struct {
 	DBID     int64
 
 	IsStream bool // Whether client expects SSE streaming
+
+	// Events carries notable router activity (fan-out, failures, cooldowns)
+	// emitted by processJob while a request is in flight. ServeHTTP drains it
+	// and injects each event into the response body so the chain's state is
+	// visible to the client (e.g. the pi coding agent's transcript) instead
+	// of being lost to the log file. The channel is buffered; senders use a
+	// non-blocking send so a slow consumer can never stall the router.
+	Events chan RouterEvent
+}
+
+// RouterEvent is a single notable router activity line shipped to the client.
+type RouterEvent struct {
+	Tag     string // e.g. ROUTER, CB
+	Message string // human-readable detail
+}
+
+// String renders a RouterEvent as a single terse line for injection into the
+// assistant message content.
+func (e RouterEvent) String() string {
+	tag := e.Tag
+	if tag == "" {
+		tag = "ROUTER"
+	}
+	msg := strings.TrimSpace(e.Message)
+	return fmt.Sprintf("[freellm:%s] %s", tag, msg)
 }
 
 type ProxyResponse struct {
@@ -177,6 +202,34 @@ func writeSSEError(w http.ResponseWriter, message string, modelID string) {
 	}
 }
 
+// writeSSETextChunk emits a single text delta as a valid OpenAI
+// chat.completion.chunk, then flushes. It's used to inject router activity
+// into a streaming response while the model is still being selected/streamed.
+func writeSSETextChunk(w http.ResponseWriter, text string, model string) {
+	id := fmt.Sprintf("chatcmpl-%d", time.Now().UnixNano())
+	if model == "" {
+		model = "freellm"
+	}
+	chunk, _ := json.Marshal(map[string]interface{}{
+		"id":      id,
+		"object":  "chat.completion.chunk",
+		"created": time.Now().Unix(),
+		"model":   model,
+		"choices": []interface{}{
+			map[string]interface{}{
+				"index": 0,
+				"delta": map[string]interface{}{
+					"content": text,
+				},
+			},
+		},
+	})
+	fmt.Fprintf(w, "data: %s\n\n", string(chunk))
+	if flusher, ok := w.(http.Flusher); ok {
+		flusher.Flush()
+	}
+}
+
 func NewGateway(maxActive int, database *sql.DB, port int) *Gateway {
 	g := &Gateway{
 		Port: port,
@@ -191,7 +244,7 @@ func NewGateway(maxActive int, database *sql.DB, port int) *Gateway {
 		preflightCache: make(map[string]preflightEntry),
 		Sessions:   NewSessionTracker(),
 		activeSem: make(chan struct{}, maxActive),
-		FanOutSize: 1,
+		FanOutSize: 5,
 		ShuffleEnabled: true,
 		MinParamsFilter: 70, // Exclude models <= 70B by default (include 70B+)
 		provenModels: make(map[string]bool),
@@ -203,14 +256,14 @@ func NewGateway(maxActive int, database *sql.DB, port int) *Gateway {
 		providerFailureCount: make(map[string]int),
 
 		// Default Timeouts
-		RequestTimeout:           300 * time.Second,
-		StreamTimeout:            300 * time.Second,
-		ConnectTimeout:           60 * time.Second,
-		WatchdogTimeout:          60 * time.Second,
-		ProvenWatchdogTimeout:    120 * time.Second,
-		ReasoningWatchdogTimeout: 120 * time.Second,
+		RequestTimeout:           900 * time.Second,
+		StreamTimeout:            900 * time.Second,
+		ConnectTimeout:           120 * time.Second,
+		WatchdogTimeout:          120 * time.Second,
+		ProvenWatchdogTimeout:    240 * time.Second,
+		ReasoningWatchdogTimeout: 240 * time.Second,
 		LockDuration:             60 * time.Second,
-		SmartSwitchDelay:         2 * time.Second,
+		SmartSwitchDelay:         30 * time.Second,
 	}
 
 	os.MkdirAll("logs", 0755)
@@ -220,7 +273,7 @@ func NewGateway(maxActive int, database *sql.DB, port int) *Gateway {
 	}
 
 	// Update client timeout to match RequestTimeout
-	g.Client.Timeout = 300 * time.Second
+	g.Client.Timeout = 900 * time.Second
 
 	go g.workerLoop()
 	go g.cacheMaintenanceLoop()
@@ -473,6 +526,35 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	if r.URL.Path == "/v1/reset-circuit-breaker" {
+		g.modelFailureMu.Lock()
+		g.modelDisabledUntil = make(map[string]time.Time)
+		g.modelFailureCount = make(map[string]int)
+		g.modelFailureMu.Unlock()
+
+		g.providerFailureMu.Lock()
+		g.providerFailureCount = make(map[string]int)
+		g.providerFailureMu.Unlock()
+
+		g.cooldownMu.Lock()
+		g.providerCooldown = make(map[string]time.Time)
+		g.cooldownMu.Unlock()
+
+		g.mu.Lock()
+		for i := range g.RankedModels {
+			g.RankedModels[i].Disabled = false
+			if g.RankedModels[i].Score < 1.0 {
+				g.RankedModels[i].Score = 1.0
+			}
+		}
+		g.mu.Unlock()
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok", "message":"all models and providers re-enabled"}`))
+		return
+	}
+
 	if r.URL.Path == "/v1/models" || strings.HasPrefix(r.URL.Path, "/v1/models/") {
 		g.handleModels(w, r)
 		return
@@ -589,8 +671,15 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[PROXY] Sent SSE headers immediately (stream=true)")
 	}
 
-	job := &RequestJob{Request: r, Response: make(chan *ProxyResponse, 1), Ctx: ctx, DBID: dbID, IsStream: isStream}
-	
+	job := &RequestJob{
+		Request:  r,
+		Response: make(chan *ProxyResponse, 1),
+		Ctx:      ctx,
+		DBID:     dbID,
+		IsStream: isStream,
+		Events:   make(chan RouterEvent, 64),
+	}
+
 	// Process job with concurrency control: up to MaxActive (50) concurrent
 	// requests. Additional requests wait for a slot via the semaphore in the background.
 	go func() {
@@ -614,11 +703,26 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	keepaliveTicker := time.NewTicker(keepaliveInterval)
 	defer keepaliveTicker.Stop()
 
+	// routerEvents collects notable router activity emitted by processJob.
+	// For streaming clients each event is also written live as a content
+	// chunk (SSE headers are already flushed); for non-stream clients the
+	// collected lines are prepended to the final response body.
+	var routerEvents []string
+	flusher, _ := w.(http.Flusher)
+
 WaitLoop:
 	for {
 		select {
 		case resp = <-job.Response:
 			break WaitLoop
+		case ev := <-job.Events:
+			line := ev.String()
+			routerEvents = append(routerEvents, line)
+			if isStream {
+				// SSE headers are already flushed; emit the event live as a
+				// content chunk so it shows up before the model's content.
+				writeSSETextChunk(w, line+"\n", "freellm")
+			}
 		case <-ctx.Done():
 			log.Printf("[PROXY] Request context cancelled: %v", ctx.Err())
 			// Attempt to send a timeout error if we haven't sent headers yet
@@ -632,7 +736,7 @@ WaitLoop:
 			if isStream {
 				// SSE headers already sent, just send keepalive comment
 				fmt.Fprintf(w, ": keepalive\n\n")
-				if flusher, ok := w.(http.Flusher); ok {
+				if flusher != nil {
 					flusher.Flush()
 				}
 				log.Printf("[PROXY] Sent SSE keepalive ping")
@@ -816,6 +920,12 @@ WaitLoop:
 			}
 		}
 	} else {
+		// Non-streaming response. If notable router events were collected
+		// during the fan-out wait, prepend them to the assistant message
+		// content (streaming clients already saw them live as chunks).
+		if len(routerEvents) > 0 {
+			resp.Body = prependRouterTrailNonStream(resp.Body, routerEvents)
+		}
 		// Rewrite model field to include provider for client visibility
 		var respMap map[string]interface{}
 		if json.Unmarshal(resp.Body, &respMap) == nil {
@@ -829,6 +939,35 @@ WaitLoop:
 		}
 		w.Write(resp.Body)
 	}
+}
+
+// prependRouterTrailNonStream injects the collected router activity lines at
+// the start of the assistant message content in a non-streaming OpenAI
+// response body. It mirrors prependModelPrefixNonStream's JSON surgery.
+func prependRouterTrailNonStream(respBody []byte, events []string) []byte {
+	var resp map[string]interface{}
+	if err := json.Unmarshal(respBody, &resp); err != nil {
+		return respBody
+	}
+	choices, ok := resp["choices"].([]interface{})
+	if !ok || len(choices) == 0 {
+		return respBody
+	}
+	choice, ok := choices[0].(map[string]interface{})
+	if !ok {
+		return respBody
+	}
+	msg, ok := choice["message"].(map[string]interface{})
+	if !ok {
+		return respBody
+	}
+	content, _ := msg["content"].(string)
+	prefix := strings.Join(events, "\n") + "\n\n"
+	msg["content"] = prefix + content
+	if merged, err := json.Marshal(resp); err == nil {
+		return merged
+	}
+	return respBody
 }
 
 // streamSSE reads an SSE stream from upstream, sanitizes each chunk,
