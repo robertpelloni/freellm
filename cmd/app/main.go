@@ -37,6 +37,9 @@ var (
 	tokdietCmd       *exec.Cmd
 	tokdietLogFile   *os.File
 	tokdietMu        sync.Mutex
+	llmlinguaCmd     *exec.Cmd
+	llmlinguaLogFile *os.File
+	llmlinguaMu      sync.Mutex
 )
 
 // tokdietProxyURL is the local URL the FreeLLM proxy uses to forward
@@ -158,6 +161,101 @@ func tokdietWatchdog() {
 			} else {
 				log.Printf("[TOKDIET] Watchdog: port 7787 is back up")
 			}
+		}
+	}
+}
+
+// LLMLingua sidecar management
+const llmlinguaURL = "http://127.0.0.1:7788"
+
+func startLLMLingua() {
+	llmlinguaMu.Lock()
+	defer llmlinguaMu.Unlock()
+
+	linguaDir, err := filepath.Abs(filepath.Join("third_party", "LLMLingua"))
+	if err != nil {
+		log.Printf("[LLMLINGUA] Could not resolve directory: %v", err)
+		return
+	}
+	sidecarPath, err := filepath.Abs(filepath.Join("internal", "proxy", "llmlingua_sidecar.py"))
+	if err != nil {
+		log.Printf("[LLMLINGUA] Could not resolve sidecar path: %v", err)
+		return
+	}
+
+	if _, err := exec.LookPath("python"); err != nil {
+		log.Printf("[LLMLINGUA] Error: python not found in PATH.")
+		return
+	}
+
+	if llmlinguaCmd != nil && llmlinguaCmd.Process != nil && isProcessAlive(llmlinguaCmd.Process.Pid) {
+		return
+	}
+
+	cmd := exec.Command("python", sidecarPath)
+	cmd.Dir = linguaDir
+
+	if err := os.MkdirAll("logs", 0755); err == nil {
+		logPath := filepath.Join("logs", "llmlingua.log")
+		if f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644); err == nil {
+			llmlinguaLogFile = f
+			cmd.Stdout = f
+			cmd.Stderr = f
+		}
+	}
+
+	if err := cmd.Start(); err != nil {
+		log.Printf("[LLMLINGUA] Failed to start: %v", err)
+		return
+	}
+	llmlinguaCmd = cmd
+	log.Printf("[LLMLINGUA] Started successfully (PID: %d)", cmd.Process.Pid)
+
+	go func() {
+		_ = cmd.Wait()
+		llmlinguaMu.Lock()
+		stillOurs := llmlinguaCmd == cmd
+		llmlinguaMu.Unlock()
+		if stillOurs {
+			log.Printf("[LLMLINGUA] Process exited unexpectedly.")
+		}
+	}()
+}
+
+func waitForLLMLinguaReady(timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	addr := "127.0.0.1:7788"
+	for time.Now().Before(deadline) {
+		if c, err := net.DialTimeout("tcp", addr, 500*time.Millisecond); err == nil {
+			c.Close()
+			return true
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	return false
+}
+
+func llmlinguaWatchdog(gateway *proxy.Gateway) {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+	for range ticker.C {
+		if !gateway.Compression.EnableLLMLingua {
+			llmlinguaMu.Lock()
+			if llmlinguaCmd != nil && llmlinguaCmd.Process != nil {
+				log.Printf("[LLMLINGUA] Enabled=false, stopping process %d...", llmlinguaCmd.Process.Pid)
+				_ = llmlinguaCmd.Process.Kill()
+				llmlinguaCmd = nil
+			}
+			llmlinguaMu.Unlock()
+			continue
+		}
+
+		llmlinguaMu.Lock()
+		alive := llmlinguaCmd != nil && llmlinguaCmd.Process != nil && isProcessAlive(llmlinguaCmd.Process.Pid)
+		llmlinguaMu.Unlock()
+		if !alive {
+			log.Printf("[LLMLINGUA] Watchdog: process not running, attempting restart...")
+			startLLMLingua()
 		}
 	}
 }
@@ -554,6 +652,15 @@ func onReady() {
 		}
 	}()
 
+	// Initial LLMLingua start if enabled
+	if cfg.CompressionSettings.EnableLLMLingua {
+		startLLMLingua()
+		if waitForLLMLinguaReady(15 * time.Second) {
+			log.Printf("[LLMLINGUA] Port 7788 is accepting connections")
+		}
+	}
+	go llmlinguaWatchdog(gateway)
+
 	// ============================================================
 	//  State
 	// ============================================================
@@ -598,48 +705,59 @@ func onReady() {
 
 	systray.AddSeparator()
 
+	// --- Context Compression (New sub-menu for toggles) ---
+	mCompression := systray.AddMenuItem("Context Compression", "Token reduction toggles")
+	mCompRTK := mCompression.AddSubMenuItemCheckbox("RTK (CLI Output)", "Compress tool logs and CLI output (Rust)", gateway.Compression.EnableRTK)
+	mCompHeadroom := mCompression.AddSubMenuItemCheckbox("Headroom (Stateful)", "Cross-agent stateful optimization", gateway.Compression.EnableHeadroom)
+	mCompLingua := mCompression.AddSubMenuItemCheckbox("LLMLingua (Prompt)", "20x prompt compression (Python)", gateway.Compression.EnableLLMLingua)
+
+	watchMenuItem(mCompRTK, "toggle_comp_rtk", "")
+	watchMenuItem(mCompHeadroom, "toggle_comp_headroom", "")
+	watchMenuItem(mCompLingua, "toggle_comp_llmlingua", "")
+
+	systray.AddSeparator()
+
 	// --- Status ---
 	mStatus := systray.AddMenuItem("FreeLLM: Starting | Primary: None", "Current status")
 	mStatus.Disable()
 
 	systray.AddSeparator()
 
-	// --- Primary Actions ---
+	// --- Dashboards & Tools (Consolidated) ---
+	mDashboards := systray.AddMenuItem("Dashboards & Tools", "View metrics and monitoring")
+	
+	mDashboard := mDashboards.AddSubMenuItem("Main Dashboard", "Open monitoring dashboard")
+	watchMenuItem(mDashboard, "open_dashboard", "")
+
+	mMonitoring := mDashboards.AddSubMenuItem("Real-time Monitoring", "Real-time metrics")
+	watchMenuItem(mMonitoring, "open_monitoring", "")
+
+	mExecution := mDashboards.AddSubMenuItem("Execution Flow", "View execution metrics")
+	watchMenuItem(mExecution, "open_execution", "")
+
+	mLeaderboard := mDashboards.AddSubMenuItem("Model Rankings", "View model leaderboard")
+	watchMenuItem(mLeaderboard, "open_leaderboard", "")
+
+	mSavings := mDashboards.AddSubMenuItem("Cost Savings Report", "View savings metrics")
+	watchMenuItem(mSavings, "open_savings", "")
+
+	mProtocol := mDashboards.AddSubMenuItem("Protocol Compliance", "View protocol oversight")
+	watchMenuItem(mProtocol, "open_protocol", "")
+
+	mSystemStatus := mDashboards.AddSubMenuItem("System Health", "View background process status")
+	watchMenuItem(mSystemStatus, "open_status", "")
+
+	mModelComparison := mDashboards.AddSubMenuItem("Model Comparison", "Side-by-side response testing")
+	watchMenuItem(mModelComparison, "open_comparison", "")
+
+	mQuickQuery := mDashboards.AddSubMenuItem("Quick Query Tool", "Send manual test queries")
+	watchMenuItem(mQuickQuery, "open_quick_query", "")
+
 	mOpen := systray.AddMenuItem("Open LLM Interface", "Open the LLM chat in browser")
 	watchMenuItem(mOpen, "open_interface", "")
 
 	mSettings := systray.AddMenuItem("Settings", "Open settings")
 	watchMenuItem(mSettings, "open_settings", "")
-
-	systray.AddSeparator()
-
-	// --- UI Windows ---
-	mQuickQuery := systray.AddMenuItem("Quick Query", "Send a quick query to the LLM")
-	watchMenuItem(mQuickQuery, "open_quick_query", "")
-
-	mModelComparison := systray.AddMenuItem("Model Comparison", "Compare model responses side by side")
-	watchMenuItem(mModelComparison, "open_comparison", "")
-
-	mDashboard := systray.AddMenuItem("Show Dashboard", "Open monitoring dashboard")
-	watchMenuItem(mDashboard, "open_dashboard", "")
-
-	mLeaderboard := systray.AddMenuItem("Model Leaderboard", "View model rankings")
-	watchMenuItem(mLeaderboard, "open_leaderboard", "")
-
-	mSavings := systray.AddMenuItem("Cost Savings", "View cost savings report")
-	watchMenuItem(mSavings, "open_savings", "")
-
-	mMonitoring := systray.AddMenuItem("Monitoring Dashboard", "Real-time monitoring")
-	watchMenuItem(mMonitoring, "open_monitoring", "")
-
-	mProtocol := systray.AddMenuItem("Protocol Oversight", "View protocol compliance")
-	watchMenuItem(mProtocol, "open_protocol", "")
-
-	mExecution := systray.AddMenuItem("Execution Dashboard", "View execution metrics")
-	watchMenuItem(mExecution, "open_execution", "")
-
-	mSystemStatus := systray.AddMenuItem("System Status", "View system health")
-	watchMenuItem(mSystemStatus, "open_status", "")
 
 	systray.AddSeparator()
 
@@ -690,6 +808,8 @@ func onReady() {
 
 	// --- Maintenance ---
 	mMaintenance := systray.AddMenuItem("Maintenance", "System maintenance options")
+	mMaintResetCB := mMaintenance.AddSubMenuItem("Reset Circuit Breaker", "Clear all fatal error blocks and cooldowns")
+	watchMenuItem(mMaintResetCB, "maint_reset_cb", "")
 	mMaintClearSkips := mMaintenance.AddSubMenuItem("Clear Skip List", "Clear all manual model skips")
 	watchMenuItem(mMaintClearSkips, "maint_clear_skips", "")
 	mMaintClearBlacklist := mMaintenance.AddSubMenuItem("Clear Blacklist", "Remove all blacklisted models")
@@ -1081,6 +1201,25 @@ func onReady() {
 					showNotification("FreeLLM", fmt.Sprintf("Copied: %s", modelID))
 				}
 
+			// --- Context Compression ---
+			case "toggle_comp_rtk":
+				gateway.Compression.EnableRTK = !gateway.Compression.EnableRTK
+				if gateway.Compression.EnableRTK { mCompRTK.Check() } else { mCompRTK.Uncheck() }
+				log.Printf("RTK Compression: %v", gateway.Compression.EnableRTK)
+				showNotification("FreeLLM", fmt.Sprintf("RTK Compression: %v", gateway.Compression.EnableRTK))
+
+			case "toggle_comp_headroom":
+				gateway.Compression.EnableHeadroom = !gateway.Compression.EnableHeadroom
+				if gateway.Compression.EnableHeadroom { mCompHeadroom.Check() } else { mCompHeadroom.Uncheck() }
+				log.Printf("Headroom Compression: %v", gateway.Compression.EnableHeadroom)
+				showNotification("FreeLLM", fmt.Sprintf("Headroom Compression: %v", gateway.Compression.EnableHeadroom))
+
+			case "toggle_comp_llmlingua":
+				gateway.Compression.EnableLLMLingua = !gateway.Compression.EnableLLMLingua
+				if gateway.Compression.EnableLLMLingua { mCompLingua.Check() } else { mCompLingua.Uncheck() }
+				log.Printf("LLMLingua Compression: %v", gateway.Compression.EnableLLMLingua)
+				showNotification("FreeLLM", fmt.Sprintf("LLMLingua Compression: %v", gateway.Compression.EnableLLMLingua))
+
 			// --- Primary Actions ---
 			case "open_interface":
 				open.Run(fmt.Sprintf("http://localhost:%d", proxyPort))
@@ -1144,6 +1283,20 @@ func onReady() {
 				showNotification("FreeLLM", "Start with Windows disabled")
 
 			// --- Maintenance ---
+			case "maint_reset_cb":
+				// Call the reset circuit breaker endpoint internally
+				url := fmt.Sprintf("http://localhost:%d/v1/reset-circuit-breaker", proxyPort)
+				req, _ := http.NewRequest("POST", url, nil)
+				req.Header.Set("Authorization", "Bearer sk-freellm")
+				client := &http.Client{Timeout: 5 * time.Second}
+				resp, err := client.Do(req)
+				if err == nil && resp.StatusCode == 200 {
+					showNotification("FreeLLM", "Circuit breaker reset: all models and providers cleared")
+				} else {
+					log.Printf("Reset circuit breaker failed: %v", err)
+				}
+				if resp != nil { resp.Body.Close() }
+
 			case "maint_clear_skips":
 				db.ClearSkips(database)
 				showNotification("FreeLLM", "Skip list cleared")
@@ -1303,5 +1456,16 @@ func onExit() {
 	}
 	if tokdietLogFile != nil {
 		_ = tokdietLogFile.Close()
+	}
+
+	llmlinguaMu.Lock()
+	lcmd := llmlinguaCmd
+	llmlinguaMu.Unlock()
+	if lcmd != nil && lcmd.Process != nil {
+		log.Printf("[LLMLINGUA] Stopping process %d...", lcmd.Process.Pid)
+		_ = lcmd.Process.Kill()
+	}
+	if llmlinguaLogFile != nil {
+		_ = llmlinguaLogFile.Close()
 	}
 }

@@ -12,12 +12,14 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/xeipuuv/gojsonschema"
+	"github.com/robertpelloni/freellm/internal/config"
 	"github.com/robertpelloni/freellm/internal/db"
 	"github.com/robertpelloni/freellm/internal/engine"
 	"github.com/robertpelloni/freellm/internal/tokdiet"
@@ -83,6 +85,8 @@ type Gateway struct {
 	ReasoningWatchdogTimeout time.Duration
 	LockDuration             time.Duration
 	SmartSwitchDelay         time.Duration // Wait window to see if a better model responds
+
+	Compression config.CompressionSettings
 
 	RouterLogger *log.Logger
 }
@@ -1309,6 +1313,31 @@ func (g *Gateway) filterCandidatesWithOverride(all engine.RankedModels, minParam
 		if minParams > 0 && m.Parameters > 0 && m.Parameters <= minParams {
 			skipped++
 			continue
+		}
+
+		// Name-based filter: skip models with <=120b in their name by default
+		if minParams > 0 {
+			lowered := strings.ToLower(m.ID)
+			// Check for patterns like "7b", "70b", "120b"
+			isSmall := false
+			// Find the number before 'b'
+			bIdx := strings.Index(lowered, "b")
+			if bIdx > 0 {
+				start := bIdx - 1
+				for start >= 0 && lowered[start] >= '0' && lowered[start] <= '9' {
+					start--
+				}
+				numStr := lowered[start+1 : bIdx]
+				if numStr != "" {
+					if val, err := strconv.Atoi(numStr); err == nil && val <= 120 {
+						isSmall = true
+					}
+				}
+			}
+			if isSmall {
+				skipped++
+				continue
+			}
 		}
 
 		// Session lock: skip models currently locked by another session
