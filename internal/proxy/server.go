@@ -2160,7 +2160,7 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 				
 				for batch := 0; batch < 15; batch++ {
 					fanOutSize := s.g.FanOutSize
-					if fanOutSize < 3 { fanOutSize = 3 }
+					if fanOutSize < 1 { fanOutSize = 1 }
 					if fanOutSize > 50 { fanOutSize = 50 }
 					
 					var fanModels []engine.ModelCandidate
@@ -2312,7 +2312,7 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 				validModels := s.g.filterCandidates(allModels)
 				for batch := 0; batch < 5 && !success && len(validModels) > 0; batch++ {
 					fanOutSize := s.g.FanOutSize
-					if fanOutSize < 3 { fanOutSize = 3 }
+					if fanOutSize < 1 { fanOutSize = 1 }
 					if fanOutSize > 50 { fanOutSize = 50 }
 					var fanModels []engine.ModelCandidate
 					indices := rand.Perm(len(validModels))

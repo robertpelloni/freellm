@@ -81,6 +81,18 @@ func FromAnthropic(body []byte) (*ChatCompletionResponse, error) {
     if len(src.Content) > 0 {
         text = src.Content[0].Text
     }
+    finishReason := "stop"
+    switch src.StopReason {
+    case "", "end_turn", "stop_sequence":
+        finishReason = "stop"
+    case "max_tokens":
+        finishReason = "length"
+    case "tool_use":
+        finishReason = "tool_calls"
+    default:
+        finishReason = src.StopReason
+    }
+
     resp := &ChatCompletionResponse{
         ID:      src.ID,
         Object:  "chat.completion",
@@ -89,7 +101,7 @@ func FromAnthropic(body []byte) (*ChatCompletionResponse, error) {
         Choices: []Choice{{
             Index: 0,
             Message: &ChatMessage{Role: "assistant", Content: text},
-            FinishReason: func() string { if src.StopReason != "" { return src.StopReason } ; return "stop" }(),
+            FinishReason: finishReason,
         }},
     }
     return resp, nil

@@ -19,7 +19,7 @@ proxy_settings:
   reasoning_watchdog_timeout: 80
   lock_duration: 30
   smart_switch_delay: 300
-  fan_out_size: 10
+  fan_out_size: 1
   allowed_fails: 2
   cooldown_time: 30
   fallbacks:

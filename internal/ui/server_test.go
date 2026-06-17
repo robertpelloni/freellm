@@ -24,7 +24,7 @@ func TestHandleRankings(t *testing.T) {
 		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
 	}
 
-	expected := `[{"id":"test-model","provider":"test-provider","parameters":0,"context_length":0,"latency":0,"score":100,"last_benchmark":"0001-01-01T00:00:00Z","prompt_price":0,"completion_price":0}]`
+	expected := `[{"id":"test-model","provider":"test-provider","parameters":0,"context_length":0,"latency":0,"score":100,"disabled":false,"last_benchmark":"0001-01-01T00:00:00Z","prompt_price":0,"completion_price":0}]`
 	if rr.Body.String() != expected + "\n" && rr.Body.String() != expected {
 		t.Errorf("handler returned unexpected body: got %v want %v", rr.Body.String(), expected)
 	}
