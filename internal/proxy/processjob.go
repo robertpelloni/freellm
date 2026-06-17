@@ -113,11 +113,31 @@ func (g *Gateway) processJob(job *RequestJob) {
 
 		var batch []engine.ModelCandidate
 		providerUsed := make(map[string]bool)
+		
+		// First pass: Try to get distinct providers
 		for _, m := range fresh {
 			if !providerUsed[m.Provider] {
 				batch = append(batch, m)
 				providerUsed[m.Provider] = true
 				if len(batch) >= fanSize { break }
+			}
+		}
+
+		// Second pass: If we still need more models, fill with remaining fresh ones
+		if len(batch) < fanSize {
+			for _, m := range fresh {
+				// Check if already in batch
+				alreadyIn := false
+				for _, b := range batch {
+					if b.ID == m.ID && b.Provider == m.Provider {
+						alreadyIn = true
+						break
+					}
+				}
+				if !alreadyIn {
+					batch = append(batch, m)
+					if len(batch) >= fanSize { break }
+				}
 			}
 		}
 

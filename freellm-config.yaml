@@ -6,22 +6,26 @@ router_settings:
   timeout: 10
   enable_pre_call_checks: true
   ignore_cooldown_on_fallbacks: true
-  min_params_filter: 10
+  min_params_filter: 120
 
 proxy_settings:
   drop_params: true
   num_retries: 2
-  request_timeout: 60
-  stream_timeout: 300
-  connect_timeout: 30
-  watchdog_timeout: 30
-  proven_watchdog_timeout: 60
-  reasoning_watchdog_timeout: 80
-  lock_duration: 30
-  smart_switch_delay: 300
-  fan_out_size: 1
-  allowed_fails: 2
+  request_timeout: 900
+  stream_timeout: 900
+  connect_timeout: 120
+  watchdog_timeout: 120
+  proven_watchdog_timeout: 240
+  reasoning_watchdog_timeout: 240
+  lock_duration: 60
+  smart_switch_delay: 30
+  fan_out_size: 3
+  allowed_fails: 3
   cooldown_time: 30
+  enable_rtk: true
+  enable_headroom: true
+  enable_llmlingua: true
+  enable_tokdiet: true
   fallbacks:
     - free-llm: ["free-llm-fallback"]
 
