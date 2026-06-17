@@ -84,7 +84,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 
 		// ── Fan-out selection with provider diversity ───────────────────
 		fanSize := g.FanOutSize
-		if fanSize < 2 { fanSize = 2 }
+		if fanSize < 1 { fanSize = 1 }
 		if fanSize > len(fresh) { fanSize = len(fresh) }
 
 		var batch []engine.ModelCandidate
@@ -130,7 +130,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 				}
 
 				log.Printf("[ROUTER] Attempt %d: Sending request to %s(%s)", attempt, candidate.ID, candidate.Provider)
-				resp := g.forwardRequestInternal(g.Client, job.Request, candidate, body, false, nil)
+				resp := g.forwardRequestInternal(job.Ctx, g.Client, job.Request, candidate, body, false, nil)
 
 				// Scoring updates
 				if resp.Status == 200 {
@@ -168,7 +168,6 @@ func (g *Gateway) processJob(job *RequestJob) {
 				if res.resp.Err != nil || res.resp.Status >= 400 {
 					log.Printf("[ROUTER] Attempt %d: %s(%s) failed: %v (Status %d)", attempt, res.model.ID, res.model.Provider, res.resp.Err, res.resp.Status)
 					if res.resp.Status == 401 || res.resp.Status == 403 || res.resp.Status == 404 { g.DemoteModel(res.model.ID) }
-					g.applyProviderCooldown(res.model.Provider, 10*time.Second)
 					continue
 				}
 

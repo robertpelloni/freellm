@@ -4,13 +4,17 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 	"unsafe"
@@ -31,15 +35,33 @@ var (
 	kernel32         = syscall.NewLazyDLL("kernel32.dll")
 	procCreateMutex = kernel32.NewProc("CreateMutexW")
 	tokdietCmd       *exec.Cmd
+	tokdietLogFile   *os.File
+	tokdietMu        sync.Mutex
 )
 
+// tokdietProxyURL is the local URL the FreeLLM proxy uses to forward
+// outbound requests through the tokdiet meter/compactor. Kept here so
+// both startTokdiet and the watchdog/health check agree on the address.
+const tokdietProxyURL = "http://127.0.0.1:7787"
+
 func startTokdiet() {
-	// Path to the tokdiet entry point relative to the freellm root
-	tokdietPath := filepath.Join("third_party", "tokdiet", "dist", "cli.js")
+	tokdietMu.Lock()
+	defer tokdietMu.Unlock()
+
+	// Resolve the tokdiet root relative to the freellm executable's CWD
+	// (NOT relative-to-itself, since the child runs with cmd.Dir = tokdiet root).
+	// We pass an ABSOLUTE cli.js path so node does not re-resolve it against
+	// cmd.Dir — that previously produced the doubled "third_party/tokdiet/third_party/tokdiet/..." path
+	// and tokdiet crashed immediately on startup.
+	tokdietDir, err := filepath.Abs(filepath.Join("third_party", "tokdiet"))
+	if err != nil {
+		log.Printf("[TOKDIET] Could not resolve tokdiet directory: %v", err)
+		return
+	}
+	tokdietPath := filepath.Join(tokdietDir, "dist", "cli.js")
 
 	// Check if node exists
-	_, err := exec.LookPath("node")
-	if err != nil {
+	if _, err := exec.LookPath("node"); err != nil {
 		log.Printf("[TOKDIET] Error: Node.js not found in PATH. tokdiet will not start.")
 		return
 	}
@@ -50,18 +72,140 @@ func startTokdiet() {
 		return
 	}
 
-	tokdietCmd = exec.Command("node", tokdietPath, "start", "--port", "7787")
-
-	// Set working directory to tokdiet folder so it can find its config/pricing
-	tokdietCmd.Dir = filepath.Join("third_party", "tokdiet")
-
-	// Run in background
-	err = tokdietCmd.Start()
-	if err != nil {
-		log.Printf("[TOKDIET] Failed to start: %v", err)
-	} else {
-		log.Printf("[TOKDIET] Started successfully on port 7787 (PID: %d)", tokdietCmd.Process.Pid)
+	// If we already have a live child, don't double-spawn.
+	if tokdietCmd != nil && tokdietCmd.Process != nil && isProcessAlive(tokdietCmd.Process.Pid) {
+		log.Printf("[TOKDIET] Already running (PID: %d)", tokdietCmd.Process.Pid)
+		return
 	}
+
+	cmd := exec.Command("node", tokdietPath, "start", "--port", "7787")
+	// Set working directory to the tokdiet folder so it can find config/pricing
+	// and resolve bare-module imports against its own node_modules.
+	cmd.Dir = tokdietDir
+
+	// Capture child stdout/stderr to a log file. Without this on Windows, the
+	// child's stdio handles can keep the parent waiting / trigger silent
+	// termination, and we never see crash output.
+	if err := os.MkdirAll("logs", 0755); err == nil {
+		logPath := filepath.Join("logs", "tokdiet.log")
+		// Rotate: if a previous log exists and is non-empty, stash it with
+		// a timestamp suffix so the user can still inspect historical
+		// output (e.g. crash spam from a prior broken build) but the
+		// current run gets a clean file. Cap retained rotations at 5.
+		if info, err := os.Stat(logPath); err == nil && info.Size() > 0 {
+			ts := time.Now().Format("20060102-150405")
+			_ = os.Rename(logPath, filepath.Join("logs", fmt.Sprintf("tokdiet.log.%s.old", ts)))
+			pruneOldRotations(filepath.Join("logs"), "tokdiet.log", 5)
+		}
+		if f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644); err == nil {
+			tokdietLogFile = f
+			cmd.Stdout = f
+			cmd.Stderr = f
+		} else {
+			log.Printf("[TOKDIET] Could not open logs/tokdiet.log: %v", err)
+		}
+	}
+
+	if err := cmd.Start(); err != nil {
+		log.Printf("[TOKDIET] Failed to start: %v", err)
+		return
+	}
+	tokdietCmd = cmd
+	log.Printf("[TOKDIET] Started successfully on port 7787 (PID: %d)", cmd.Process.Pid)
+
+	// Reap the child asynchronously so it doesn't become a zombie, and
+	// log its exit status so we know when it dies.
+	go func() {
+		_ = cmd.Wait()
+		tokdietMu.Lock()
+		stillOurs := tokdietCmd == cmd
+		tokdietMu.Unlock()
+		if stillOurs {
+			log.Printf("[TOKDIET] Process exited unexpectedly; watchdog will restart it.")
+		}
+	}()
+}
+
+// waitForTokdietReady polls the tokdiet port until it accepts a TCP
+// connection, up to the given timeout. Returns true on success.
+func waitForTokdietReady(timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	addr := strings.TrimPrefix(tokdietProxyURL, "http://")
+	addr = strings.TrimPrefix(addr, "https://")
+	for time.Now().Before(deadline) {
+		if c, err := net.DialTimeout("tcp", addr, 500*time.Millisecond); err == nil {
+			c.Close()
+			return true
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+	return false
+}
+
+// tokdietWatchdog restarts tokdiet if it dies, until the process exits.
+func tokdietWatchdog() {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+	for range ticker.C {
+		tokdietMu.Lock()
+		alive := tokdietCmd != nil && tokdietCmd.Process != nil && isProcessAlive(tokdietCmd.Process.Pid)
+		tokdietMu.Unlock()
+		if !alive {
+			log.Printf("[TOKDIET] Watchdog: process not running, attempting restart...")
+			startTokdiet()
+			if !waitForTokdietReady(10 * time.Second) {
+				log.Printf("[TOKDIET] Watchdog: restart did not bind port 7787 within 10s")
+			} else {
+				log.Printf("[TOKDIET] Watchdog: port 7787 is back up")
+			}
+		}
+	}
+}
+
+// pruneOldRotations deletes the oldest `.old` siblings of `baseName` in
+// `dir` until at most `keep` of them remain. Called after we rename the
+// current log to a timestamped `.old` so the directory doesn't grow
+// without bound across restarts.
+func pruneOldRotations(dir, baseName string, keep int) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	prefix := baseName + "."
+	suffix := ".old"
+	var rotated []string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		n := e.Name()
+		if strings.HasPrefix(n, prefix) && strings.HasSuffix(n, suffix) {
+			rotated = append(rotated, n)
+		}
+	}
+	// Sort by name (which embeds the timestamp) so the oldest is first.
+	sort.Strings(rotated)
+	if len(rotated) <= keep {
+		return
+	}
+	for _, name := range rotated[:len(rotated)-keep] {
+		_ = os.Remove(filepath.Join(dir, name))
+	}
+}
+
+// waitForProxyReady polls the FreeLLM proxy port until it accepts TCP
+// connections, up to the given timeout.
+func waitForProxyReady(port int, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	addr := fmt.Sprintf("127.0.0.1:%d", port)
+	for time.Now().Before(deadline) {
+		if c, err := net.DialTimeout("tcp", addr, 500*time.Millisecond); err == nil {
+			c.Close()
+			return true
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+	return false
 }
 
 // acquireMutex tries to create a Windows named mutex. Returns true if we are the
@@ -192,6 +336,16 @@ func onReady() {
 	systray.SetTooltip("FreeLLM - Starting...")
 
 	startTokdiet()
+	// Block startup briefly so the FreeLLM proxy never races against a
+	// not-yet-bound tokdiet port — the RoundTripper will dial 127.0.0.1:7787
+	// on the first request, and we don't want every early call to fail
+	// because tokdiet was still starting.
+	if waitForTokdietReady(15 * time.Second) {
+		log.Printf("[TOKDIET] Port 7787 is accepting connections")
+	} else {
+		log.Printf("[TOKDIET] Port 7787 not yet ready after 15s; watchdog will keep trying")
+	}
+	go tokdietWatchdog()
 
 	database, err := db.InitDB()
 	if err != nil {
@@ -325,7 +479,7 @@ func onReady() {
     }
     // Default fan‑out size – the UI can change this at runtime via the context menu
     if gateway.FanOutSize == 0 {
-        gateway.FanOutSize = 5
+        gateway.FanOutSize = 1
     }
 	gateway.RestoreQueue()
 
@@ -710,6 +864,55 @@ func onReady() {
 	}
 
 	// ============================================================
+	//  Startup smoke test
+	// ============================================================
+	// Once the proxy and UI are up, fire a minimal request through the full
+	// chain (client → FreeLLM → tokdiet → upstream). The point is NOT to
+	// verify the upstream call succeeds — only that the plumbing is wired.
+	// Any HTTP response (even a 4xx from the provider) proves the proxy can
+	// reach tokdiet, which is the actual failure mode we want to surface.
+	// On total failure, flip the tray icon red so the user sees the
+	// breakage instead of a green "Live" tooltip.
+	runStartupSmokeTest := func() {
+		if !waitForProxyReady(proxyPort, 10*time.Second) {
+			log.Printf("[SMOKE] Proxy never came up on :%d", proxyPort)
+			systray.SetIcon(icon.Red)
+			systray.SetTooltip(fmt.Sprintf("FreeLLM - proxy failed to bind :%d", proxyPort))
+			mStatus.SetTitle(fmt.Sprintf("FreeLLM: Proxy down on :%d", proxyPort))
+			return
+		}
+
+		models := gateway.GetModels()
+		if len(models) == 0 {
+			log.Printf("[SMOKE] No cached models yet, skipping end-to-end probe (will retry on first real request)")
+			return
+		}
+		top := models[0]
+
+		body := fmt.Sprintf(`{"model":%q,"messages":[{"role":"user","content":"ping"}],"max_tokens":1,"stream":false}`, top.ID)
+		req, err := http.NewRequest("POST", fmt.Sprintf("http://127.0.0.1:%d/v1/chat/completions", proxyPort), strings.NewReader(body))
+		if err != nil {
+			log.Printf("[SMOKE] build request failed: %v", err)
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
+
+		client := &http.Client{Timeout: 30 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Printf("[SMOKE] FAILED: chain is broken: %v", err)
+			systray.SetIcon(icon.Red)
+			systray.SetTooltip(fmt.Sprintf("FreeLLM - smoke test failed: %v", err))
+			mStatus.SetTitle(fmt.Sprintf("FreeLLM: Smoke test FAILED (%v)", err))
+			return
+		}
+		defer resp.Body.Close()
+		_, _ = io.Copy(io.Discard, resp.Body)
+		log.Printf("[SMOKE] OK: chain alive (HTTP %d via %s/%s)", resp.StatusCode, top.ID, top.Provider)
+	}
+	go runStartupSmokeTest()
+
+	// ============================================================
 	//  Background Workers
 	// ============================================================
 
@@ -1091,8 +1294,14 @@ func onReady() {
 }
 
 func onExit() {
-	if tokdietCmd != nil && tokdietCmd.Process != nil {
-		log.Printf("[TOKDIET] Stopping process %d...", tokdietCmd.Process.Pid)
-		tokdietCmd.Process.Kill()
+	tokdietMu.Lock()
+	cmd := tokdietCmd
+	tokdietMu.Unlock()
+	if cmd != nil && cmd.Process != nil {
+		log.Printf("[TOKDIET] Stopping process %d...", cmd.Process.Pid)
+		_ = cmd.Process.Kill()
+	}
+	if tokdietLogFile != nil {
+		_ = tokdietLogFile.Close()
 	}
 }
