@@ -27,6 +27,7 @@ import (
 	"github.com/robertpelloni/freellm/internal/a2a"
 	"github.com/robertpelloni/freellm/internal/icon"
 	"github.com/robertpelloni/freellm/internal/proxy"
+	"github.com/robertpelloni/freellm/internal/tokdiet"
 	"github.com/robertpelloni/freellm/internal/ui"
 	"github.com/skratchdot/open-golang/open"
 )
@@ -146,10 +147,20 @@ func waitForTokdietReady(timeout time.Duration) bool {
 }
 
 // tokdietWatchdog restarts tokdiet if it dies, until the process exits.
-func tokdietWatchdog() {
+func tokdietWatchdog(gateway *proxy.Gateway) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	for range ticker.C {
+		if !gateway.Compression.EnableTokdiet {
+			tokdietMu.Lock()
+			if tokdietCmd != nil && tokdietCmd.Process != nil {
+				log.Printf("[TOKDIET] Enabled=false, stopping process %d...", tokdietCmd.Process.Pid)
+				_ = tokdietCmd.Process.Kill()
+				tokdietCmd = nil
+			}
+			tokdietMu.Unlock()
+			continue
+		}
 		tokdietMu.Lock()
 		alive := tokdietCmd != nil && tokdietCmd.Process != nil && isProcessAlive(tokdietCmd.Process.Pid)
 		tokdietMu.Unlock()
@@ -433,18 +444,6 @@ func onReady() {
 	systray.SetTitle("FreeLLM")
 	systray.SetTooltip("FreeLLM - Starting...")
 
-	startTokdiet()
-	// Block startup briefly so the FreeLLM proxy never races against a
-	// not-yet-bound tokdiet port — the RoundTripper will dial 127.0.0.1:7787
-	// on the first request, and we don't want every early call to fail
-	// because tokdiet was still starting.
-	if waitForTokdietReady(15 * time.Second) {
-		log.Printf("[TOKDIET] Port 7787 is accepting connections")
-	} else {
-		log.Printf("[TOKDIET] Port 7787 not yet ready after 15s; watchdog will keep trying")
-	}
-	go tokdietWatchdog()
-
 	database, err := db.InitDB()
 	if err != nil {
 		log.Fatalf("Failed to init DB: %v", err)
@@ -577,9 +576,18 @@ func onReady() {
     }
     // Default fan‑out size – the UI can change this at runtime via the context menu
     if gateway.FanOutSize == 0 {
-        gateway.FanOutSize = 1
+        gateway.FanOutSize = 3
     }
 	gateway.RestoreQueue()
+
+	// Initial Tokdiet start if enabled
+	if gateway.Compression.EnableTokdiet {
+		startTokdiet()
+		if waitForTokdietReady(15 * time.Second) {
+			log.Printf("[TOKDIET] Port 7787 is accepting connections")
+		}
+	}
+	go tokdietWatchdog(gateway)
 
 	// Apply settings from config
 	applyConfigToGateway := func(c *config.Config, g *proxy.Gateway) {
@@ -710,10 +718,12 @@ func onReady() {
 	mCompRTK := mCompression.AddSubMenuItemCheckbox("RTK (CLI Output)", "Compress tool logs and CLI output (Rust)", gateway.Compression.EnableRTK)
 	mCompHeadroom := mCompression.AddSubMenuItemCheckbox("Headroom (Stateful)", "Cross-agent stateful optimization", gateway.Compression.EnableHeadroom)
 	mCompLingua := mCompression.AddSubMenuItemCheckbox("LLMLingua (Prompt)", "20x prompt compression (Python)", gateway.Compression.EnableLLMLingua)
+	mCompTokdiet := mCompression.AddSubMenuItemCheckbox("Tokdiet (Unified)", "Token counting and filtering (Node)", gateway.Compression.EnableTokdiet)
 
 	watchMenuItem(mCompRTK, "toggle_comp_rtk", "")
 	watchMenuItem(mCompHeadroom, "toggle_comp_headroom", "")
 	watchMenuItem(mCompLingua, "toggle_comp_llmlingua", "")
+	watchMenuItem(mCompTokdiet, "toggle_comp_tokdiet", "")
 
 	systray.AddSeparator()
 
@@ -1219,6 +1229,15 @@ func onReady() {
 				if gateway.Compression.EnableLLMLingua { mCompLingua.Check() } else { mCompLingua.Uncheck() }
 				log.Printf("LLMLingua Compression: %v", gateway.Compression.EnableLLMLingua)
 				showNotification("FreeLLM", fmt.Sprintf("LLMLingua Compression: %v", gateway.Compression.EnableLLMLingua))
+
+			case "toggle_comp_tokdiet":
+				gateway.Compression.EnableTokdiet = !gateway.Compression.EnableTokdiet
+				if gateway.Compression.EnableTokdiet { mCompTokdiet.Check() } else { mCompTokdiet.Uncheck() }
+				log.Printf("Tokdiet Unified: %v", gateway.Compression.EnableTokdiet)
+				if rt, ok := gateway.Client.Transport.(*tokdiet.RoundTripper); ok {
+					rt.Enabled = gateway.Compression.EnableTokdiet
+				}
+				showNotification("FreeLLM", fmt.Sprintf("Tokdiet Unified: %v", gateway.Compression.EnableTokdiet))
 
 			// --- Primary Actions ---
 			case "open_interface":

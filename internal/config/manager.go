@@ -25,6 +25,7 @@ type CompressionSettings struct {
 	HeadroomURL     string `yaml:"headroom_url"`
 	EnableLLMLingua bool   `yaml:"enable_llmlingua"`
 	LLMLinguaURL    string `yaml:"llmlingua_url"`
+	EnableTokdiet   bool   `yaml:"enable_tokdiet"`
 }
 
 type RouterSettings struct {

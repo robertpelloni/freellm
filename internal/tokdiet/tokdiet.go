@@ -9,7 +9,8 @@ import (
 // tokdiet proxy (local port 7787), injecting the original destination into
 // the x-ctxgov-upstream header.
 type RoundTripper struct {
-	Next http.RoundTripper
+	Next    http.RoundTripper
+	Enabled bool
 }
 
 func (t *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -19,7 +20,11 @@ func (t *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 		next = http.DefaultTransport
 	}
 
-	// Skip if it's already going to tokdiet
+	// Skip if disabled or already going to tokdiet
+	if !t.Enabled {
+		return next.RoundTrip(req)
+	}
+
 	host := req.URL.Host
 	if host == "127.0.0.1:7787" || host == "localhost:7787" {
 		return next.RoundTrip(req)
@@ -40,6 +45,6 @@ func (t *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 func NewClient(timeout time.Duration) *http.Client {
 	return &http.Client{
 		Timeout:   timeout,
-		Transport: &RoundTripper{Next: http.DefaultTransport},
+		Transport: &RoundTripper{Next: http.DefaultTransport, Enabled: true},
 	}
 }

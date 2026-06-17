@@ -248,9 +248,9 @@ func NewGateway(maxActive int, database *sql.DB, port int) *Gateway {
 		preflightCache: make(map[string]preflightEntry),
 		Sessions:   NewSessionTracker(),
 		activeSem: make(chan struct{}, maxActive),
-		FanOutSize: 5,
+		FanOutSize: 3, // Default to 3
 		ShuffleEnabled: true,
-		MinParamsFilter: 70, // Exclude models <= 70B by default (include 70B+)
+		MinParamsFilter: 120, // Exclude models <= 120B by default
 		provenModels: make(map[string]bool),
 		sessionModelLocks: make(map[string]time.Time),
 		providerSems:      make(map[string]chan struct{}),
@@ -258,6 +258,14 @@ func NewGateway(maxActive int, database *sql.DB, port int) *Gateway {
 		modelFailureCount:    make(map[string]int),
 		modelDisabledUntil:   make(map[string]time.Time),
 		providerFailureCount: make(map[string]int),
+
+		// Default Compression Settings (All ON by default)
+		Compression: config.CompressionSettings{
+			EnableRTK:       true,
+			EnableHeadroom:  true,
+			EnableLLMLingua: true,
+			EnableTokdiet:   true,
+		},
 
 		// Default Timeouts
 		RequestTimeout:           900 * time.Second,
@@ -2349,7 +2357,7 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 					fanCh := make(chan fanRes, len(fanModels))
 					for _, m := range fanModels {
 						go func(candidate engine.ModelCandidate) {
-							mc := tokdiet.NewClient(45 * time.Second)
+							mc := tokdiet.NewClient(90 * time.Second)
 							fanCh <- fanRes{
 								model: candidate,
 								resp:  s.g.forwardRequestInternal(s.req.Context(), mc, s.req, candidate, s.originalBody, true, nil),
