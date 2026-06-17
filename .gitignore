@@ -15,6 +15,7 @@ settings.json
 provider_metrics.db
 tormentnexus.db
 freellm.exe
+*.exe.old
 freellm.exe~
 freellm-config-local.yaml
 

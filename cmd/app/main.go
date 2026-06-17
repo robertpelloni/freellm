@@ -239,7 +239,7 @@ func isProcessAlive(pid int) bool {
 	return exitCode == 259 // STILL_ACTIVE
 }
 
-func notify(title, message string) {
+func showNotification(title, message string) {
 	beeep.Notify(title, message, "")
 }
 
@@ -1003,7 +1003,7 @@ func onReady() {
 				log.Printf("Health check failed for top %d models (%d/3): %v", topCheck, failCount, lastErr)
 				db.LogActivity(database, "Health Check Failure", top.ID, fmt.Sprintf("Attempt %d/3 failed", failCount))
 				if failCount == 1 {
-					notify("Health Alert", fmt.Sprintf("Health check failed for %s (%d/3)", top.ID, failCount))
+					showNotification("Health Alert", fmt.Sprintf("Health check failed for %s (%d/3)", top.ID, failCount))
 				}
 				systray.SetIcon(icon.Red)
 			} else {
@@ -1066,7 +1066,7 @@ func onReady() {
 				case 4: mParallel4.Check()
 				case 5: mParallel5.Check()
 				}
-				notify("FreeLLM", fmt.Sprintf("Parallel Fan-out: %d models", n))
+				showNotification("FreeLLM", fmt.Sprintf("Parallel Fan-out: %d models", n))
 
 			case "toggle_routing":
 				routingEnabled = !routingEnabled
@@ -1078,7 +1078,7 @@ func onReady() {
 					modelID := models[0].ID
 					exec.Command("powershell", "-Command",
 						fmt.Sprintf("Set-Clipboard -Value '%s'", modelID)).Run()
-					notify("FreeLLM", fmt.Sprintf("Copied: %s", modelID))
+					showNotification("FreeLLM", fmt.Sprintf("Copied: %s", modelID))
 				}
 
 			// --- Primary Actions ---
@@ -1137,48 +1137,48 @@ func onReady() {
 			// --- Startup ---
 			case "startup_enable":
 				config.SetStartWithWindows(true)
-				notify("FreeLLM", "Start with Windows enabled")
+				showNotification("FreeLLM", "Start with Windows enabled")
 
 			case "startup_disable":
 				config.SetStartWithWindows(false)
-				notify("FreeLLM", "Start with Windows disabled")
+				showNotification("FreeLLM", "Start with Windows disabled")
 
 			// --- Maintenance ---
 			case "maint_clear_skips":
 				db.ClearSkips(database)
-				notify("FreeLLM", "Skip list cleared")
+				showNotification("FreeLLM", "Skip list cleared")
 
 			case "maint_clear_blacklist":
 				db.ClearBlacklist(database)
-				notify("FreeLLM", "Blacklist cleared")
+				showNotification("FreeLLM", "Blacklist cleared")
 
 			case "maint_reset_stats":
 				db.ResetStats(database)
-				notify("FreeLLM", "All provider and model stats reset")
+				showNotification("FreeLLM", "All provider and model stats reset")
 
 			case "maint_cleanup_probes":
 				count, err := db.PruneOldData(database, 90)
 				if err == nil {
-					notify("FreeLLM", fmt.Sprintf("Cleaned up %d old probe records", count))
+					showNotification("FreeLLM", fmt.Sprintf("Cleaned up %d old probe records", count))
 				}
 
 			case "maint_backup_config":
 				data, err := os.ReadFile(cfgPath)
 				if err == nil {
 					os.WriteFile(cfgPath+".bak", data, 0644)
-					notify("FreeLLM", "Config backed up to "+cfgPath+".bak")
+					showNotification("FreeLLM", "Config backed up to "+cfgPath+".bak")
 				}
 
 			case "maint_restore_config":
 				data, err := os.ReadFile(cfgPath + ".bak")
 				if err == nil {
 					os.WriteFile(cfgPath, data, 0644)
-					notify("FreeLLM", "Config restored from backup")
+					showNotification("FreeLLM", "Config restored from backup")
 					if newCfg, err := config.LoadConfig(cfgPath); err == nil {
 						cfg = newCfg
 					}
 				} else {
-					notify("FreeLLM", "No backup config found")
+					showNotification("FreeLLM", "No backup config found")
 				}
 
 			// --- FreeLLM Control ---
@@ -1207,7 +1207,7 @@ func onReady() {
 					log.Printf("Setting %s as primary", modelID)
 					gateway.SetModelPrimary(modelID)
 					db.LogActivity(database, "Set Primary", modelID, "Manually set as primary model")
-					notify("FreeLLM", fmt.Sprintf("Primary set to: %s", modelID))
+					showNotification("FreeLLM", fmt.Sprintf("Primary set to: %s", modelID))
 					updateTrayStatus()
 					rebuildDynamicMenu()
 				}
@@ -1218,7 +1218,7 @@ func onReady() {
 					log.Printf("Setting %s as primary from fallback", modelID)
 					gateway.SetModelPrimary(modelID)
 					db.LogActivity(database, "Set Primary", modelID, "Manually set as primary from fallback")
-					notify("FreeLLM", fmt.Sprintf("Primary set to: %s", modelID))
+					showNotification("FreeLLM", fmt.Sprintf("Primary set to: %s", modelID))
 					updateTrayStatus()
 					rebuildDynamicMenu()
 				}
@@ -1226,26 +1226,26 @@ func onReady() {
 				log.Printf("Setting %s as primary", action.data)
 				gateway.SetModelPrimary(action.data)
 				db.LogActivity(database, "Set Primary", action.data, "Manually set as primary model")
-				notify("FreeLLM", fmt.Sprintf("Primary set to: %s", action.data))
+				showNotification("FreeLLM", fmt.Sprintf("Primary set to: %s", action.data))
 				updateTrayStatus()
 
 			case "model_set_fallback":
 				log.Printf("Setting %s as fallback", action.data)
 				gateway.SetAsFallback(action.data)
 				db.LogActivity(database, "Set Fallback", action.data, "Manually set as fallback model")
-				notify("FreeLLM", fmt.Sprintf("Fallback set to: %s", action.data))
+				showNotification("FreeLLM", fmt.Sprintf("Fallback set to: %s", action.data))
 
 			case "model_demote":
 				log.Printf("Demoting %s to fallback", action.data)
 				gateway.DemoteModel(action.data)
 				db.LogActivity(database, "Demote Model", action.data, "Demoted to fallback group")
-				notify("FreeLLM", fmt.Sprintf("Demoted: %s", action.data))
+				showNotification("FreeLLM", fmt.Sprintf("Demoted: %s", action.data))
 
 			case "model_promote":
 				log.Printf("Promoting %s to primary", action.data)
 				gateway.PromoteModel(action.data)
 				db.LogActivity(database, "Promote Model", action.data, "Promoted to primary group")
-				notify("FreeLLM", fmt.Sprintf("Promoted: %s", action.data))
+				showNotification("FreeLLM", fmt.Sprintf("Promoted: %s", action.data))
 				updateTrayStatus()
 
 			case "model_move_up":
@@ -1260,13 +1260,13 @@ func onReady() {
 				log.Printf("Skipping %s for 24h", action.data)
 				db.SkipModel(database, action.data, 24)
 				db.LogActivity(database, "Skip Model", action.data, "Skipped for 24 hours")
-				notify("FreeLLM", fmt.Sprintf("Skipped (24h): %s", action.data))
+				showNotification("FreeLLM", fmt.Sprintf("Skipped (24h): %s", action.data))
 
 			case "model_blacklist":
 				log.Printf("Blacklisting %s", action.data)
 				db.BlacklistModel(database, action.data)
 				db.LogActivity(database, "Blacklist Model", action.data, "Permanently blacklisted")
-				notify("FreeLLM", fmt.Sprintf("Blacklisted: %s", action.data))
+				showNotification("FreeLLM", fmt.Sprintf("Blacklisted: %s", action.data))
 
 			// --- Provider Toggle ---
 			case "toggle_provider":
