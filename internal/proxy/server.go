@@ -3352,13 +3352,13 @@ func (g *Gateway) transformPlaintextToolCalls(respBody []byte) []byte {
 		}
 	}
 
-	// 3. Longcat <longcat_tool_call> name <longcat_arg_key>k</longcat_arg_key> ... </longcat_tool_call>
-	reLongcat := regexp.MustCompile(`(?s)<longcat_tool_call>\s*(\w+)\s*(.*?)\s*</longcat_tool_call>`)
+	// 3. Longcat <tool_call>=toolname <arg_key>...</arg_key> <arg_value>...</arg_value> ... </tool_call>
+	reLongcat := regexp.MustCompile(`(?s)<tool_call>=(\w+)\s*(.*?)\s*</tool_call>`)
 	matchesLongcat := reLongcat.FindAllStringSubmatch(content, -1)
 	for _, m := range matchesLongcat {
 		name := m[1]
 		args := make(map[string]interface{})
-		reArgs := regexp.MustCompile(`(?s)<longcat_arg_key>(.*?)</longcat_arg_key>\s*<longcat_arg_value>(.*?)</longcat_arg_value>`)
+		reArgs := regexp.MustCompile(`(?s)<arg_key>(.*?)</arg_key>\s*<arg_value>(.*?)</arg_value>`)
 		argMatches := reArgs.FindAllStringSubmatch(m[2], -1)
 		for _, am := range argMatches {
 			args[am[1]] = am[2]
@@ -3372,6 +3372,32 @@ func (g *Gateway) transformPlaintextToolCalls(respBody []byte) []byte {
 				"arguments": string(argsJson),
 			},
 		})
+		// Remove the matched text from the content
+		content = strings.Replace(content, m[0], "", 1)
+	}
+
+	// 3b. Alternate Longcat <function=toolname> <parameter=key>value</parameter> </function>
+	reFunction := regexp.MustCompile(`(?s)<function=([^>]+)>\s*(.*?)\s*</function>`)
+	matchesFunction := reFunction.FindAllStringSubmatch(content, -1)
+	for _, m := range matchesFunction {
+		name := m[1]
+		args := make(map[string]interface{})
+		reArgs := regexp.MustCompile(`(?s)<parameter=([^>]+)>(.*?)</parameter>`)
+		argMatches := reArgs.FindAllStringSubmatch(m[2], -1)
+		for _, am := range argMatches {
+			args[am[1]] = am[2]
+		}
+		argsJson, _ := json.Marshal(args)
+		toolCalls = append(toolCalls, map[string]interface{}{
+			"id":   fmt.Sprintf("call_%d", rand.Intn(1000000)),
+			"type": "function",
+			"function": map[string]interface{}{
+				"name":      name,
+				"arguments": string(argsJson),
+			},
+		})
+		// Remove the matched text from the content
+		content = strings.Replace(content, m[0], "", 1)
 	}
 
 	// 4. Minimax minimax:tool_call <invoke name="name"> <parameter name="p">v</parameter> </invoke> </minimax:tool_call>
@@ -3428,10 +3454,7 @@ func (g *Gateway) transformPlaintextToolCalls(respBody []byte) []byte {
 	if len(toolCalls) > 0 {
 		msg["tool_calls"] = toolCalls
 		choice["finish_reason"] = "tool_calls"
-		// If we transformed tool calls, we often want to strip the content so the client only sees the tool calls
-		// but let's keep it for now as it might contain reasoning. 
-		// Actually, standard OpenAI usually has content = null when tool_calls are present.
-		// msg["content"] = nil 
+		msg["content"] = content // Update content with the tool calls stripped
 	}
 
 	if merged, err := json.Marshal(resp); err == nil {
