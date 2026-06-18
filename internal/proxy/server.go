@@ -765,8 +765,8 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[PROXY] Waiting for job response (stream=%v)...", isStream)
 	var resp *ProxyResponse
 	// Keepalive loop: send periodic pings to prevent client timeouts
-	// Increased to 15s to reduce log noise and bandwidth on high concurrency
-	keepaliveInterval := 15 * time.Second
+	// Reduced to 5s to ensure compatibility with aggressive client-side watchdogs
+	keepaliveInterval := 5 * time.Second
 	keepaliveTicker := time.NewTicker(keepaliveInterval)
 	defer keepaliveTicker.Stop()
 
@@ -807,9 +807,6 @@ WaitLoop:
 				if flusher != nil {
 					flusher.Flush()
 				}
-			} else {
-				// For non-stream, logging once in a while is okay
-				log.Printf("[PROXY] Still waiting for model response (DBID=%d)...", job.DBID)
 			}
 		}
 	}
@@ -1719,7 +1716,7 @@ func (g *Gateway) forwardRequestInternal(ctx context.Context, client *http.Clien
 		if err != nil {
 			return &ProxyResponse{Err: err}
 		}
-		g.transformRequest(req, model.Provider)
+		g.transformRequest(req, model.Provider, stream)
 		log.Printf("[PROXY] Sending request to %s via %s (Stream=%v)", model.ID, model.Provider, stream)
 
 		resp, sendErr = client.Do(req)
@@ -2943,9 +2940,13 @@ func (g *Gateway) getAPIKey(provider string) string {
 	return key
 }
 
-func (g *Gateway) transformRequest(req *http.Request, provider string) {
+func (g *Gateway) transformRequest(req *http.Request, provider string, stream bool) {
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
+	if stream {
+		req.Header.Set("Accept", "text/event-stream")
+	} else {
+		req.Header.Set("Accept", "application/json")
+	}
 	req.Header.Set("User-Agent", "FreeLLM/1.0")
 	apiKey := g.getAPIKey(provider)
 	if apiKey == "" {

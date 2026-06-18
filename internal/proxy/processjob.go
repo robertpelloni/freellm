@@ -192,10 +192,10 @@ func (g *Gateway) processJob(job *RequestJob) {
 				if resp.Status == 200 {
 					g.AdjustModelScore(candidate.ID, candidate.Provider, 2.0)
 				} else if resp.Status == 429 {
-					log.Printf("[ROUTER] Provider %s hit rate limit (429), cooling down.", candidate.Provider)
+					log.Printf("[ROUTER] Provider %s hit rate limit (429), cooling down for 30s.", candidate.Provider)
 					emit(job, "ROUTER", fmt.Sprintf("%s(%s) rate-limited (429), cooling down", candidate.ID, candidate.Provider))
 					g.AdjustModelScore(candidate.ID, candidate.Provider, 0.8)
-					g.applyProviderCooldown(candidate.Provider, 10*time.Second)
+					g.applyProviderCooldown(candidate.Provider, 30*time.Second)
 				} else if resp.Status >= 400 && resp.Status < 500 {
 					log.Printf("[ROUTER] Provider %s returned permanent error (%d), disabling model.", candidate.Provider, resp.Status)
 					emit(job, "ROUTER", fmt.Sprintf("%s(%s) permanent error (%d), disabling", candidate.ID, candidate.Provider, resp.Status))
@@ -265,6 +265,15 @@ func (g *Gateway) processJob(job *RequestJob) {
 			g.onSuccess(job, winner.model, winner.resp, body)
 			return
 		}
+		
+		// Prevent indefinite looping which triggers client-side timeouts.
+		// 30 attempts at ~2s each is ~1 minute of retries.
+		if attempt >= 30 {
+			log.Printf("[ROUTER] Max attempts (%d) reached without success. Giving up.", attempt)
+			job.Response <- &ProxyResponse{Status: 504, Err: fmt.Errorf("gateway timeout: all models failed after %d attempts", attempt)}
+			return
+		}
+
 		time.Sleep(200 * time.Millisecond)
 	}
 }
