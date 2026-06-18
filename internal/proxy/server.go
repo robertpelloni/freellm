@@ -1042,6 +1042,9 @@ func (g *Gateway) streamSSE(w http.ResponseWriter, flusher http.Flusher, body io
 
 	bufReader := bufio.NewReader(body)
 	sentFinishReason := false
+	sentPrefix := false
+
+	prefix := fmt.Sprintf("[Model: %s | Provider: %s]\n\n", modelID, provider)
 
 	for {
 		line, err := bufReader.ReadString('\n')
@@ -1074,7 +1077,6 @@ func (g *Gateway) streamSSE(w http.ResponseWriter, flusher http.Flusher, body io
 			break
 		}
 
-
 		// Parse the JSON chunk to sanitize it
 		var chunk map[string]interface{}
 		if json.Unmarshal([]byte(data), &chunk) != nil {
@@ -1084,7 +1086,6 @@ func (g *Gateway) streamSSE(w http.ResponseWriter, flusher http.Flusher, body io
 			continue
 		}
 
-		// Strip reasoning/reasoning_content from delta messages
 		// Rewrite model field to include provider in every chunk
 		if _, hasModel := chunk["model"]; hasModel {
 			chunk["model"] = modelID + "(" + provider + ")"
@@ -1094,7 +1095,7 @@ func (g *Gateway) streamSSE(w http.ResponseWriter, flusher http.Flusher, body io
 			for _, c := range choices {
 				if choice, ok := c.(map[string]interface{}); ok {
 					if delta, ok := choice["delta"].(map[string]interface{}); ok {
-							// Migrate reasoning_content to content if content is empty
+						// Migrate reasoning_content to content if content is empty
 						if rc, ok := delta["reasoning_content"].(string); ok && rc != "" {
 							if existing, ok := delta["content"].(string); !ok || existing == "" {
 								delta["content"] = rc
@@ -1107,6 +1108,22 @@ func (g *Gateway) streamSSE(w http.ResponseWriter, flusher http.Flusher, body io
 						}
 						delete(delta, "reasoning_content")
 						delete(delta, "reasoning")
+
+						// Inject prefix on the very first text content we stream
+						if !sentPrefix {
+							if content, ok := delta["content"].(string); ok && content != "" {
+								// We only inject if it doesn't look like a tool call
+								lowered := strings.ToLower(content)
+								if !strings.Contains(lowered, "[tool_call]") &&
+									!strings.Contains(lowered, "<tool_call") &&
+									!strings.Contains(lowered, "<function=") &&
+									!strings.Contains(lowered, "```bash") &&
+									!strings.Contains(lowered, "```python") {
+									delta["content"] = prefix + content
+									sentPrefix = true
+								}
+							}
+						}
 					}
 					// Check if this chunk has a finish_reason
 					if fr, ok := choice["finish_reason"]; ok && fr != nil && fr != "null" {
@@ -1931,15 +1948,15 @@ func (g *Gateway) prependModelPrefixNonStream(respBody []byte, model engine.Mode
 	lowered := strings.ToLower(content)
 	if strings.Contains(lowered, "[tool_call]") ||
 		strings.Contains(lowered, "<tool_call") ||
-		strings.Contains(lowered, "<longcat_tool_call") ||
+		strings.Contains(lowered, "<function=") ||
 		strings.Contains(lowered, "```bash") ||
 		strings.Contains(lowered, "```python") {
 		return respBody
 	}
 
-	// Append prefix at the end instead of prepending to be less intrusive
-	suffix := fmt.Sprintf("\n\n[Model: %s | Provider: %s]", model.ID, model.Provider)
-	msg["content"] = content + suffix
+	// Prepend prefix at the start of the message
+	prefix := fmt.Sprintf("[Model: %s | Provider: %s]\n\n", model.ID, model.Provider)
+	msg["content"] = prefix + content
 
 	if merged, err := json.Marshal(resp); err == nil {
 		return merged
@@ -1976,7 +1993,7 @@ func (g *Gateway) hasToolCallMarkers(respBody []byte) bool {
 		lowered := strings.ToLower(content)
 		if strings.Contains(lowered, "[tool_call]") ||
 			strings.Contains(lowered, "<tool_call") ||
-			strings.Contains(lowered, "<longcat_tool_call") ||
+			strings.Contains(lowered, "<function=") ||
 			strings.Contains(lowered, "```bash") ||
 			strings.Contains(lowered, "```python") {
 			return true
