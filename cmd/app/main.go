@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"net"
 	"net/http"
 	"os"
@@ -415,6 +416,7 @@ func loadEnv(path string) {
 }
 
 func main() {
+	rand.Seed(time.Now().UnixNano())
 	loadEnv(".env")
 	// Use a Windows named mutex for single-instance enforcement.
 	// Unlike lockfiles, the mutex is automatically released if the process crashes.
@@ -640,6 +642,7 @@ func onReady() {
 
 	// Load cached rankings from disk for instant startup
 	rankingsCache := engine.NewRankingsCache(".")
+	gateway.RankingsCache = rankingsCache
 	if cached := rankingsCache.Load(true); len(cached) > 0 {
 		gateway.UpdateModels(cached)
 		log.Printf("Cache-loaded %d models (top: %s, age: %v)", len(cached), cached[0].ID, rankingsCache.Age())

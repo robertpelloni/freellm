@@ -62,6 +62,8 @@ type ModelHistory struct {
 	ContextLength        int
 	Parameters           int
 	FirstSeen            time.Time
+	Disabled             bool
+	DisabledReason       string
 }
 
 func InitDB() (*sql.DB, error) {
@@ -112,7 +114,7 @@ func InitDB() (*sql.DB, error) {
             last_checked TIMESTAMP
         )`),
 		createTableQuery(`CREATE TABLE IF NOT EXISTS model_history (
-            model_id TEXT PRIMARY KEY,
+            model_id TEXT,
             provider_name TEXT,
             manually_skipped BOOLEAN DEFAULT FALSE,
             is_blacklisted BOOLEAN DEFAULT FALSE,
@@ -136,7 +138,10 @@ func InitDB() (*sql.DB, error) {
             score_best REAL DEFAULT 0,
             context_length INTEGER DEFAULT 0,
             parameters INTEGER DEFAULT 0,
-            first_seen TIMESTAMP
+            first_seen TIMESTAMP,
+            disabled BOOLEAN DEFAULT FALSE,
+            disabled_reason TEXT,
+            PRIMARY KEY (model_id, provider_name)
         )`),
 		createTableQuery(`CREATE TABLE IF NOT EXISTS probe_history (
             id %s,
@@ -198,6 +203,16 @@ func InitDB() (*sql.DB, error) {
 		if _, err := db.Exec(q); err != nil {
 			return nil, fmt.Errorf("failed to execute query %s: %v", q, err)
 		}
+	}
+
+	// Migration for existing tables: add disabled and disabled_reason if they don't exist
+	if !columnExists(db, "model_history", "disabled") {
+		log.Printf("[DB] Migration: adding 'disabled' column to model_history")
+		_, _ = db.Exec("ALTER TABLE model_history ADD COLUMN disabled BOOLEAN DEFAULT FALSE")
+	}
+	if !columnExists(db, "model_history", "disabled_reason") {
+		log.Printf("[DB] Migration: adding 'disabled_reason' column to model_history")
+		_, _ = db.Exec("ALTER TABLE model_history ADD COLUMN disabled_reason TEXT")
 	}
 
 	// Create indexes
@@ -684,4 +699,44 @@ func GetLastGoodModels(db *sql.DB) ([]struct {
 		})
 	}
 	return results, nil
+}
+
+func DisableModel(db *sql.DB, modelID, provider, reason string) error {
+	log.Printf("[DB] Permanently disabling model %s(%s): %s", modelID, provider, reason)
+	if ActiveDriver == SQLiteDriver {
+		_, err := db.Exec(`
+            INSERT INTO model_history (model_id, provider_name, disabled, disabled_reason)
+            VALUES (?, ?, 1, ?)
+            ON CONFLICT(model_id, provider_name) DO UPDATE SET
+                disabled = 1,
+                disabled_reason = EXCLUDED.disabled_reason`,
+			modelID, provider, reason)
+		return err
+	}
+
+	_, err := db.Exec(`
+        INSERT INTO model_history (model_id, provider_name, disabled, disabled_reason)
+        VALUES ($1, $2, TRUE, $3)
+        ON CONFLICT(model_id, provider_name) DO UPDATE SET
+            disabled = TRUE,
+            disabled_reason = EXCLUDED.disabled_reason`,
+		modelID, provider, reason)
+	return err
+}
+
+func GetDisabledModels(db *sql.DB) (map[string]string, error) {
+	rows, err := db.Query(p("SELECT model_id, provider_name, disabled_reason FROM model_history WHERE disabled = TRUE"))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	disabled := make(map[string]string)
+	for rows.Next() {
+		var id, provider, reason string
+		if err := rows.Scan(&id, &provider, &reason); err == nil {
+			disabled[id+"|"+provider] = reason
+		}
+	}
+	return disabled, nil
 }

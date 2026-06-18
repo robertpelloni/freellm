@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"strings"
 	"time"
 
@@ -86,8 +87,10 @@ func (g *Gateway) processJob(job *RequestJob) {
 			// Skip models already tried in this cycle
 			if tried[m.ID+"|"+m.Provider] { continue }
 			
-			// Cooldown logic: skip providers currently on timeout
-			if until, onCooldown := g.providerCooldown[m.Provider]; onCooldown && time.Now().Before(until) {
+			// Cooldown logic: skip providers currently on timeout, but ONLY if
+			// we are not in emergency mode (minParams == 0). This ensures
+			// we never give up even if every provider is cooling down.
+			if until, onCooldown := g.providerCooldown[m.Provider]; onCooldown && time.Now().Before(until) && g.MinParamsFilter > 0 {
 				continue
 			}
 			
@@ -105,6 +108,11 @@ func (g *Gateway) processJob(job *RequestJob) {
 			tried = make(map[string]bool)
 			continue
 		}
+
+		// Shuffle fresh candidates to avoid picking the same ones every time
+		rand.Shuffle(len(fresh), func(i, j int) {
+			fresh[i], fresh[j] = fresh[j], fresh[i]
+		})
 
 		// ── Fan-out selection with provider diversity ───────────────────
 		fanSize := g.FanOutSize
@@ -182,23 +190,21 @@ func (g *Gateway) processJob(job *RequestJob) {
 
 				// Scoring updates
 				if resp.Status == 200 {
-					candidate.Score *= 2.0
-					if candidate.Score < 1.0 { candidate.Score = 1.0 }
+					g.AdjustModelScore(candidate.ID, candidate.Provider, 2.0)
 				} else if resp.Status == 429 {
 					log.Printf("[ROUTER] Provider %s hit rate limit (429), cooling down.", candidate.Provider)
 					emit(job, "ROUTER", fmt.Sprintf("%s(%s) rate-limited (429), cooling down", candidate.ID, candidate.Provider))
-					candidate.Score *= 0.8
+					g.AdjustModelScore(candidate.ID, candidate.Provider, 0.8)
 					g.applyProviderCooldown(candidate.Provider, 10*time.Second)
 				} else if resp.Status >= 400 && resp.Status < 500 {
 					log.Printf("[ROUTER] Provider %s returned permanent error (%d), disabling model.", candidate.Provider, resp.Status)
 					emit(job, "ROUTER", fmt.Sprintf("%s(%s) permanent error (%d), disabling", candidate.ID, candidate.Provider, resp.Status))
+					g.recordModelFailure(candidate.ID, candidate.Provider, resp.Status, resp.ErrorMessage)
 					candidate.Disabled = true
-					candidate.Score = 0.0
+					g.AdjustModelScore(candidate.ID, candidate.Provider, 0.1) // demote to floor
 				} else {
-					candidate.Score *= 0.5
-					if candidate.Score < 0.1 { candidate.Score = 0.1 }
+					g.AdjustModelScore(candidate.ID, candidate.Provider, 0.5)
 				}
-				if candidate.Disabled { candidate.Score = 0.0 }
 				
 				resCh <- result{model: candidate, resp: resp}
 			}(m)
@@ -207,7 +213,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 		// ── Result Collection ───────────────────────────────────────────
 		var winner *result
 		var bestQuality float64 = -1
-		batchDeadline := time.After(120 * time.Second)
+		batchDeadline := time.After(300 * time.Second)
 		responsesReceived := 0
 		fanActual := len(batch)
 

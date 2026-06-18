@@ -18,3 +18,8 @@
 - Using Go's `http.ReverseProxy` as a base for the gateway logic.
 - Implementing a custom `RoundTripper` to handle retries, fallbacks, and buffering.
 - Go's native compilation provides a single, portable binary for easy deployment.
+
+## External Agent Context
+- **pi-agent / pi-coding-agent:** Refers to the agent framework by Mario Zechner. The FreeLLM proxy is specifically optimized to support this agent's tool-call parsing requirements.
+- **Tool Transformation:** The proxy includes a transformation layer to convert plaintext tool-call formats (longcat, minimax, XML, triple-backticks) into formal OpenAI `tool_calls` for these agents.
+- **Terminology:** "pi-agnet" or "pi-mono" are common user typos or shorthand for this agent framework.
