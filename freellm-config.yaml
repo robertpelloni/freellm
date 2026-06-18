@@ -22,9 +22,9 @@ proxy_settings:
   fan_out_size: 3
   allowed_fails: 3
   cooldown_time: 30
-  enable_rtk: true
+  enable_rtk: false
   enable_headroom: true
-  enable_llmlingua: true
+  enable_llmlingua: false
   enable_tokdiet: true
   fallbacks:
     - free-llm: ["free-llm-fallback"]
