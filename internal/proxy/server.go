@@ -12,6 +12,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -89,6 +90,11 @@ type Gateway struct {
 	Compression config.CompressionSettings
 
 	RouterLogger *log.Logger
+
+	persistentDisables map[string]string // modelID+provider -> reason
+	persistMu          sync.RWMutex
+
+	RankingsCache *engine.RankingsCache
 }
 
 // A2ARouter is the interface for A2A protocol route handling.
@@ -142,6 +148,7 @@ type ProxyResponse struct {
 	Body []byte
 	Header http.Header
 	Err error
+	ErrorMessage string
 	Stream io.ReadCloser
 	ModelID string
 	Provider string
@@ -174,6 +181,9 @@ func writeSSEError(w http.ResponseWriter, message string, modelID string) {
 		},
 	})
 	fmt.Fprintf(w, "data: %s\n\n", string(errTextChunk))
+	if ok {
+		flusher.Flush()
+	}
 
 	// Then send the formal error object as a chunk
 	errObjChunk, _ := json.Marshal(map[string]interface{}{
@@ -184,6 +194,9 @@ func writeSSEError(w http.ResponseWriter, message string, modelID string) {
 		},
 	})
 	fmt.Fprintf(w, "data: %s\n\n", string(errObjChunk))
+	if ok {
+		flusher.Flush()
+	}
 
 	// Finally send the finish reason and DONE sentinel
 	stopChunk, _ := json.Marshal(map[string]interface{}{
@@ -244,7 +257,7 @@ func NewGateway(maxActive int, database *sql.DB, port int) *Gateway {
 		PrimaryCount: 10,
 		Cache: make(map[string]cacheEntry),
 		providerCooldown: make(map[string]time.Time),
-		Client: tokdiet.NewClient(60 * time.Second),
+		Client: tokdiet.NewClient(900 * time.Second),
 		preflightCache: make(map[string]preflightEntry),
 		Sessions:   NewSessionTracker(),
 		activeSem: make(chan struct{}, maxActive),
@@ -259,11 +272,11 @@ func NewGateway(maxActive int, database *sql.DB, port int) *Gateway {
 		modelDisabledUntil:   make(map[string]time.Time),
 		providerFailureCount: make(map[string]int),
 
-		// Default Compression Settings (All ON by default)
+		// Default Compression Settings (Selective)
 		Compression: config.CompressionSettings{
-			EnableRTK:       true,
+			EnableRTK:       false,
 			EnableHeadroom:  true,
-			EnableLLMLingua: true,
+			EnableLLMLingua: false,
 			EnableTokdiet:   true,
 		},
 
@@ -276,6 +289,15 @@ func NewGateway(maxActive int, database *sql.DB, port int) *Gateway {
 		ReasoningWatchdogTimeout: 240 * time.Second,
 		LockDuration:             60 * time.Second,
 		SmartSwitchDelay:         30 * time.Second,
+
+		persistentDisables: make(map[string]string),
+	}
+
+	if database != nil {
+		if disabled, err := db.GetDisabledModels(database); err == nil {
+			g.persistentDisables = disabled
+			log.Printf("[DB] Loaded %d permanently disabled models", len(disabled))
+		}
 	}
 
 	os.MkdirAll("logs", 0755)
@@ -364,11 +386,25 @@ func isModelFatalStatus(status int) bool {
 // recordModelFailure increments the consecutive-failure counter for a model.
 // When the counter crosses modelFailureThreshold, the model is disabled for
 // modelDisableDuration and the function returns true.
-func (g *Gateway) recordModelFailure(modelID, provider string, status int) bool {
+func (g *Gateway) recordModelFailure(modelID, provider string, status int, reason string) bool {
 	if !isModelFatalStatus(status) {
 		return false
 	}
 	key := modelID + "|" + provider
+
+	// Permanently disable on auth/payment errors (401, 402, 403) or 404
+	if status == 401 || status == 402 || status == 403 || status == 404 {
+		g.persistMu.Lock()
+		g.persistentDisables[key] = reason
+		g.persistMu.Unlock()
+		if g.DB != nil {
+			_ = db.DisableModel(g.DB, modelID, provider, reason)
+		}
+		log.Printf("[CB] Model %s(%s) permanently disabled: %s (status %d)",
+			modelID, provider, reason, status)
+		return true
+	}
+
 	g.modelFailureMu.Lock()
 	defer g.modelFailureMu.Unlock()
 	g.modelFailureCount[key]++
@@ -397,11 +433,22 @@ func (g *Gateway) recordModelSuccess(modelID, provider string) {
 	}
 }
 
+func (g *Gateway) persistRankings() {
+	g.mu.RLock()
+	models := make(engine.RankedModels, len(g.RankedModels))
+	copy(models, g.RankedModels)
+	cache := g.RankingsCache
+	g.mu.RUnlock()
+
+	if cache != nil {
+		_ = cache.Save(models)
+	}
+}
+
 // AdjustModelScore updates the score of a model in the global list.
 // multiplier > 1.0 promotes, < 1.0 demotes.
 func (g *Gateway) AdjustModelScore(modelID, provider string, multiplier float64) {
 	g.mu.Lock()
-	defer g.mu.Unlock()
 	for i := range g.RankedModels {
 		if g.RankedModels[i].ID == modelID && g.RankedModels[i].Provider == provider {
 			g.RankedModels[i].Score *= multiplier
@@ -417,11 +464,21 @@ func (g *Gateway) AdjustModelScore(modelID, provider string, multiplier float64)
 			break
 		}
 	}
+	g.mu.Unlock()
+	g.persistRankings()
 }
 
 // isModelDisabled returns true if the model is currently circuit-broken.
 func (g *Gateway) isModelDisabled(modelID, provider string) bool {
 	key := modelID + "|" + provider
+
+	g.persistMu.RLock()
+	if _, ok := g.persistentDisables[key]; ok {
+		g.persistMu.RUnlock()
+		return true
+	}
+	g.persistMu.RUnlock()
+
 	g.modelFailureMu.RLock()
 	defer g.modelFailureMu.RUnlock()
 	until, ok := g.modelDisabledUntil[key]
@@ -708,10 +765,8 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[PROXY] Waiting for job response (stream=%v)...", isStream)
 	var resp *ProxyResponse
 	// Keepalive loop: send periodic pings to prevent client timeouts
-	keepaliveInterval := 5 * time.Second
-	if isStream {
-		keepaliveInterval = 5 * time.Second
-	}
+	// Increased to 15s to reduce log noise and bandwidth on high concurrency
+	keepaliveInterval := 15 * time.Second
 	keepaliveTicker := time.NewTicker(keepaliveInterval)
 	defer keepaliveTicker.Stop()
 
@@ -747,13 +802,14 @@ WaitLoop:
 		case <-keepaliveTicker.C:
 			if isStream {
 				// SSE headers already sent, just send keepalive comment
+				// No logging here to prevent flooding the logs on high concurrency
 				fmt.Fprintf(w, ": keepalive\n\n")
 				if flusher != nil {
 					flusher.Flush()
 				}
-				log.Printf("[PROXY] Sent SSE keepalive ping")
 			} else {
-				log.Printf("[PROXY] Still waiting for model response...")
+				// For non-stream, logging once in a while is okay
+				log.Printf("[PROXY] Still waiting for model response (DBID=%d)...", job.DBID)
 			}
 		}
 	}
@@ -796,6 +852,9 @@ WaitLoop:
 		// If the response is not a stream but the client expects a stream (e.g. error or fallback/mock),
 		// we must format it as SSE events.
 		flusher, ok := w.(http.Flusher)
+
+		// Transform plaintext tool calls into formal ones if needed
+		resp.Body = g.transformPlaintextToolCalls(resp.Body)
 
 		var bodyMap map[string]interface{}
 		isErrorBody := resp.Status >= 400
@@ -867,19 +926,19 @@ WaitLoop:
 		} else {
 			// It's a successful non-streaming response. Let's translate it into SSE chunks.
 			id := fmt.Sprintf("chatcmpl-%d", time.Now().UnixNano())
-			if customID, ok := bodyMap["id"].(string); ok && customID != "" {
-				id = customID
-			}
 			
 			content := ""
 			finishReason := "stop"
-			if choices, ok := bodyMap["choices"].([]interface{}); ok && len(choices) > 0 {
-				if choice, ok := choices[0].(map[string]interface{}); ok {
-					if msg, ok := choice["message"].(map[string]interface{}); ok {
-						content, _ = msg["content"].(string)
-					}
-					if fr, ok := choice["finish_reason"].(string); ok && fr != "" {
-						finishReason = fr
+			var bodyMap map[string]interface{}
+			if json.Unmarshal(resp.Body, &bodyMap) == nil {
+				if choices, ok := bodyMap["choices"].([]interface{}); ok && len(choices) > 0 {
+					if choice, ok := choices[0].(map[string]interface{}); ok {
+						if msg, ok := choice["message"].(map[string]interface{}); ok {
+							content, _ = msg["content"].(string)
+						}
+						if fr, ok := choice["finish_reason"].(string); ok && fr != "" {
+							finishReason = fr
+						}
 					}
 				}
 			}
@@ -925,19 +984,14 @@ WaitLoop:
 			}
 			if cleaned, err := json.Marshal(stopChunk); err == nil {
 				fmt.Fprintf(w, "data: %s\n\n", string(cleaned))
+				if ok {
+					flusher.Flush()
+				}
 			}
 			fmt.Fprintf(w, "data: [DONE]\n\n")
-			if ok {
-				flusher.Flush()
-			}
 		}
 	} else {
-		// Non-streaming response. If notable router events were collected
-		// during the fan-out wait, prepend them to the assistant message
-		// content (streaming clients already saw them live as chunks).
-		if len(routerEvents) > 0 {
-			resp.Body = prependRouterTrailNonStream(resp.Body, routerEvents)
-		}
+		// Non-streaming response.
 		// Rewrite model field to include provider for client visibility
 		var respMap map[string]interface{}
 		if json.Unmarshal(resp.Body, &respMap) == nil {
@@ -1286,7 +1340,12 @@ func (g *Gateway) filterCandidatesWithOverride(all engine.RankedModels, minParam
 	g.cleanupExpiredModelBlocks()
 
 	skipProvider := map[string]bool{"ollama": true, "lm_studio": true}
-	valid := make([]engine.ModelCandidate, 0, len(all))
+	
+	// Create a local copy of models to apply score floor without affecting global state
+	localModels := make(engine.RankedModels, len(all))
+	copy(localModels, all)
+	
+	valid := make([]engine.ModelCandidate, 0, len(localModels))
 	skipped := 0
 	// Check provider cooldowns
 	g.cooldownMu.Lock()
@@ -1301,16 +1360,21 @@ func (g *Gateway) filterCandidatesWithOverride(all engine.RankedModels, minParam
 	}
 	g.cooldownMu.Unlock()
 
-	// Apply score floor: models with large parameters should never have negative scores
+	// Apply score floor to our local copy: models with large parameters should never have negative scores
 	// This prevents benchmark failures (429/timeout) from permanently sinking good models
-	for i := range all {
-		if all[i].Score < 0 && all[i].Parameters > 0 {
-			minScore := (float64(min(all[i].Parameters, 405)) / 100.0) * 0.2
-			all[i].Score = minScore
+	for i := range localModels {
+		if localModels[i].Score < 0 && localModels[i].Parameters > 0 {
+			minScore := (float64(min(localModels[i].Parameters, 405)) / 100.0) * 0.2
+			localModels[i].Score = minScore
 		}
 	}
 
-	for _, m := range all {
+	var blocked map[string]bool
+	if g.DB != nil {
+		blocked, _ = db.GetCircuitBreakerList(g.DB)
+	}
+
+	for _, m := range localModels {
 		// Dead model filter
 		if engine.IsDeadModel(m.ID) {
 			skipped++
@@ -1378,8 +1442,7 @@ func (g *Gateway) filterCandidatesWithOverride(all engine.RankedModels, minParam
 			skipped++
 			continue
 		}
-		if g.DB != nil {
-			blocked, _ := db.GetCircuitBreakerList(g.DB)
+		if g.DB != nil && blocked != nil {
 			if blocked[m.ID] || blocked[m.Provider+"/"+m.ID] {
 				skipped++
 				continue
@@ -1388,7 +1451,7 @@ func (g *Gateway) filterCandidatesWithOverride(all engine.RankedModels, minParam
 		valid = append(valid, m)
 	}
 	nvidiaCount := 0
-	for _, m := range all {
+	for _, m := range localModels {
 		if m.Provider == "nvidia" || m.Provider == "nvidia_nim" {
 			nvidiaCount++
 		}
@@ -1802,22 +1865,43 @@ func (g *Gateway) forwardRequestInternal(ctx context.Context, client *http.Clien
 	}
 
 	if !stream && resp.StatusCode == 200 && !isContinuation {
-		// Prepend initial model prefix (prependModelPrefixNonStream will check if response has tool calls)
-		respBody = g.prependModelPrefixNonStream(respBody, model)
-
 		if g.isResponseTruncated(respBody) {
 			log.Printf("[AUTO-CONTINUE] Non-stream response truncated, starting auto-continuation...")
 			respBody = g.autoContinueNonStream(client, r, model, body, respBody, alternatives)
+		}
+
+		// Transform plaintext tool calls into formal ones if needed
+		respBody = g.transformPlaintextToolCalls(respBody)
+
+		// Only add model prefix if it's NOT a tool call (to avoid breaking client-side tool parsers)
+		if !g.hasToolCallMarkers(respBody) {
+			respBody = g.prependModelPrefixNonStream(respBody, model)
 		}
 	}
 
 	var payload_final map[string]interface{}
 	json.Unmarshal(body, &payload_final)
 
+	errMsg := ""
+	if resp.StatusCode >= 400 {
+		errMsg = "Unknown error"
+		var errDetail map[string]interface{}
+		if json.Unmarshal(respBody, &errDetail) == nil {
+			if errSub, ok := errDetail["error"].(map[string]interface{}); ok {
+				if msg, ok := errSub["message"].(string); ok {
+					errMsg = msg
+				}
+			} else if msg, ok := errDetail["message"].(string); ok {
+				errMsg = msg
+			}
+		}
+	}
+
 	return &ProxyResponse{
 		Status:          resp.StatusCode,
 		Body:            respBody,
 		Header:          resp.Header,
+		ErrorMessage:    errMsg,
 		ModelID:         model.ID,
 		Provider:        model.Provider,
 		OriginalPayload: payload_final,
@@ -1825,7 +1909,7 @@ func (g *Gateway) forwardRequestInternal(ctx context.Context, client *http.Clien
 	}
 }
 
-// prependModelPrefixNonStream prepends [Model: id | Provider: provider] to the assistant message
+// prependModelPrefixNonStream appends [Model: id | Provider: provider] to the assistant message
 func (g *Gateway) prependModelPrefixNonStream(respBody []byte, model engine.ModelCandidate) []byte {
 	var resp map[string]interface{}
 	if err := json.Unmarshal(respBody, &resp); err != nil {
@@ -1844,15 +1928,64 @@ func (g *Gateway) prependModelPrefixNonStream(respBody []byte, model engine.Mode
 		return respBody
 	}
 
-	// Inject prefix (always, as requested)
 	content, _ := msg["content"].(string)
-	prefix := fmt.Sprintf("[Model: %s | Provider: %s]\n\n", model.ID, model.Provider)
-	msg["content"] = prefix + content
+	
+	// Skip if it looks like a tool call to avoid breaking parsers
+	lowered := strings.ToLower(content)
+	if strings.Contains(lowered, "[tool_call]") ||
+		strings.Contains(lowered, "<tool_call") ||
+		strings.Contains(lowered, "<longcat_tool_call") ||
+		strings.Contains(lowered, "```bash") ||
+		strings.Contains(lowered, "```python") {
+		return respBody
+	}
+
+	// Append prefix at the end instead of prepending to be less intrusive
+	suffix := fmt.Sprintf("\n\n[Model: %s | Provider: %s]", model.ID, model.Provider)
+	msg["content"] = content + suffix
 
 	if merged, err := json.Marshal(resp); err == nil {
 		return merged
 	}
 	return respBody
+}
+
+// hasToolCallMarkers checks if the assistant message contains plaintext tool call tags
+func (g *Gateway) hasToolCallMarkers(respBody []byte) bool {
+	var resp map[string]interface{}
+	if err := json.Unmarshal(respBody, &resp); err != nil {
+		return false
+	}
+	choices, ok := resp["choices"].([]interface{})
+	if !ok || len(choices) == 0 {
+		return false
+	}
+	choice, ok := choices[0].(map[string]interface{})
+	if !ok {
+		return false
+	}
+	msg, ok := choice["message"].(map[string]interface{})
+	if !ok {
+		return false
+	}
+
+	// Formal tool calls
+	if _, hasToolCalls := msg["tool_calls"]; hasToolCalls {
+		return true
+	}
+
+	// Plaintext tool calls
+	if content, ok := msg["content"].(string); ok {
+		lowered := strings.ToLower(content)
+		if strings.Contains(lowered, "[tool_call]") ||
+			strings.Contains(lowered, "<tool_call") ||
+			strings.Contains(lowered, "<longcat_tool_call") ||
+			strings.Contains(lowered, "```bash") ||
+			strings.Contains(lowered, "```python") {
+			return true
+		}
+	}
+	return false
 }
 
 // isResponseTruncated checks if a response was cut off (no proper completion)
@@ -1873,7 +2006,28 @@ func (g *Gateway) isResponseTruncated(respBody []byte) bool {
 	// Check if this is a tool call response
 	if msg, ok := choice["message"].(map[string]interface{}); ok {
 		if _, hasToolCalls := msg["tool_calls"]; hasToolCalls {
-			return false // Don't auto-continue tool calls
+			return false // Don't auto-continue formal tool calls
+		}
+		if content, ok := msg["content"].(string); ok {
+			lowered := strings.ToLower(content)
+			// If it contains a tool call tag but NO closure, it's definitely truncated
+			hasStart := strings.Contains(lowered, "[tool_call]") ||
+				strings.Contains(lowered, "<tool_call") ||
+				strings.Contains(lowered, "<longcat_tool_call") ||
+				strings.Contains(lowered, "```bash") ||
+				strings.Contains(lowered, "```python")
+
+			hasEnd := strings.Contains(lowered, "[/tool_call]") ||
+				strings.Contains(lowered, "</tool_call>") ||
+				strings.Contains(lowered, "</longcat_tool_call>") ||
+				(strings.Contains(lowered, "```") && strings.HasSuffix(strings.TrimSpace(lowered), "```"))
+
+			if hasStart && !hasEnd {
+				return true // Truncated mid-tool-call
+			}
+			if hasEnd {
+				return false // Completed tool call
+			}
 		}
 	}
 
@@ -2226,13 +2380,6 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 
 	// Read lines from the current stream until we can fill the buffer or hit EOF
 	for s.buffer.Len() == 0 {
-		// Mandatory prefix injection if not yet sent (as requested by user)
-		if !s.prefixSent && !s.isToolCall {
-			s.injectTextChunk(fmt.Sprintf("[Model: %s | Provider: %s]\n\n", s.model.ID, s.model.Provider))
-			s.prefixSent = true
-			return s.buffer.Read(p)
-		}
-
 		var line string
 		var err error
 		
@@ -2543,9 +2690,26 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 
 			s.eofReached = true
 			s.err = err
-			if err == io.EOF && !s.isToolCall {
+			if err == io.EOF {
+				if !s.isToolCall {
+					// Check full text one last time for tool call markers
+					fullText := s.accumulatedText.String()
+					lowered := strings.ToLower(fullText)
+					isTool := strings.Contains(lowered, "[tool_call]") ||
+						strings.Contains(lowered, "<tool_call") ||
+						strings.Contains(lowered, "<longcat_tool_call") ||
+						strings.Contains(lowered, "```bash") ||
+						strings.Contains(lowered, "```python")
+
+					if !isTool {
+						// Append prefix at the end of the stream
+						s.injectTextChunk(fmt.Sprintf("\n\n[Model: %s | Provider: %s]", s.model.ID, s.model.Provider))
+					}
+				}
 				s.g.MarkProven(s.model.ID, s.model.Provider)
-				if s.g.ShuffleEnabled { s.g.SetModelPrimary(s.model.ID) }
+				if s.g.ShuffleEnabled {
+					s.g.SetModelPrimary(s.model.ID)
+				}
 			}
 			if !s.finishReasonSent {
 				s.injectFinishReasonChunk("stop")
@@ -2898,24 +3062,26 @@ func writeJSONError(w http.ResponseWriter, status int, message, code, param stri
 // SetModelPrimary moves a model to position 0 (top of rankings)
 func (g *Gateway) SetModelPrimary(modelID string) {
 	g.mu.Lock()
-	defer g.mu.Unlock()
 	for i, m := range g.RankedModels {
 		if m.ID == modelID {
 			if i == 0 {
+				g.mu.Unlock()
 				return
 			}
 			model := g.RankedModels[i]
 			copy(g.RankedModels[1:i+1], g.RankedModels[0:i])
 			g.RankedModels[0] = model
+			g.mu.Unlock()
+			g.persistRankings()
 			return
 			}
 		}
+	g.mu.Unlock()
 }
 
 // PromoteModel moves a model from fallback into the primary group
 func (g *Gateway) PromoteModel(modelID string) {
 	g.mu.Lock()
-	defer g.mu.Unlock()
 	idx := -1
 	for i, m := range g.RankedModels {
 		if m.ID == modelID {
@@ -2924,17 +3090,19 @@ func (g *Gateway) PromoteModel(modelID string) {
 		}
 	}
 	if idx < 0 || idx < g.PrimaryCount {
+		g.mu.Unlock()
 		return // already primary or not found
 	}
 	// Swap with the last primary model
 	lastPrimary := g.PrimaryCount - 1
 	g.RankedModels[idx], g.RankedModels[lastPrimary] = g.RankedModels[lastPrimary], g.RankedModels[idx]
+	g.mu.Unlock()
+	g.persistRankings()
 }
 
 // DemoteModel moves a model to the end of the rankings
 func (g *Gateway) DemoteModel(modelID string) {
 	g.mu.Lock()
-	defer g.mu.Unlock()
 	idx := -1
 	for i, m := range g.RankedModels {
 		if m.ID == modelID {
@@ -2943,6 +3111,7 @@ func (g *Gateway) DemoteModel(modelID string) {
 		}
 	}
 	if idx < 0 {
+		g.mu.Unlock()
 		return
 	}
 	model := g.RankedModels[idx]
@@ -2950,13 +3119,14 @@ func (g *Gateway) DemoteModel(modelID string) {
 	g.RankedModels = append(g.RankedModels[:idx], g.RankedModels[idx+1:]...)
 	// Append to end
 	g.RankedModels = append(g.RankedModels, model)
+	g.mu.Unlock()
 	log.Printf("[ROUTER] Demoted model %s to end of rankings", modelID)
+	g.persistRankings()
 }
 
 // SetAsFallback moves a model to the first position in the fallback group (position = PrimaryCount)
 func (g *Gateway) SetAsFallback(modelID string) {
 	g.mu.Lock()
-	defer g.mu.Unlock()
 	idx := -1
 	for i, m := range g.RankedModels {
 		if m.ID == modelID {
@@ -2965,6 +3135,7 @@ func (g *Gateway) SetAsFallback(modelID string) {
 		}
 	}
 	if idx < 0 {
+		g.mu.Unlock()
 		return // not found
 	}
 	target := g.PrimaryCount
@@ -2972,6 +3143,7 @@ func (g *Gateway) SetAsFallback(modelID string) {
 		target = len(g.RankedModels) - 1
 	}
 	if idx == target {
+		g.mu.Unlock()
 		return // already at target position
 	}
 	model := g.RankedModels[idx]
@@ -2984,30 +3156,36 @@ func (g *Gateway) SetAsFallback(modelID string) {
 		copy(g.RankedModels[target+1:idx+1], g.RankedModels[target:idx])
 	}
 	g.RankedModels[target] = model
+	g.mu.Unlock()
+	g.persistRankings()
 }
 
 // MoveModelUp moves a model one position higher in the rankings
 func (g *Gateway) MoveModelUp(modelID string) {
 	g.mu.Lock()
-	defer g.mu.Unlock()
 	for i, m := range g.RankedModels {
 		if m.ID == modelID && i > 0 {
 			g.RankedModels[i], g.RankedModels[i-1] = g.RankedModels[i-1], g.RankedModels[i]
+			g.mu.Unlock()
+			g.persistRankings()
 			return
 		}
 	}
+	g.mu.Unlock()
 }
 
 // MoveModelDown moves a model one position lower in the rankings
 func (g *Gateway) MoveModelDown(modelID string) {
 	g.mu.Lock()
-	defer g.mu.Unlock()
 	for i, m := range g.RankedModels {
 		if m.ID == modelID && i < len(g.RankedModels)-1 {
 			g.RankedModels[i], g.RankedModels[i+1] = g.RankedModels[i+1], g.RankedModels[i]
+			g.mu.Unlock()
+			g.persistRankings()
 			return
 		}
 	}
+	g.mu.Unlock()
 }
 
 
@@ -3073,4 +3251,190 @@ func (g *Gateway) RouteMessage(ctx context.Context, message string, model string
 	}
 
 	return content, nil
+}
+
+// transformPlaintextToolCalls parses common plaintext tool call patterns and converts them
+// into formal OpenAI tool_calls objects if found in the assistant message content.
+func (g *Gateway) transformPlaintextToolCalls(respBody []byte) []byte {
+	var resp map[string]interface{}
+	if err := json.Unmarshal(respBody, &resp); err != nil {
+		return respBody
+	}
+	choices, ok := resp["choices"].([]interface{})
+	if !ok || len(choices) == 0 {
+		return respBody
+	}
+	choice, ok := choices[0].(map[string]interface{})
+	if !ok {
+		return respBody
+	}
+	msg, ok := choice["message"].(map[string]interface{})
+	if !ok {
+		return respBody
+	}
+
+	content, ok := msg["content"].(string)
+	if !ok || content == "" {
+		return respBody
+	}
+
+	var toolCalls []interface{}
+
+	// 1. Standard [TOOL_CALL] ... [/TOOL_CALL]
+	reStd := regexp.MustCompile(`(?s)\[TOOL_CALL\]\s*(.*?)\s*\[/TOOL_CALL\]`)
+	matchesStd := reStd.FindAllStringSubmatch(content, -1)
+	for _, m := range matchesStd {
+		inner := m[1]
+		// Try JSON first
+		var tool struct {
+			Tool string                 `json:"tool"`
+			Args map[string]interface{} `json:"args"`
+		}
+		if err := json.Unmarshal([]byte(inner), &tool); err == nil {
+			argsJson, _ := json.Marshal(tool.Args)
+			toolCalls = append(toolCalls, map[string]interface{}{
+				"id":   fmt.Sprintf("call_%d", rand.Intn(1000000)),
+				"type": "function",
+				"function": map[string]interface{}{
+					"name":      tool.Tool,
+					"arguments": string(argsJson),
+				},
+			})
+		} else {
+			// Try pseudo-code format: {tool => "name", args => { --k "v" }}
+			reName := regexp.MustCompile(`tool\s*=>\s*"(.*?)"`)
+			nameMatch := reName.FindStringSubmatch(inner)
+			if nameMatch != nil {
+				name := nameMatch[1]
+				args := make(map[string]interface{})
+				reArgsBlock := regexp.MustCompile(`(?s)args\s*=>\s*\{(.*?)\}`)
+				argsBlockMatch := reArgsBlock.FindStringSubmatch(inner)
+				if argsBlockMatch != nil {
+					// Parse --key "value"
+					reKV := regexp.MustCompile(`--([\w-]+)\s+"(.*?)"`)
+					kvMatches := reKV.FindAllStringSubmatch(argsBlockMatch[1], -1)
+					for _, kv := range kvMatches {
+						args[kv[1]] = kv[2]
+					}
+				}
+				argsJson, _ := json.Marshal(args)
+				toolCalls = append(toolCalls, map[string]interface{}{
+					"id":   fmt.Sprintf("call_%d", rand.Intn(1000000)),
+					"type": "function",
+					"function": map[string]interface{}{
+						"name":      name,
+						"arguments": string(argsJson),
+					},
+				})
+			}
+		}
+	}
+
+	// 2. XML <tool_call> { ... } </tool_call>
+	reXml := regexp.MustCompile(`(?s)<tool_call>\s*(.*?)\s*</tool_call>`)
+	matchesXml := reXml.FindAllStringSubmatch(content, -1)
+	for _, m := range matchesXml {
+		var tool struct {
+			Name      string                 `json:"name"`
+			Arguments map[string]interface{} `json:"arguments"`
+		}
+		if err := json.Unmarshal([]byte(m[1]), &tool); err == nil {
+			argsJson, _ := json.Marshal(tool.Arguments)
+			toolCalls = append(toolCalls, map[string]interface{}{
+				"id":   fmt.Sprintf("call_%d", rand.Intn(1000000)),
+				"type": "function",
+				"function": map[string]interface{}{
+					"name":      tool.Name,
+					"arguments": string(argsJson),
+				},
+			})
+		}
+	}
+
+	// 3. Longcat <longcat_tool_call> name <longcat_arg_key>k</longcat_arg_key> ... </longcat_tool_call>
+	reLongcat := regexp.MustCompile(`(?s)<longcat_tool_call>\s*(\w+)\s*(.*?)\s*</longcat_tool_call>`)
+	matchesLongcat := reLongcat.FindAllStringSubmatch(content, -1)
+	for _, m := range matchesLongcat {
+		name := m[1]
+		args := make(map[string]interface{})
+		reArgs := regexp.MustCompile(`(?s)<longcat_arg_key>(.*?)</longcat_arg_key>\s*<longcat_arg_value>(.*?)</longcat_arg_value>`)
+		argMatches := reArgs.FindAllStringSubmatch(m[2], -1)
+		for _, am := range argMatches {
+			args[am[1]] = am[2]
+		}
+		argsJson, _ := json.Marshal(args)
+		toolCalls = append(toolCalls, map[string]interface{}{
+			"id":   fmt.Sprintf("call_%d", rand.Intn(1000000)),
+			"type": "function",
+			"function": map[string]interface{}{
+				"name":      name,
+				"arguments": string(argsJson),
+			},
+		})
+	}
+
+	// 4. Minimax minimax:tool_call <invoke name="name"> <parameter name="p">v</parameter> </invoke> </minimax:tool_call>
+	// Handle both minimax:tool_call and <minimax:tool_call> variants
+	reMinimax := regexp.MustCompile(`(?s)(?:<)?minimax:tool_call(?:>)?\s*(.*?)\s*(?:</)?minimax:tool_call(?:>)?`)
+	matchesMinimax := reMinimax.FindAllStringSubmatch(content, -1)
+	for _, m := range matchesMinimax {
+		reInvoke := regexp.MustCompile(`(?s)<invoke\s+name="(.*?)">(.*?)</invoke>`)
+		invokeMatches := reInvoke.FindAllStringSubmatch(m[1], -1)
+		for _, im := range invokeMatches {
+			name := im[1]
+			args := make(map[string]interface{})
+			reParam := regexp.MustCompile(`(?s)<parameter\s+name="(.*?)">(.*?)</parameter>`)
+			paramMatches := reParam.FindAllStringSubmatch(im[2], -1)
+			for _, pm := range paramMatches {
+				args[pm[1]] = pm[2]
+			}
+			argsJson, _ := json.Marshal(args)
+			toolCalls = append(toolCalls, map[string]interface{}{
+				"id":   fmt.Sprintf("call_%d", rand.Intn(1000000)),
+				"type": "function",
+				"function": map[string]interface{}{
+					"name":      name,
+					"arguments": string(argsJson),
+				},
+			})
+		}
+	}
+
+	// 5. Triple-backtick bash/python blocks
+	reCode := regexp.MustCompile("(?s)```(bash|python)\n(.*?)\n```")
+	matchesCode := reCode.FindAllStringSubmatch(content, -1)
+	for _, m := range matchesCode {
+		lang := m[1]
+		code := m[2]
+		toolName := "bash"
+		if lang == "python" {
+			toolName = "python"
+		}
+		args := map[string]interface{}{
+			"command": code,
+		}
+		argsJson, _ := json.Marshal(args)
+		toolCalls = append(toolCalls, map[string]interface{}{
+			"id":   fmt.Sprintf("call_%d", rand.Intn(1000000)),
+			"type": "function",
+			"function": map[string]interface{}{
+				"name":      toolName,
+				"arguments": string(argsJson),
+			},
+		})
+	}
+
+	if len(toolCalls) > 0 {
+		msg["tool_calls"] = toolCalls
+		choice["finish_reason"] = "tool_calls"
+		// If we transformed tool calls, we often want to strip the content so the client only sees the tool calls
+		// but let's keep it for now as it might contain reasoning. 
+		// Actually, standard OpenAI usually has content = null when tool_calls are present.
+		// msg["content"] = nil 
+	}
+
+	if merged, err := json.Marshal(resp); err == nil {
+		return merged
+	}
+	return respBody
 }
