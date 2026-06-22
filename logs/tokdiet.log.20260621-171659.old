@@ -1,0 +1,13 @@
+
+  tokdiet is running.
+  ccusage that shrinks the bill — without losing quality.
+
+  Proxy:     http://localhost:7787
+  Dashboard: http://localhost:7878
+
+  Point your agent at the proxy by exporting:
+    export ANTHROPIC_BASE_URL=http://localhost:7787
+    export OPENAI_BASE_URL=http://localhost:7787/v1
+
+  Press Ctrl+C to stop.
+
