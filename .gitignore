@@ -21,3 +21,4 @@ freellm-config-local.yaml
 
 # Environment secrets
 .env
+nul
