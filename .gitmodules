@@ -1,6 +1,3 @@
-[submodule "freellm_repo"]
-path = freellm_repo
-url = https://github.com/robertpelloni/freellm
 [submodule "third_party/tokdiet"]
 	path = third_party/tokdiet
 	url = https://github.com/robertpelloni/tokdiet.git

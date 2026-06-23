@@ -28,3 +28,9 @@
 - [x] Full end-to-end integration testing of the Go implementation logic.
 - [x] Native Windows build tags for platform-specific logic.
 - [ ] Automated CI/CD for single-binary releases.
+
+## Milestone 16: Repository Hygiene & Intelligent Sync
+- [x] Submodules updated to latest tracking commits (headroom, rtk).
+- [x] Stale `freellm_repo` self-referencing submodule removed.
+- [x] `freellm-linux` branch fast-forward synced to `main`.
+- [x] Version bump 4.6.3 → 4.6.4 with changelog entry.
