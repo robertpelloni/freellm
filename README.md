@@ -1,3 +1,5 @@
+# 🚧 UNDER CONSTRUCTION — ALPHA STATE! 🚧
+
 # FreeLLM v2.0.0
 
 A powerful, autonomous Windows system tray utility for intelligent LLM routing, benchmarking, and proxy management.
