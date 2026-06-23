@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.6.4] - 2026-06-22
+### Changed
+- Repository synchronization: submodules updated (headroom, rtk to latest), stale `freellm_repo` submodule removed.
+- Merged `main` into `freellm-linux` branch (fast-forward sync).
+- Cleared stale stashes; dropped `clean-freellm` branch (superseded by main).
+- Purged `freellm_repo` self-referencing submodule.
+
 ## [4.5.0] - 2025-05-22
 ### Added
 - Modular Go architecture replacing the legacy Python implementation.
