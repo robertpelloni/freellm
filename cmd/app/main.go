@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"syscall"
@@ -20,12 +22,19 @@ import (
 )
 
 var (
+	version        = "4.6.4"
 	tokdietCmd     *exec.Cmd
 	tokdietLogFile *os.File
 	tokdietMu      sync.Mutex
 )
 
 func main() {
+	// Check for --version flag
+	if len(os.Args) > 1 && os.Args[1] == "--version" {
+		fmt.Println("freellm v" + version)
+		return
+	}
+
 	log.Println("[FreeLLM] Starting headless server on :4000")
 
 	database, err := db.InitDB()
@@ -161,4 +170,61 @@ func setupBaseURLs(b *engine.Benchmarker) {
 	b.BaseURLs["perplexity_completions"] = "https://api.perplexity.ai/v1/chat/completions"
 }
 
-func tokdietWatchdog(gateway *proxy.Gateway) {}
+func tokdietWatchdog(gateway *proxy.Gateway) {
+	// Periodically check and restart tokdiet if it goes down.
+	const tokdietPort = 7787
+	const tokdietDir = "third_party/tokdiet"
+
+	// Check if tokdiet is installed on this system
+	if _, statErr := os.Stat(tokdietDir); os.IsNotExist(statErr) {
+		return
+	}
+
+	go func() {
+		for {
+			conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", tokdietPort), 2*time.Second)
+			if err == nil {
+				conn.Close()
+				time.Sleep(30 * time.Second)
+				continue
+			}
+
+			log.Printf("[TOKDIET] Port %d not reachable, starting tokdiet...", tokdietPort)
+
+			tokdietMu.Lock()
+			if tokdietCmd != nil && tokdietCmd.Process != nil {
+				tokdietCmd.Process.Kill()
+				tokdietCmd.Wait()
+			}
+
+			logFile, logErr := os.OpenFile("logs/tokdiet.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+			if logErr != nil {
+				log.Printf("[TOKDIET] Cannot open log file: %v", logErr)
+				logFile = nil
+			}
+			tokdietLogFile = logFile
+
+			tokdietCmd = exec.Command("node", filepath.Join(tokdietDir, "dist/cli.js"), "start", "--port", strconv.Itoa(tokdietPort))
+			tokdietCmd.Dir = tokdietDir
+			tokdietCmd.Stdout = tokdietLogFile
+			tokdietCmd.Stderr = tokdietLogFile
+
+			if err := tokdietCmd.Start(); err != nil {
+				log.Printf("[TOKDIET] Failed to start: %v", err)
+				tokdietMu.Unlock()
+				time.Sleep(15 * time.Second)
+				continue
+			}
+			tokdietMu.Unlock()
+
+			log.Printf("[TOKDIET] Started on port %d", tokdietPort)
+
+			go func() {
+				tokdietCmd.Wait()
+				log.Printf("[TOKDIET] Process exited, will restart on next check")
+			}()
+
+			time.Sleep(30 * time.Second)
+		}
+	}()
+}
