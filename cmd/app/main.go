@@ -22,7 +22,7 @@ import (
 )
 
 var (
-	version        = "4.6.4"
+	version        = "4.6.5"
 	tokdietCmd     *exec.Cmd
 	tokdietLogFile *os.File
 	tokdietMu      sync.Mutex
@@ -45,32 +45,32 @@ func main() {
 	eventLogger := engine.NewEventLogger(100, database)
 
 	apiKeys := map[string]string{
-		"openrouter":   os.Getenv("OPENROUTER_API_KEY"),
-		"groq":         os.Getenv("GROQ_API_KEY"),
-		"github":       os.Getenv("GITHUB_TOKEN"),
-		"deepinfra":    os.Getenv("DEEPINFRA_API_KEY"),
-		"cerebras":     os.Getenv("CEREBRAS_API_KEY"),
-		"huggingface":  os.Getenv("HUGGINGFACE_API_KEY"),
-		"nvidia":       os.Getenv("NVIDIA_NIM_API_KEY"),
-		"gemini":       os.Getenv("GEMINI_API_KEY"),
-		"anthropic":    os.Getenv("ANTHROPIC_API_KEY"),
-		"mistral":      os.Getenv("MISTRAL_API_KEY"),
-		"cohere":       os.Getenv("COHERE_API_KEY"),
-		"sambanova":    os.Getenv("SAMBANOVA_API_KEY"),
-		"fireworks":    os.Getenv("FIREWORKS_API_KEY"),
-		"hyperbolic":   os.Getenv("HYPERBOLIC_API_KEY"),
-		"cloudflare":   os.Getenv("CLOUDFLARE_API_KEY"),
-		"codestral":    os.Getenv("CODESTRAL_API_KEY"),
-		"nvidia_nim":   os.Getenv("NVIDIA_API_KEY"),
-		"siliconflow":  os.Getenv("SILICONFLOW_API_KEY"),
-		"together":     os.Getenv("TOGETHER_API_KEY"),
-		"novita":       os.Getenv("NOVITA_API_KEY"),
-		"nebius":       os.Getenv("NEBIUS_API_KEY"),
-		"deepseek":     os.Getenv("DEEPSEEK_API_KEY"),
-		"ai21":         os.Getenv("AI21_API_KEY"),
-		"replicate":    os.Getenv("REPLICATE_API_TOKEN"),
-		"dashscope":    os.Getenv("DASHSCOPE_API_KEY"),
-		"perplexity":   os.Getenv("PERPLEXITY_API_KEY"),
+		"openrouter":  os.Getenv("OPENROUTER_API_KEY"),
+		"groq":        os.Getenv("GROQ_API_KEY"),
+		"github":      os.Getenv("GITHUB_TOKEN"),
+		"deepinfra":   os.Getenv("DEEPINFRA_API_KEY"),
+		"cerebras":    os.Getenv("CEREBRAS_API_KEY"),
+		"huggingface": os.Getenv("HUGGINGFACE_API_KEY"),
+		"nvidia":      os.Getenv("NVIDIA_NIM_API_KEY"),
+		"gemini":      os.Getenv("GEMINI_API_KEY"),
+		"anthropic":   os.Getenv("ANTHROPIC_API_KEY"),
+		"mistral":     os.Getenv("MISTRAL_API_KEY"),
+		"cohere":      os.Getenv("COHERE_API_KEY"),
+		"sambanova":   os.Getenv("SAMBANOVA_API_KEY"),
+		"fireworks":   os.Getenv("FIREWORKS_API_KEY"),
+		"hyperbolic":  os.Getenv("HYPERBOLIC_API_KEY"),
+		"cloudflare":  os.Getenv("CLOUDFLARE_API_KEY"),
+		"codestral":   os.Getenv("CODESTRAL_API_KEY"),
+		"nvidia_nim":  os.Getenv("NVIDIA_API_KEY"),
+		"siliconflow": os.Getenv("SILICONFLOW_API_KEY"),
+		"together":    os.Getenv("TOGETHER_API_KEY"),
+		"novita":      os.Getenv("NOVITA_API_KEY"),
+		"nebius":      os.Getenv("NEBIUS_API_KEY"),
+		"deepseek":    os.Getenv("DEEPSEEK_API_KEY"),
+		"ai21":        os.Getenv("AI21_API_KEY"),
+		"replicate":   os.Getenv("REPLICATE_API_TOKEN"),
+		"dashscope":   os.Getenv("DASHSCOPE_API_KEY"),
+		"perplexity":  os.Getenv("PERPLEXITY_API_KEY"),
 	}
 
 	keyCount := 0
