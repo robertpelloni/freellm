@@ -97,6 +97,9 @@ type Gateway struct {
 	persistMu          sync.RWMutex
 
 	RankingsCache *engine.RankingsCache
+
+	// When false, suppresses [Model: x | Provider: y] prefix injection and router trail output
+	ShowDebugStream bool
 }
 
 // A2ARouter is the interface for A2A protocol route handling.
@@ -281,6 +284,8 @@ func NewGateway(maxActive int, database *sql.DB, port int) *Gateway {
 			EnableLLMLingua: false,
 			EnableTokdiet:   true,
 		},
+
+		ShowDebugStream: false,
 
 		// Default Timeouts
 		RequestTimeout:           900 * time.Second,
@@ -995,7 +1000,10 @@ WaitLoop:
 		var respMap map[string]interface{}
 		if json.Unmarshal(resp.Body, &respMap) == nil {
 			if _, ok := respMap["model"]; ok {
-				respMap["model"] = resp.ModelID + "(" + resp.Provider + ")"
+				respMap["model"] = resp.ModelID
+				if g.ShowDebugStream {
+					respMap["model"] = resp.ModelID + "(" + resp.Provider + ")"
+				}
 				if rewritten, err := json.Marshal(respMap); err == nil {
 					w.Write(rewritten)
 					return
@@ -1088,9 +1096,11 @@ func (g *Gateway) streamSSE(w http.ResponseWriter, flusher http.Flusher, body io
 			continue
 		}
 
-		// Rewrite model field to include provider in every chunk
-		if _, hasModel := chunk["model"]; hasModel {
-			chunk["model"] = modelID + "(" + provider + ")"
+		// Rewrite model field to include provider in every chunk (debug only)
+		if g.ShowDebugStream {
+			if _, hasModel := chunk["model"]; hasModel {
+				chunk["model"] = modelID + "(" + provider + ")"
+			}
 		}
 
 		if choices, ok := chunk["choices"].([]interface{}); ok {
@@ -1111,8 +1121,8 @@ func (g *Gateway) streamSSE(w http.ResponseWriter, flusher http.Flusher, body io
 						delete(delta, "reasoning_content")
 						delete(delta, "reasoning")
 
-						// Inject prefix on the very first text content we stream
-						if !sentPrefix {
+						// Inject prefix on the very first text content we stream (debug only)
+						if g.ShowDebugStream && !sentPrefix {
 							if content, ok := delta["content"].(string); ok && content != "" {
 								// We only inject if it doesn't look like a tool call
 								lowered := strings.ToLower(content)
@@ -1889,8 +1899,8 @@ func (g *Gateway) forwardRequestInternal(ctx context.Context, client *http.Clien
 		// Transform plaintext tool calls into formal ones if needed
 		respBody = g.transformPlaintextToolCalls(respBody)
 
-		// Only add model prefix if it's NOT a tool call (to avoid breaking client-side tool parsers)
-		if !g.hasToolCallMarkers(respBody) {
+		// Only add model prefix if debug is on and it's NOT a tool call
+		if g.ShowDebugStream && !g.hasToolCallMarkers(respBody) {
 			respBody = g.prependModelPrefixNonStream(respBody, model)
 		}
 	}
