@@ -4,8 +4,7 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math/rand"
-	"strings"
+	"sort"
 	"time"
 
 	"github.com/robertpelloni/freellm/internal/engine"
@@ -74,207 +73,131 @@ func (g *Gateway) processJob(job *RequestJob) {
 
 	tried := make(map[string]bool)
 
-	// Retry loop: Use random fan-out for resilient routing
+	g.queueMu.Lock()
+	startIdx := g.queueIndex
+	g.queueIndex = (g.queueIndex + 1) % 1000000
+	g.queueMu.Unlock()
+
+	// Retry loop: sequential round-robin rotating queue
 	for attempt := 1; ; attempt++ {
-
-		// ── Candidate selection ─────────────────────────────────────────
-		// Filter candidates based on params and current availability
+		// ── Candidate selection & sorting ────────────────────────────────
 		candidates := g.filterCandidatesWithOverride(allModels, g.MinParamsFilter)
-		
-		var fresh []engine.ModelCandidate
-		g.cooldownMu.Lock()
-		for _, m := range candidates {
-			// Skip models already tried in this cycle
-			if tried[m.ID+"|"+m.Provider] { continue }
-			
-			// Cooldown logic: skip providers currently on timeout, but ONLY if
-			// we are not in emergency mode (minParams == 0). This ensures
-			// we never give up even if every provider is cooling down.
-			if until, onCooldown := g.providerCooldown[m.Provider]; onCooldown && time.Now().Before(until) && g.MinParamsFilter > 0 {
-				continue
+		if len(candidates) == 0 {
+			log.Printf("[ROUTER] Attempt %d: No candidates available (MinParamsFilter: %d). Waiting...", attempt, g.MinParamsFilter)
+			emit(job, "ROUTER", fmt.Sprintf("attempt %d: no candidates available, waiting", attempt))
+			select {
+			case <-job.Ctx.Done():
+				return
+			case <-time.After(2 * time.Second):
 			}
-			
-			// Basic health check
-			if !g.PreFlightCheck(m) { continue }
-			
-			fresh = append(fresh, m)
-		}
-		g.cooldownMu.Unlock()
-
-		if len(fresh) == 0 {
-			log.Printf("[ROUTER] Attempt %d: No fresh candidates available. Waiting...", attempt)
-			emit(job, "ROUTER", fmt.Sprintf("attempt %d: no fresh candidates available, waiting", attempt))
-			time.Sleep(2 * time.Second)
-			tried = make(map[string]bool)
 			continue
 		}
 
-		// Shuffle fresh candidates to avoid picking the same ones every time
-		rand.Shuffle(len(fresh), func(i, j int) {
-			fresh[i], fresh[j] = fresh[j], fresh[i]
+		// Sort candidates by proven status and quality score
+		sort.SliceStable(candidates, func(i, j int) bool {
+			provI := g.IsProven(candidates[i].ID, candidates[i].Provider)
+			provJ := g.IsProven(candidates[j].ID, candidates[j].Provider)
+			if provI != provJ {
+				return provI // proven comes first
+			}
+			return QualityScore(candidates[i]) > QualityScore(candidates[j])
 		})
 
-		// ── Fan-out selection with provider diversity ───────────────────
-		fanSize := g.FanOutSize
-		if fanSize < 1 { fanSize = 1 }
-		if fanSize > len(fresh) { fanSize = len(fresh) }
+		numCandidates := len(candidates)
+		candidateTriedInThisAttempt := false
 
-		var batch []engine.ModelCandidate
-		providerUsed := make(map[string]bool)
-		
-		// First pass: Try to get distinct providers
-		for _, m := range fresh {
-			if !providerUsed[m.Provider] {
-				batch = append(batch, m)
-				providerUsed[m.Provider] = true
-				if len(batch) >= fanSize { break }
+		for step := 0; step < numCandidates; step++ {
+			idx := (startIdx + step) % numCandidates
+			m := candidates[idx]
+
+			// Skip if tried in this attempt
+			if tried[m.ID+"|"+m.Provider] {
+				continue
 			}
-		}
 
-		// Second pass: If we still need more models, fill with remaining fresh ones
-		if len(batch) < fanSize {
-			for _, m := range fresh {
-				// Check if already in batch
-				alreadyIn := false
-				for _, b := range batch {
-					if b.ID == m.ID && b.Provider == m.Provider {
-						alreadyIn = true
-						break
-					}
-				}
-				if !alreadyIn {
-					batch = append(batch, m)
-					if len(batch) >= fanSize { break }
-				}
+			// Cooldown logic: skip provider if on cooldown, UNLESS we are in emergency mode
+			g.cooldownMu.Lock()
+			until, onCooldown := g.providerCooldown[m.Provider]
+			g.cooldownMu.Unlock()
+			if onCooldown && time.Now().Before(until) && g.MinParamsFilter > 0 {
+				continue
 			}
-		}
 
-		for _, m := range batch {
+			// Pre-flight check
+			if !g.PreFlightCheck(m) {
+				continue
+			}
+
+			candidateTriedInThisAttempt = true
+
+			// Global concurrency limit
+			select {
+			case g.upstreamSem <- struct{}{}:
+			case <-job.Ctx.Done():
+				return
+			}
+
+			// Per-provider concurrency limit
+			sem := g.GetProviderSem(m.Provider)
+			select {
+			case sem <- struct{}{}:
+			case <-job.Ctx.Done():
+				<-g.upstreamSem
+				return
+			}
+
+			log.Printf("[ROUTER] Attempt %d: Sending request to %s(%s) (seq queue)", attempt, m.ID, m.Provider)
+			emit(job, "ROUTER", fmt.Sprintf("attempt %d: routing to %s(%s)", attempt, m.ID, m.Provider))
+
+			resp := g.forwardRequestInternal(job.Ctx, g.Client, job.Request, m, body, false, nil)
+
+			// Release semaphores
+			<-sem
+			<-g.upstreamSem
+
+			// Scoring updates
+			if resp.Status == 200 {
+				g.AdjustModelScore(m.ID, m.Provider, 2.0)
+				g.MarkProven(m.ID, m.Provider)
+				g.onSuccess(job, m, resp, body)
+				return
+			} else if resp.Status == 429 {
+				log.Printf("[ROUTER] Provider %s hit rate limit (429), cooling down for 30s.", m.Provider)
+				emit(job, "ROUTER", fmt.Sprintf("%s(%s) rate-limited (429), cooling down", m.ID, m.Provider))
+				g.AdjustModelScore(m.ID, m.Provider, 0.8)
+				g.applyProviderCooldown(m.Provider, 30*time.Second)
+			} else if resp.Status >= 400 && resp.Status < 500 {
+				log.Printf("[ROUTER] Provider %s returned permanent error (%d), disabling model.", m.Provider, resp.Status)
+				emit(job, "ROUTER", fmt.Sprintf("%s(%s) permanent error (%d), disabling", m.ID, m.Provider, resp.Status))
+				g.recordModelFailure(m.ID, m.Provider, resp.Status, resp.ErrorMessage)
+				g.AdjustModelScore(m.ID, m.Provider, 0.1)
+				if resp.Status == 401 || resp.Status == 403 || resp.Status == 404 {
+					g.DemoteModel(m.ID)
+				}
+			} else {
+				g.AdjustModelScore(m.ID, m.Provider, 0.5)
+			}
+
+			log.Printf("[ROUTER] Attempt %d: %s(%s) failed: %v (Status %d)", attempt, m.ID, m.Provider, resp.Err, resp.Status)
+			emit(job, "ROUTER", fmt.Sprintf("attempt %d: %s(%s) failed (status %d)", attempt, m.ID, m.Provider, resp.Status))
+
 			tried[m.ID+"|"+m.Provider] = true
 		}
 
-		batchNames := func() []string {
-			var names []string
-			for _, m := range batch {
-				names = append(names, m.ID+"("+m.Provider+")")
-			}
-			return names
-		}()
-		log.Printf("[ROUTER] Attempt %d: Fanning out to %d models: %v", attempt, len(batch), batchNames)
-		emit(job, "ROUTER", fmt.Sprintf("attempt %d: fanning out to %d models: %s", attempt, len(batch), strings.Join(batchNames, ", ")))
-
-		// ── Launch parallel requests ────────────────────────────────────
-		type result struct {
-			model engine.ModelCandidate
-			resp  *ProxyResponse
-		}
-		resCh := make(chan result, len(batch))
-
-		for _, m := range batch {
-			go func(candidate engine.ModelCandidate) {
-				// Global concurrency limit
-				select {
-				case g.upstreamSem <- struct{}{}: defer func() { <-g.upstreamSem }()
-				case <-job.Ctx.Done(): return
-				}
-
-				// Per-provider concurrency limit
-				sem := g.GetProviderSem(candidate.Provider)
-				select {
-				case sem <- struct{}{}: defer func() { <-sem }()
-				case <-job.Ctx.Done(): return
-				}
-
-				log.Printf("[ROUTER] Attempt %d: Sending request to %s(%s)", attempt, candidate.ID, candidate.Provider)
-				resp := g.forwardRequestInternal(job.Ctx, g.Client, job.Request, candidate, body, false, nil)
-
-				// Scoring updates
-				if resp.Status == 200 {
-					g.AdjustModelScore(candidate.ID, candidate.Provider, 2.0)
-				} else if resp.Status == 429 {
-					log.Printf("[ROUTER] Provider %s hit rate limit (429), cooling down for 30s.", candidate.Provider)
-					emit(job, "ROUTER", fmt.Sprintf("%s(%s) rate-limited (429), cooling down", candidate.ID, candidate.Provider))
-					g.AdjustModelScore(candidate.ID, candidate.Provider, 0.8)
-					g.applyProviderCooldown(candidate.Provider, 30*time.Second)
-				} else if resp.Status >= 400 && resp.Status < 500 {
-					log.Printf("[ROUTER] Provider %s returned permanent error (%d), disabling model.", candidate.Provider, resp.Status)
-					emit(job, "ROUTER", fmt.Sprintf("%s(%s) permanent error (%d), disabling", candidate.ID, candidate.Provider, resp.Status))
-					g.recordModelFailure(candidate.ID, candidate.Provider, resp.Status, resp.ErrorMessage)
-					candidate.Disabled = true
-					g.AdjustModelScore(candidate.ID, candidate.Provider, 0.1) // demote to floor
-				} else {
-					g.AdjustModelScore(candidate.ID, candidate.Provider, 0.5)
-				}
-				
-				resCh <- result{model: candidate, resp: resp}
-			}(m)
+		// If no candidates were tried or all failed, sleep and retry
+		if !candidateTriedInThisAttempt {
+			log.Printf("[ROUTER] Attempt %d: No fresh/uncooled candidates were eligible. Resetting tried models.", attempt)
+			tried = make(map[string]bool)
 		}
 
-		// ── Result Collection ───────────────────────────────────────────
-		var winner *result
-		var bestQuality float64 = -1
-		batchDeadline := time.After(300 * time.Second)
-		responsesReceived := 0
-		fanActual := len(batch)
+		log.Printf("[ROUTER] Attempt %d complete. No model succeeded. Retrying...", attempt)
+		emit(job, "ROUTER", fmt.Sprintf("attempt %d complete: all eligible models tried, retrying", attempt))
 
-		for responsesReceived < fanActual {
-			select {
-			case res := <-resCh:
-				responsesReceived++
-				if res.resp.Err != nil || res.resp.Status >= 400 {
-					log.Printf("[ROUTER] Attempt %d: %s(%s) failed: %v (Status %d)", attempt, res.model.ID, res.model.Provider, res.resp.Err, res.resp.Status)
-					emit(job, "ROUTER", fmt.Sprintf("attempt %d: %s(%s) failed (status %d)", attempt, res.model.ID, res.model.Provider, res.resp.Status))
-					if res.resp.Status == 401 || res.resp.Status == 403 || res.resp.Status == 404 { g.DemoteModel(res.model.ID) }
-					continue
-				}
-
-				q := QualityScore(res.model)
-				if winner == nil {
-					winner = &res
-					bestQuality = q
-					winDeadline := time.After(g.SmartSwitchDelay)
-				WindowWait:
-					for {
-						select {
-						case r2 := <-resCh:
-							responsesReceived++
-							if r2.resp.Err == nil && r2.resp.Status < 400 {
-								q2 := QualityScore(r2.model)
-								if q2 > bestQuality {
-									if winner.resp.Stream != nil { winner.resp.Stream.Close() }
-									winner = &r2
-									bestQuality = q2
-								} else {
-									if r2.resp.Stream != nil { r2.resp.Stream.Close() }
-								}
-							}
-						case <-winDeadline: break WindowWait
-						case <-batchDeadline: break WindowWait
-						}
-					}
-					break
-				}
-			case <-batchDeadline: goto BatchDone
-			case <-job.Ctx.Done(): return
-			}
-			if winner != nil { break }
-		}
-
-	BatchDone:
-		if winner != nil {
-			g.onSuccess(job, winner.model, winner.resp, body)
+		select {
+		case <-job.Ctx.Done():
 			return
+		case <-time.After(1 * time.Second):
 		}
-		
-		// Prevent indefinite looping which triggers client-side timeouts.
-		// 30 attempts at ~2s each is ~1 minute of retries.
-		if attempt >= 30 {
-			log.Printf("[ROUTER] Max attempts (%d) reached without success. Giving up.", attempt)
-			job.Response <- &ProxyResponse{Status: 504, Err: fmt.Errorf("gateway timeout: all models failed after %d attempts", attempt)}
-			return
-		}
-
-		time.Sleep(200 * time.Millisecond)
 	}
 }
 

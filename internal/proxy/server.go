@@ -65,6 +65,8 @@ type Gateway struct {
 	provenMu         sync.RWMutex
 	sessionModelLocks map[string]time.Time // modelID+provider -> locked until
 	sessionLockMu    sync.RWMutex
+	queueIndex       int
+	queueMu          sync.Mutex
 
 	// Persistent circuit breaker state (lives in-process; cleared on restart).
 	// After modelFailureThreshold consecutive fatal errors, the model is
