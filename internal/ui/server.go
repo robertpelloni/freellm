@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -76,6 +77,14 @@ func (s *UIServer) Start(addr string) error {
 	mux.HandleFunc("/api/models/blacklist", s.handleModelBlacklist)
 	mux.Handle("/static/", http.StripPrefix("/static/", fileServer))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/v1/") || r.URL.Path == "/health" || r.URL.Path == "/health/liveness" || r.URL.Path == "/health/readiness" {
+			if s.Proxy != nil {
+				s.Proxy.ServeHTTP(w, r)
+				return
+			}
+			http.Error(w, "Proxy not connected", 500)
+			return
+		}
 		if r.URL.Path != "/" {
 			fileServer.ServeHTTP(w, r)
 			return

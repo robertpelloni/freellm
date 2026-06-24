@@ -35,14 +35,6 @@ func emit(job *RequestJob, tag, message string) {
 	}
 }
 
-// refreshTriedList periodically resets the tried-models map so that models that
-// were on cooldown get another chance as soon as their cooldown expires.
-// This is the core of the "never give up" guarantee.
-func (g *Gateway) refreshTriedList(tried *map[string]bool, failedProviders *map[string]int) {
-	*tried = make(map[string]bool)
-	*failedProviders = make(map[string]int)
-}
-
 // processJob runs the routing loop with fan-out and smart switching.
 // It NEVER gives up. It will cycle through all available models indefinitely,
 // resetting its attempt history periodically so that cooldown-expired models
