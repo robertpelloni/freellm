@@ -3,6 +3,7 @@ package proxy
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -148,3 +149,101 @@ func TestFallbackGroup(t *testing.T) {
 		t.Errorf("Timeout")
 	}
 }
+
+func TestGatewayLocalJudge(t *testing.T) {
+	g := NewGateway(1, nil, 4000)
+	g.PrimaryCount = 1
+	g.SmartSwitchDelay = 10 * time.Millisecond
+
+	// Configure local judge
+	g.Judge.Enabled = true
+	g.Judge.URL = "http://localhost:1234/v1/chat/completions"
+	g.Judge.Model = "gemma-4"
+
+	g.UpdateModels(engine.RankedModels{
+		{ID: "m1", Provider: "openrouter"}, // rejected by judge
+		{ID: "m2", Provider: "openrouter"}, // approved by judge
+	})
+
+	g.Client = &http.Client{
+		Transport: &mockTransport{
+			roundTrip: func(req *http.Request) (*http.Response, error) {
+				// Handle local judge call
+				if req.URL.String() == "http://localhost:1234/v1/chat/completions" {
+					bodyBytes, _ := io.ReadAll(req.Body)
+					var payload struct {
+						Messages []struct {
+							Content string `json:"content"`
+						} `json:"messages"`
+					}
+					_ = json.Unmarshal(bodyBytes, &payload)
+					
+					// If checking m1 content, return fail verdict
+					if strings.Contains(payload.Messages[0].Content, "m1 response") {
+						return &http.Response{
+							StatusCode: 200,
+							Body: io.NopCloser(bytes.NewBufferString(`{
+								"choices": [{
+									"message": {
+										"content": "{\"complete\": false, \"has_errors\": true, \"reason\": \"incomplete code block\"}"
+									}
+								}]
+							}`)),
+							Header: make(http.Header),
+						}, nil
+					}
+					// If checking m2 content, return pass verdict
+					return &http.Response{
+						StatusCode: 200,
+						Body: io.NopCloser(bytes.NewBufferString(`{
+							"choices": [{
+								"message": {
+									"content": "{\"complete\": true, \"has_errors\": false, \"reason\": \"\", \"rewritten_content\": \"\"}"
+								}
+							}]
+						}`)),
+						Header: make(http.Header),
+					}, nil
+				}
+
+				// Handle remote model calls
+				bodyBytes, _ := io.ReadAll(req.Body)
+				if strings.Contains(string(bodyBytes), "m1") {
+					return &http.Response{
+						StatusCode: 200,
+						Body:       io.NopCloser(bytes.NewBufferString(`{"choices":[{"message":{"content":"m1 response"}}]}`)),
+						Header:     make(http.Header),
+					}, nil
+				}
+				if strings.Contains(string(bodyBytes), "m2") {
+					return &http.Response{
+						StatusCode: 200,
+						Body:       io.NopCloser(bytes.NewBufferString(`{"choices":[{"message":{"content":"m2 response"}}]}`)),
+						Header:     make(http.Header),
+					}, nil
+				}
+
+				return nil, fmt.Errorf("unexpected request to %s", req.URL.String())
+			},
+		},
+	}
+
+	respChan := make(chan *ProxyResponse, 1)
+	req := httptest.NewRequest("POST", "/v1/chat/completions", bytes.NewBufferString(`{"model":"any", "messages":[]}`))
+	job := &RequestJob{Request: req, Response: respChan, Ctx: context.Background()}
+
+	go g.processJob(job)
+
+	select {
+	case resp := <-respChan:
+		if resp.Status != 200 {
+			t.Errorf("Expected 200, got %d", resp.Status)
+		}
+		if resp.ModelID != "m2" {
+			t.Errorf("Expected router to switch to m2 after judge rejected m1, but got %s", resp.ModelID)
+		}
+	case <-time.After(5 * time.Second):
+		t.Errorf("Timeout waiting for response")
+	}
+}
+
