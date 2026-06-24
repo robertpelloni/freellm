@@ -3,8 +3,8 @@
 # Usage: ./run_llamafile_judge.sh
 
 PORT=1234
-MODEL_URL="https://huggingface.co/JMingo/gemma-4-E2B-it-ultra-uncensored-heretic-UD-GGUF/resolve/main/gemma-4-E2B-it-ultra-uncensored-heretic-UD.Q4_K_M.gguf"
-MODEL_FILE="gemma-4-E2B-it-ultra-uncensored-heretic-UD.Q4_K_M.gguf"
+MODEL_URL="https://huggingface.co/JMingo/gemma-4-E2B-it-ultra-uncensored-heretic-UD-GGUF/resolve/main/gemma-4-E2B-it-ultra-uncensored-heretic-Q4_K_M.gguf"
+MODEL_FILE="gemma-4-E2B-it-ultra-uncensored-heretic-Q4_K_M.gguf"
 LLAMAFILE_URL="https://github.com/Mozilla-Ocho/llamafile/releases/download/0.8.8/llamafile-0.8.8"
 LLAMAFILE_BIN="llamafile"
 
