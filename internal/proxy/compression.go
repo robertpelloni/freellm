@@ -30,13 +30,17 @@ func (g *Gateway) CompressContext(body []byte) ([]byte, error) {
 	resp, err := client.Do(req)
 	if err != nil {
 		// Log error but continue with original body
-		log.Printf("[COMPRESSION] Sidecar unavailable: %v", err)
+		if g != nil && g.ShowDebugStream {
+			log.Printf("[COMPRESSION] Sidecar unavailable: %v", err)
+		}
 		return body, nil
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("[COMPRESSION] Sidecar returned status %d", resp.StatusCode)
+		if g != nil && g.ShowDebugStream {
+			log.Printf("[COMPRESSION] Sidecar returned status %d", resp.StatusCode)
+		}
 		return body, nil
 	}
 
@@ -45,6 +49,8 @@ func (g *Gateway) CompressContext(body []byte) ([]byte, error) {
 		return body, err
 	}
 
-	log.Printf("[COMPRESSION] Reduced body from %d to %d bytes", len(body), len(compressedBody))
+	if g != nil && g.ShowDebugStream {
+		log.Printf("[COMPRESSION] Reduced body from %d to %d bytes", len(body), len(compressedBody))
+	}
 	return compressedBody, nil
 }

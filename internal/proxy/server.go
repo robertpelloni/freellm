@@ -19,11 +19,11 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/xeipuuv/gojsonschema"
 	"github.com/robertpelloni/freellm/internal/config"
 	"github.com/robertpelloni/freellm/internal/db"
 	"github.com/robertpelloni/freellm/internal/engine"
 	"github.com/robertpelloni/freellm/internal/tokdiet"
+	"github.com/xeipuuv/gojsonschema"
 )
 
 type cacheEntry struct {
@@ -32,52 +32,52 @@ type cacheEntry struct {
 }
 
 type Gateway struct {
-	Port int
-	RankedModels engine.RankedModels
-	mu sync.RWMutex
-	Queue chan *RequestJob
-	HighPriQueue chan *RequestJob
-	MaxActive int
-	DB *sql.DB
-	PrimaryCount int
-	Cache map[string]cacheEntry
-	cacheMu sync.RWMutex
-	cooldownMu sync.Mutex
-	providerCooldown map[string]time.Time // provider -> cooldown until
-	providerSems     map[string]chan struct{} // per-provider concurrency semaphores
-	upstreamSem      chan struct{}             // global upstream request limiter
-	Redis *redis.Client
-	Client *http.Client
-	preflightCache map[string]preflightEntry
-	preflightCacheMu sync.RWMutex
-	cbRecoveryMu sync.Mutex
-	cbLogMu sync.Mutex
-	cbLogTime time.Time
-	LastUsedModel string
-	LastUsedProvider string
-	A2A A2ARouter
-	Sessions   *SessionTracker
-	activeSem  chan struct{} // main proxy path concurrency semaphore (MaxActive)
-	FanOutSize int           // number of parallel requests in fan-out
-	ShuffleEnabled bool      // whether to shuffle models after successful request
-	MinParamsFilter int // filter out models with params <= this value (billions); 0 = disabled
-	provenModels     map[string]bool // map of modelID+provider that have successfully worked
-	provenMu         sync.RWMutex
+	Port              int
+	RankedModels      engine.RankedModels
+	mu                sync.RWMutex
+	Queue             chan *RequestJob
+	HighPriQueue      chan *RequestJob
+	MaxActive         int
+	DB                *sql.DB
+	PrimaryCount      int
+	Cache             map[string]cacheEntry
+	cacheMu           sync.RWMutex
+	cooldownMu        sync.Mutex
+	providerCooldown  map[string]time.Time     // provider -> cooldown until
+	providerSems      map[string]chan struct{} // per-provider concurrency semaphores
+	upstreamSem       chan struct{}            // global upstream request limiter
+	Redis             *redis.Client
+	Client            *http.Client
+	preflightCache    map[string]preflightEntry
+	preflightCacheMu  sync.RWMutex
+	cbRecoveryMu      sync.Mutex
+	cbLogMu           sync.Mutex
+	cbLogTime         time.Time
+	LastUsedModel     string
+	LastUsedProvider  string
+	A2A               A2ARouter
+	Sessions          *SessionTracker
+	activeSem         chan struct{}   // main proxy path concurrency semaphore (MaxActive)
+	FanOutSize        int             // number of parallel requests in fan-out
+	ShuffleEnabled    bool            // whether to shuffle models after successful request
+	MinParamsFilter   int             // filter out models with params <= this value (billions); 0 = disabled
+	provenModels      map[string]bool // map of modelID+provider that have successfully worked
+	provenMu          sync.RWMutex
 	sessionModelLocks map[string]time.Time // modelID+provider -> locked until
-	sessionLockMu    sync.RWMutex
-	queueIndex       int
-	queueMu          sync.Mutex
+	sessionLockMu     sync.RWMutex
+	queueIndex        int
+	queueMu           sync.Mutex
 
 	// Persistent circuit breaker state (lives in-process; cleared on restart).
 	// After modelFailureThreshold consecutive fatal errors, the model is
 	// blocked for modelDisableDuration. The same applies at the provider
 	// level: after providerFailureThreshold failures across any of its
 	// models, the whole provider is put on cooldown.
-	modelFailureMu        sync.RWMutex
-	modelFailureCount     map[string]int       // modelID+provider -> consecutive fatal failures
-	modelDisabledUntil    map[string]time.Time // modelID+provider -> blocked until
-	providerFailureMu     sync.RWMutex
-	providerFailureCount  map[string]int       // provider -> consecutive failures across all its models
+	modelFailureMu       sync.RWMutex
+	modelFailureCount    map[string]int       // modelID+provider -> consecutive fatal failures
+	modelDisabledUntil   map[string]time.Time // modelID+provider -> blocked until
+	providerFailureMu    sync.RWMutex
+	providerFailureCount map[string]int // provider -> consecutive failures across all its models
 
 	// Configurable Timeouts & Settings
 	RequestTimeout           time.Duration
@@ -149,16 +149,16 @@ func (e RouterEvent) String() string {
 }
 
 type ProxyResponse struct {
-	Status int
-	Body []byte
-	Header http.Header
-	Err error
-	ErrorMessage string
-	Stream io.ReadCloser
-	ModelID string
-	Provider string
+	Status          int
+	Body            []byte
+	Header          http.Header
+	Err             error
+	ErrorMessage    string
+	Stream          io.ReadCloser
+	ModelID         string
+	Provider        string
 	OriginalPayload map[string]interface{}
-	Alternatives []engine.ModelCandidate
+	Alternatives    []engine.ModelCandidate
 }
 
 // writeSSEError sends an error message as a valid SSE event for streaming clients
@@ -254,25 +254,25 @@ func writeSSETextChunk(w http.ResponseWriter, text string, model string) {
 
 func NewGateway(maxActive int, database *sql.DB, port int) *Gateway {
 	g := &Gateway{
-		Port: port,
-		Queue: make(chan *RequestJob, 100),
-		HighPriQueue: make(chan *RequestJob, 200),
-		MaxActive: 50,
-		DB: database,
-		PrimaryCount: 10,
-		Cache: make(map[string]cacheEntry),
-		providerCooldown: make(map[string]time.Time),
-		Client: tokdiet.NewClient(900 * time.Second),
-		preflightCache: make(map[string]preflightEntry),
-		Sessions:   NewSessionTracker(),
-		activeSem: make(chan struct{}, maxActive),
-		FanOutSize: 3, // Default to 3
-		ShuffleEnabled: true,
-		MinParamsFilter: 120, // Exclude models <= 120B by default
-		provenModels: make(map[string]bool),
-		sessionModelLocks: make(map[string]time.Time),
-		providerSems:      make(map[string]chan struct{}),
-		upstreamSem:        make(chan struct{}, 1000), // Global limit increased to 1000
+		Port:                 port,
+		Queue:                make(chan *RequestJob, 100),
+		HighPriQueue:         make(chan *RequestJob, 200),
+		MaxActive:            50,
+		DB:                   database,
+		PrimaryCount:         10,
+		Cache:                make(map[string]cacheEntry),
+		providerCooldown:     make(map[string]time.Time),
+		Client:               tokdiet.NewClient(900 * time.Second),
+		preflightCache:       make(map[string]preflightEntry),
+		Sessions:             NewSessionTracker(),
+		activeSem:            make(chan struct{}, maxActive),
+		FanOutSize:           3, // Default to 3
+		ShuffleEnabled:       true,
+		MinParamsFilter:      120, // Exclude models <= 120B by default
+		provenModels:         make(map[string]bool),
+		sessionModelLocks:    make(map[string]time.Time),
+		providerSems:         make(map[string]chan struct{}),
+		upstreamSem:          make(chan struct{}, 1000), // Global limit increased to 1000
 		modelFailureCount:    make(map[string]int),
 		modelDisabledUntil:   make(map[string]time.Time),
 		providerFailureCount: make(map[string]int),
@@ -371,9 +371,9 @@ func (g *Gateway) cleanupExpiredLocks() {
 // keeps re-tripping on every probe and stays sidelined, while a model
 // with a genuine transient issue comes back into rotation.
 const (
-	modelFailureThreshold    = 3             // consecutive fatal errors before model is disabled
+	modelFailureThreshold    = 3 // consecutive fatal errors before model is disabled
 	modelDisableDuration     = 5 * time.Minute
-	providerFailureThreshold = 3             // consecutive failures (across any of its models) before provider cooldown
+	providerFailureThreshold = 3 // consecutive failures (across any of its models) before provider cooldown
 	providerCooldownOnTrip   = 2 * time.Minute
 )
 
@@ -792,7 +792,7 @@ WaitLoop:
 		case ev := <-job.Events:
 			line := ev.String()
 			routerEvents = append(routerEvents, line)
-			if isStream {
+			if isStream && g.ShowDebugStream {
 				// SSE headers are already flushed; emit the event live as a
 				// content chunk so it shows up before the model's content.
 				writeSSETextChunk(w, line+"\n", "freellm")
@@ -930,7 +930,7 @@ WaitLoop:
 		} else {
 			// It's a successful non-streaming response. Let's translate it into SSE chunks.
 			id := fmt.Sprintf("chatcmpl-%d", time.Now().UnixNano())
-			
+
 			content := ""
 			finishReason := "stop"
 			var bodyMap map[string]interface{}
@@ -1160,8 +1160,8 @@ func (g *Gateway) streamSSE(w http.ResponseWriter, flusher http.Flusher, body io
 		flusher.Flush()
 	}
 
-// If the stream ended without a finish_reason, synthesize one.
-if !sentFinishReason {
+	// If the stream ended without a finish_reason, synthesize one.
+	if !sentFinishReason {
 		id := fmt.Sprintf("chatcmpl-%d", time.Now().UnixNano())
 		synthetic := map[string]interface{}{
 			"id":      id,
@@ -1179,14 +1179,14 @@ if !sentFinishReason {
 		synthJSON, _ := json.Marshal(synthetic)
 		fmt.Fprintf(w, "data: %s\n\n", string(synthJSON))
 		flusher.Flush()
-}
+	}
 
-// Always send the [DONE] sentinel so the client never hangs.
-// If upstream sent [DONE] (upstreamDone=true) we still emit one here
-// since the break above skipped forwarding it; if upstream closed
-// without it, this guarantees a clean stream termination.
-fmt.Fprintf(w, "data: [DONE]\n\n")
-flusher.Flush()
+	// Always send the [DONE] sentinel so the client never hangs.
+	// If upstream sent [DONE] (upstreamDone=true) we still emit one here
+	// since the break above skipped forwarding it; if upstream closed
+	// without it, this guarantees a clean stream termination.
+	fmt.Fprintf(w, "data: [DONE]\n\n")
+	flusher.Flush()
 }
 
 func (g *Gateway) workerLoop() {
@@ -1228,7 +1228,6 @@ func (g *Gateway) workerLoop() {
 func isTransientError(status int) bool {
 	return status == 413 || status == 429 || status == 402 || status == 408 || status == 503
 }
-
 
 func (g *Gateway) normalizeBody(body []byte) string {
 	var m map[string]interface{}
@@ -1319,7 +1318,7 @@ func (g *Gateway) classifyRequest(body []byte, models []engine.ModelCandidate) (
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return false, nil, nil
 	}
-			if _, ok := payload["tools"]; ok {
+	if _, ok := payload["tools"]; ok {
 		hasTools = true
 	}
 	if tc, ok := payload["tool_choice"]; ok && tc != nil && tc != "none" {
@@ -1366,11 +1365,11 @@ func (g *Gateway) filterCandidatesWithOverride(all engine.RankedModels, minParam
 	g.cleanupExpiredModelBlocks()
 
 	skipProvider := map[string]bool{"ollama": true, "lm_studio": true}
-	
+
 	// Create a local copy of models to apply score floor without affecting global state
 	localModels := make(engine.RankedModels, len(all))
 	copy(localModels, all)
-	
+
 	valid := make([]engine.ModelCandidate, 0, len(localModels))
 	skipped := 0
 	// Check provider cooldowns
@@ -1733,7 +1732,7 @@ func (g *Gateway) forwardRequestInternal(ctx context.Context, client *http.Clien
 		newBody, _ = json.Marshal(payload)
 		if mapped, mapErr := TransformRequestBody(model.Provider, newBody); mapErr == nil {
 			newBody = mapped
-			// IMPORTANT: Update the 'payload' map from the sanitized body 
+			// IMPORTANT: Update the 'payload' map from the sanitized body
 			// so that future retries/continuations use the sanitized fields.
 			var sanitizedPayload map[string]interface{}
 			if json.Unmarshal(newBody, &sanitizedPayload) == nil {
@@ -1762,7 +1761,7 @@ func (g *Gateway) forwardRequestInternal(ctx context.Context, client *http.Clien
 			bodyBytes, _ := io.ReadAll(resp.Body)
 			bodyStr = strings.ToLower(string(bodyBytes))
 			if resp.StatusCode == http.StatusBadRequest {
-				if strings.Contains(bodyStr, "too large") || strings.Contains(bodyStr, "token limit") || 
+				if strings.Contains(bodyStr, "too large") || strings.Contains(bodyStr, "token limit") ||
 					strings.Contains(bodyStr, "maximum context") || strings.Contains(bodyStr, "validation error") ||
 					strings.Contains(bodyStr, "tool choice") || strings.Contains(bodyStr, "tool-call-parser") {
 					isTooLarge = true
@@ -1779,9 +1778,9 @@ func (g *Gateway) forwardRequestInternal(ctx context.Context, client *http.Clien
 
 		// 413 or Validation Error: try to recovery, but stop after bounded attempts.
 		resp.Body.Close()
-		
+
 		msgs, ok := payload["messages"].([]interface{})
-		// If we can't truncate further AND this doesn't look like a tool/validation error 
+		// If we can't truncate further AND this doesn't look like a tool/validation error
 		// that could be fixed by sanitization, then we bail out.
 		isValidationError := strings.Contains(bodyStr, "tool") || strings.Contains(bodyStr, "validation") || strings.Contains(bodyStr, "parameter")
 		if (!ok || len(msgs) <= 1) && !isValidationError {
@@ -1955,7 +1954,7 @@ func (g *Gateway) prependModelPrefixNonStream(respBody []byte, model engine.Mode
 	}
 
 	content, _ := msg["content"].(string)
-	
+
 	// Skip if it looks like a tool call to avoid breaking parsers
 	lowered := strings.ToLower(content)
 	if strings.Contains(lowered, "[tool_call]") ||
@@ -2168,7 +2167,7 @@ func (g *Gateway) autoContinueNonStream(client *http.Client, r *http.Request, in
 				errMsg = fmt.Sprintf("[FreeLLM Proxy Error: Continuation failed: %v]", contResp.Err)
 			}
 			accumulatedContent.WriteString("\n\n" + errMsg + "\n\n")
-			
+
 			// Update the original choice's message content with what we have
 			msg["content"] = accumulatedContent.String()
 			if merged, err := json.Marshal(resp); err == nil {
@@ -2277,29 +2276,29 @@ func (g *Gateway) autoContinueNonStream(client *http.Client, r *http.Request, in
 }
 
 type continuationStream struct {
-	g                 *Gateway
-	client            *http.Client
-	req               *http.Request
-	model             engine.ModelCandidate
-	alternatives      []engine.ModelCandidate
-	fallbackIdx       int
-	originalBody      []byte
-	currentStream     io.ReadCloser
-	reader            *bufio.Reader
-	accumulatedText   strings.Builder
-	finishReason      string
-	eofReached        bool
-	err               error
-	buffer            bytes.Buffer
-	continuationCount int
-	firstChunkParsed  bool
-	prefixSent        bool
-	isToolCall        bool
-	finishReasonSent  bool
+	g                  *Gateway
+	client             *http.Client
+	req                *http.Request
+	model              engine.ModelCandidate
+	alternatives       []engine.ModelCandidate
+	fallbackIdx        int
+	originalBody       []byte
+	currentStream      io.ReadCloser
+	reader             *bufio.Reader
+	accumulatedText    strings.Builder
+	finishReason       string
+	eofReached         bool
+	err                error
+	buffer             bytes.Buffer
+	continuationCount  int
+	firstChunkParsed   bool
+	prefixSent         bool
+	isToolCall         bool
+	finishReasonSent   bool
 	lastAccumulatedLen int
 	failedInRequest    map[string]bool // modelID -> true if failed in this request
 	lastActivity       time.Time
-	
+
 	lineChan chan result
 	stopChan chan struct{}
 }
@@ -2311,14 +2310,14 @@ type result struct {
 
 func (g *Gateway) newContinuationStream(client *http.Client, r *http.Request, model engine.ModelCandidate, originalBody []byte, firstStream io.ReadCloser, alternatives []engine.ModelCandidate) *continuationStream {
 	s := &continuationStream{
-		g:             g,
-		client:        client,
-		req:           r,
-		model:         model,
-		alternatives:  alternatives,
-		originalBody:  originalBody,
-		currentStream: firstStream,
-		reader:        bufio.NewReader(firstStream),
+		g:                  g,
+		client:             client,
+		req:                r,
+		model:              model,
+		alternatives:       alternatives,
+		originalBody:       originalBody,
+		currentStream:      firstStream,
+		reader:             bufio.NewReader(firstStream),
 		lastAccumulatedLen: 0,
 		failedInRequest:    make(map[string]bool),
 		lastActivity:       time.Now(),
@@ -2408,7 +2407,7 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 	for s.buffer.Len() == 0 {
 		var line string
 		var err error
-		
+
 		timeout := 15 * time.Second
 		if s.g.WatchdogTimeout > 0 {
 			timeout = s.g.WatchdogTimeout
@@ -2466,11 +2465,11 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 				// Pass through comments/etc, but detect JSON errors
 				lineTrimmed := strings.TrimSpace(trimmed)
 				if lineTrimmed != "" {
-					isError := (strings.Contains(lineTrimmed, "\"error\"") || 
-						strings.Contains(lineTrimmed, "\"success\":false") || 
-						strings.Contains(lineTrimmed, "\"code\":")) && 
+					isError := (strings.Contains(lineTrimmed, "\"error\"") ||
+						strings.Contains(lineTrimmed, "\"success\":false") ||
+						strings.Contains(lineTrimmed, "\"code\":")) &&
 						strings.Contains(lineTrimmed, "{")
-					
+
 					if isError || (s.accumulatedText.Len() == 0 && (strings.Contains(lineTrimmed, "Authorization") || strings.Contains(lineTrimmed, "auth"))) {
 						log.Printf("[STREAM-ERROR] Provider %s sent invalid SSE line: %s", s.model.Provider, lineTrimmed)
 						s.g.DemoteModel(s.model.ID)
@@ -2496,7 +2495,7 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 			isFailedToolCall := s.isToolCall && err != io.EOF && s.finishReason != "tool_calls" && s.finishReason != "stop" && s.finishReason != ""
 			if ((s.accumulatedText.Len() == 0 && !s.isToolCall) || isFailedToolCall || (s.finishReason == "" && s.accumulatedText.Len() > 0)) && s.continuationCount < 20 {
 				log.Printf("[AUTO-CONTINUE] Stream failed, retrying global fan-out...")
-				
+
 				s.g.DemoteModel(s.model.ID)
 				if s.failedInRequest == nil {
 					s.failedInRequest = make(map[string]bool)
@@ -2506,22 +2505,32 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 				success := false
 				allModels := s.g.GetModels()
 				validModels := s.g.filterCandidates(allModels)
-				
+
 				for batch := 0; batch < 15; batch++ {
 					fanOutSize := s.g.FanOutSize
-					if fanOutSize < 1 { fanOutSize = 1 }
-					if fanOutSize > 50 { fanOutSize = 50 }
-					
+					if fanOutSize < 1 {
+						fanOutSize = 1
+					}
+					if fanOutSize > 50 {
+						fanOutSize = 50
+					}
+
 					var fanModels []engine.ModelCandidate
 					indices := rand.Perm(len(validModels))
 					for _, idx := range indices {
 						candidate := validModels[idx]
-						if s.failedInRequest[candidate.ID] { continue }
+						if s.failedInRequest[candidate.ID] {
+							continue
+						}
 						fanModels = append(fanModels, candidate)
-						if len(fanModels) >= fanOutSize { break }
+						if len(fanModels) >= fanOutSize {
+							break
+						}
 					}
-					
-					if len(fanModels) == 0 { break }
+
+					if len(fanModels) == 0 {
+						break
+					}
 
 					type fanRes struct {
 						model engine.ModelCandidate
@@ -2537,12 +2546,16 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 							}
 						}(m)
 					}
-					
+
 					var winner *fanRes
 					for j := 0; j < len(fanModels); j++ {
 						res := <-fanCh
 						if res.resp.Err == nil && res.resp.Status == 200 && res.resp.Stream != nil {
-							if winner == nil { winner = &res } else { res.resp.Stream.Close() }
+							if winner == nil {
+								winner = &res
+							} else {
+								res.resp.Stream.Close()
+							}
 						}
 					}
 
@@ -2561,7 +2574,9 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 					}
 				}
 
-				if success { return s.buffer.Read(p) }
+				if success {
+					return s.buffer.Read(p)
+				}
 				s.injectTextChunk("\n\n[FreeLLM Proxy Error: Connection closed after multiple retries.]\n\n")
 			}
 
@@ -2576,13 +2591,13 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 			fullText := s.accumulatedText.String()
 			if strings.Contains(fullText, "<tool_call") && !strings.Contains(fullText, "</tool_call") && !strings.Contains(fullText, "</function>") {
 				isTruncated = true
-				s.isToolCall = true 
+				s.isToolCall = true
 			}
 
 			if isTruncated && s.continuationCount < 5 {
 				s.lastAccumulatedLen = s.accumulatedText.Len()
 				s.continuationCount++
-				
+
 				var currentPayload map[string]interface{}
 				if json.Unmarshal(s.originalBody, &currentPayload) == nil {
 					if originalMsgs, ok := currentPayload["messages"].([]interface{}); ok {
@@ -2598,7 +2613,9 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 						})
 
 						newPayload := make(map[string]interface{})
-						for k, v := range currentPayload { newPayload[k] = v }
+						for k, v := range currentPayload {
+							newPayload[k] = v
+						}
 						newPayload["messages"] = newMsgs
 						newPayload["max_tokens"] = 8192
 						newPayload["stream"] = true
@@ -2607,11 +2624,15 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 							s.originalBody = newBody
 							fanOutSize := 3
 							remainingAlts := s.alternatives[s.fallbackIdx:]
-							if fanOutSize > len(remainingAlts) { fanOutSize = len(remainingAlts) }
+							if fanOutSize > len(remainingAlts) {
+								fanOutSize = len(remainingAlts)
+							}
 							fanModels := remainingAlts
-							if len(fanModels) > fanOutSize { fanModels = remainingAlts[:fanOutSize] }
+							if len(fanModels) > fanOutSize {
+								fanModels = remainingAlts[:fanOutSize]
+							}
 							s.fallbackIdx += len(fanModels)
-							
+
 							type fanRes struct {
 								model engine.ModelCandidate
 								resp  *ProxyResponse
@@ -2627,12 +2648,16 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 									fanCh <- fanRes{model: candidate, resp: s.g.forwardRequestInternal(s.req.Context(), mc, s.req, candidate, newBody, true, nil)}
 								}(m)
 							}
-							
+
 							var winner *fanRes
 							for j := 0; j < len(fanModels)+1; j++ {
 								res := <-fanCh
 								if res.resp.Err == nil && res.resp.Status == 200 && res.resp.Stream != nil {
-									if winner == nil { winner = &res } else { res.resp.Stream.Close() }
+									if winner == nil {
+										winner = &res
+									} else {
+										res.resp.Stream.Close()
+									}
 								}
 							}
 
@@ -2661,17 +2686,27 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 				validModels := s.g.filterCandidates(allModels)
 				for batch := 0; batch < 5 && !success && len(validModels) > 0; batch++ {
 					fanOutSize := s.g.FanOutSize
-					if fanOutSize < 1 { fanOutSize = 1 }
-					if fanOutSize > 50 { fanOutSize = 50 }
+					if fanOutSize < 1 {
+						fanOutSize = 1
+					}
+					if fanOutSize > 50 {
+						fanOutSize = 50
+					}
 					var fanModels []engine.ModelCandidate
 					indices := rand.Perm(len(validModels))
 					for _, idx := range indices {
 						candidate := validModels[idx]
-						if candidate.ID == s.model.ID && candidate.Provider == s.model.Provider { continue }
+						if candidate.ID == s.model.ID && candidate.Provider == s.model.Provider {
+							continue
+						}
 						fanModels = append(fanModels, candidate)
-						if len(fanModels) >= fanOutSize { break }
+						if len(fanModels) >= fanOutSize {
+							break
+						}
 					}
-					if len(fanModels) == 0 { break }
+					if len(fanModels) == 0 {
+						break
+					}
 					type fanRes struct {
 						model engine.ModelCandidate
 						resp  *ProxyResponse
@@ -2687,7 +2722,11 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 					for j := 0; j < len(fanModels); j++ {
 						res := <-fanCh
 						if res.resp.Err == nil && res.resp.Status == 200 && res.resp.Stream != nil {
-							if winner == nil { winner = &res } else { res.resp.Stream.Close() }
+							if winner == nil {
+								winner = &res
+							} else {
+								res.resp.Stream.Close()
+							}
 						}
 					}
 					if winner != nil {
@@ -2824,7 +2863,7 @@ func (g *Gateway) getProviderURL(modelID, provider string) string {
 		return "https://api.anthropic.com/v1/messages"
 	case "gemini":
 		return "https://generativelanguage.googleapis.com/v1beta/models/" + modelID + ":streamGenerateContent"
-		case "openai":
+	case "openai":
 		return "https://api.openai.com/v1/chat/completions"
 	case "siliconflow":
 		return "https://api.siliconflow.cn/v1/chat/completions"
@@ -3021,7 +3060,7 @@ func (g *Gateway) handleModels(w http.ResponseWriter, r *http.Request) {
 			{"gemini-3-flash", "model", time.Now().Unix(), "freellm"},
 			{"gemini-3.5-flash", "model", time.Now().Unix(), "freellm"},
 			{"gemini-3.1-pro", "model", time.Now().Unix(), "freellm"},
-				},
+		},
 	}
 	for _, m := range g.GetModels() {
 		resp.Data = append(resp.Data, ME{m.ID, "model", time.Now().Unix(), m.Provider})
@@ -3104,8 +3143,8 @@ func (g *Gateway) SetModelPrimary(modelID string) {
 			g.mu.Unlock()
 			g.persistRankings()
 			return
-			}
 		}
+	}
 	g.mu.Unlock()
 }
 
@@ -3217,7 +3256,6 @@ func (g *Gateway) MoveModelDown(modelID string) {
 	}
 	g.mu.Unlock()
 }
-
 
 // RouteMessage routes a text message through the FreeLLM gateway.
 // Used by the A2A server to process agent tasks via the LLM routing pipeline.
