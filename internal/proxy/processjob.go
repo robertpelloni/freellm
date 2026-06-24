@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -149,6 +150,37 @@ func (g *Gateway) processJob(job *RequestJob) {
 
 			// Scoring updates
 			if resp.Status == 200 {
+				if g.Judge.Enabled && !job.IsStream {
+					verdict, err := g.evaluateResponseWithJudge(job.Ctx, resp.Body)
+					if err != nil {
+						log.Printf("[ROUTER] Local judge evaluation failed: %v. Assuming response is OK.", err)
+					} else if !verdict.Complete || verdict.HasErrors {
+						log.Printf("[ROUTER] Local judge rejected response from %s(%s). Reason: %s. Retrying next candidate...", m.ID, m.Provider, verdict.Reason)
+						emit(job, "ROUTER", fmt.Sprintf("%s(%s) failed judge evaluation: %s", m.ID, m.Provider, verdict.Reason))
+						g.AdjustModelScore(m.ID, m.Provider, 0.4) // Penalize score
+						tried[m.ID+"|"+m.Provider] = true
+						continue // Skip to next candidate in the queue
+					} else {
+						log.Printf("[ROUTER] Local judge approved response from %s(%s).", m.ID, m.Provider)
+						if verdict.RewrittenContent != "" {
+							log.Printf("[ROUTER] Local judge rewrote response.")
+							var fullResp map[string]interface{}
+							if json.Unmarshal(resp.Body, &fullResp) == nil {
+								if choices, ok := fullResp["choices"].([]interface{}); ok && len(choices) > 0 {
+									if choice, ok := choices[0].(map[string]interface{}); ok {
+										if msg, ok := choice["message"].(map[string]interface{}); ok {
+											msg["content"] = verdict.RewrittenContent
+											if newBody, err := json.Marshal(fullResp); err == nil {
+												resp.Body = newBody
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+
 				g.AdjustModelScore(m.ID, m.Provider, 2.0)
 				g.MarkProven(m.ID, m.Provider)
 				g.onSuccess(job, m, resp, body)

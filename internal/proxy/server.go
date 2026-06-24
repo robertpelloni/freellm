@@ -100,6 +100,8 @@ type Gateway struct {
 
 	// When false, suppresses [Model: x | Provider: y] prefix injection and router trail output
 	ShowDebugStream bool
+
+	Judge config.JudgeSettings
 }
 
 // A2ARouter is the interface for A2A protocol route handling.
@@ -298,6 +300,13 @@ func NewGateway(maxActive int, database *sql.DB, port int) *Gateway {
 		SmartSwitchDelay:         30 * time.Second,
 
 		persistentDisables: make(map[string]string),
+
+		Judge: config.JudgeSettings{
+			Enabled:        false,
+			URL:            "http://127.0.0.1:1234/v1/chat/completions",
+			Model:          "gemma-4",
+			TimeoutSeconds: 15,
+		},
 	}
 
 	if database != nil {
@@ -3529,3 +3538,116 @@ func (g *Gateway) transformPlaintextToolCalls(respBody []byte) []byte {
 	}
 	return respBody
 }
+
+type JudgeVerdict struct {
+	Complete         bool   `json:"complete"`
+	HasErrors        bool   `json:"has_errors"`
+	Reason           string `json:"reason"`
+	RewrittenContent string `json:"rewritten_content"`
+}
+
+// evaluateResponseWithJudge queries the local LLM judge to verify quality of the response.
+func (g *Gateway) evaluateResponseWithJudge(ctx context.Context, respBody []byte) (*JudgeVerdict, error) {
+	var resp map[string]interface{}
+	if err := json.Unmarshal(respBody, &resp); err != nil {
+		return nil, fmt.Errorf("parse response JSON: %w", err)
+	}
+	choices, ok := resp["choices"].([]interface{})
+	if !ok || len(choices) == 0 {
+		return nil, fmt.Errorf("no choices in response")
+	}
+	choice, ok := choices[0].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("invalid choice format")
+	}
+	msg, ok := choice["message"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("invalid message format")
+	}
+	content, ok := msg["content"].(string)
+	if !ok || content == "" {
+		return &JudgeVerdict{Complete: true, HasErrors: false}, nil // Empty content is considered fine
+	}
+
+	// Build the evaluation prompt
+	prompt := fmt.Sprintf("You are an expert code and text quality controller.\nAnalyze the following assistant response to determine if it is:\n1. Complete (not truncated or cut off mid-thought).\n2. Error-free (syntax, markdown structure, and basic logic are correct).\n\nAssistant Response:\n%s\n\nOutput ONLY a JSON object in this format:\n{\n  \"complete\": true/false,\n  \"has_errors\": true/false,\n  \"reason\": \"brief explanation\",\n  \"rewritten_content\": \"optional improved version if minor fixes are needed, otherwise empty\"\n}", content)
+
+	payload := map[string]interface{}{
+		"model": g.Judge.Model,
+		"messages": []map[string]interface{}{
+			{"role": "user", "content": prompt},
+		},
+		"temperature": 0.1,
+		"response_format": map[string]string{"type": "json_object"},
+	}
+
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("marshal judge payload: %w", err)
+	}
+
+	timeoutSec := g.Judge.TimeoutSeconds
+	if timeoutSec <= 0 {
+		timeoutSec = 15
+	}
+	judgeCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutSec)*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(judgeCtx, "POST", g.Judge.URL, bytes.NewBuffer(payloadBytes))
+	if err != nil {
+		return nil, fmt.Errorf("create judge request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	log.Printf("[JUDGE] Sending evaluation request to %s...", g.Judge.URL)
+	judgeResp, err := g.Client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("judge request failed: %w", err)
+	}
+	defer judgeResp.Body.Close()
+
+	judgeBody, err := io.ReadAll(judgeResp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read judge response: %w", err)
+	}
+
+	if judgeResp.StatusCode != 200 {
+		return nil, fmt.Errorf("judge returned status %d: %s", judgeResp.StatusCode, string(judgeBody))
+	}
+
+	var judgeOAIResp struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+
+	if err := json.Unmarshal(judgeBody, &judgeOAIResp); err != nil {
+		return nil, fmt.Errorf("unmarshal judge response: %w", err)
+	}
+
+	if len(judgeOAIResp.Choices) == 0 {
+		return nil, fmt.Errorf("no choices in judge response")
+	}
+
+	rawVerdict := judgeOAIResp.Choices[0].Message.Content
+	log.Printf("[JUDGE] Raw response: %s", rawVerdict)
+
+	// Clean code block ticks if any
+	cleaned := strings.TrimSpace(rawVerdict)
+	if strings.HasPrefix(cleaned, "```") {
+		cleaned = strings.TrimPrefix(cleaned, "```json")
+		cleaned = strings.TrimPrefix(cleaned, "```")
+		cleaned = strings.TrimSuffix(cleaned, "```")
+		cleaned = strings.TrimSpace(cleaned)
+	}
+
+	var verdict JudgeVerdict
+	if err := json.Unmarshal([]byte(cleaned), &verdict); err != nil {
+		return nil, fmt.Errorf("parse judge verdict JSON: %w", err)
+	}
+
+	return &verdict, nil
+}
+

@@ -105,6 +105,9 @@ func main() {
 	if gateway.FanOutSize == 0 {
 		gateway.FanOutSize = 3
 	}
+	if cfg != nil {
+		gateway.Judge = cfg.JudgeSettings
+	}
 	gateway.RestoreQueue()
 
 	go tokdietWatchdog(gateway)

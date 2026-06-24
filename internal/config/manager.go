@@ -16,6 +16,14 @@ type Config struct {
 	CompressionSettings CompressionSettings       `yaml:"compression_settings"`
 	Port                int                       `yaml:"port"`
 	Providers           map[string]ProviderCfg    `yaml:"providers"`
+	JudgeSettings       JudgeSettings             `yaml:"judge_settings"`
+}
+
+type JudgeSettings struct {
+	Enabled        bool   `yaml:"enabled"`
+	URL            string `yaml:"url"`
+	Model          string `yaml:"model"`
+	TimeoutSeconds int    `yaml:"timeout_seconds"`
 }
 
 type CompressionSettings struct {
