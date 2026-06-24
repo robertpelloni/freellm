@@ -54,6 +54,7 @@ Go-based proxy that routes LLM chat completion requests across 33+ free/tiered p
 - [x] Watchdog batch file with duplicate cleanup
 - [x] Primary/fallback model concept removed
 - [x] Context menu simplified (no primary/fallback split)
+- [x] Local LLM Judge gate (llamafile + Gemma 4) implemented with automatic retry and rewriting
 - [ ] Cache refresh: prune dead models (only keep providers with working API keys)
 - [ ] Dashboard health check and auto-restart
 - [ ] Log rotation/cleanup for accumulated log files

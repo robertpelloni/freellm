@@ -11,8 +11,8 @@ router_settings:
 proxy_settings:
   drop_params: true
   num_retries: 2
-  request_timeout: 900
-  stream_timeout: 900
+  request_timeout: 300
+  stream_timeout: 300
   connect_timeout: 120
   watchdog_timeout: 120
   proven_watchdog_timeout: 240
@@ -30,3 +30,9 @@ proxy_settings:
     - free-llm: ["free-llm-fallback"]
 
 port: 4000
+
+judge_settings:
+  enabled: true
+  url: "http://127.0.0.1:11434/v1/chat/completions"
+  model: "gemma-4-heretic:latest"
+  timeout_seconds: 300
