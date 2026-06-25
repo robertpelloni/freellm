@@ -88,6 +88,7 @@ type Gateway struct {
 	ReasoningWatchdogTimeout time.Duration
 	LockDuration             time.Duration
 	SmartSwitchDelay         time.Duration // Wait window to see if a better model responds
+	NumRetries               int
 
 	Compression config.CompressionSettings
 
@@ -271,6 +272,7 @@ func NewGateway(maxActive int, database *sql.DB, port int) *Gateway {
 		FanOutSize:           3, // Default to 3
 		ShuffleEnabled:       true,
 		MinParamsFilter:      120, // Exclude models <= 120B by default
+		NumRetries:           5,
 		provenModels:         make(map[string]bool),
 		sessionModelLocks:    make(map[string]time.Time),
 		providerSems:         make(map[string]chan struct{}),
@@ -3571,8 +3573,15 @@ func (g *Gateway) evaluateResponseWithJudge(ctx context.Context, respBody []byte
 		return &JudgeVerdict{Complete: true, HasErrors: false}, nil // Empty content is considered fine
 	}
 
+	// Truncate the middle of the content if it is too long to prevent extremely slow
+	// prompt processing on local CPU-based LLM judges.
+	evaluationText := content
+	if len(content) > 3000 {
+		evaluationText = fmt.Sprintf("%s\n\n... [TRUNCATED MIDDLE CONTENT] ...\n\n%s", content[:1000], content[len(content)-1500:])
+	}
+
 	// Build the evaluation prompt
-	prompt := fmt.Sprintf("You are an expert code and text quality controller.\nAnalyze the following assistant response to determine if it is:\n1. Complete (not truncated or cut off mid-thought).\n2. Error-free (syntax, markdown structure, and basic logic are correct).\n\nAssistant Response:\n%s\n\nOutput ONLY a JSON object in this format:\n{\n  \"complete\": true/false,\n  \"has_errors\": true/false,\n  \"reason\": \"brief explanation\",\n  \"rewritten_content\": \"optional improved version if minor fixes are needed, otherwise empty\"\n}", content)
+	prompt := fmt.Sprintf("You are an expert code and text quality controller.\nAnalyze the following assistant response to determine if it is:\n1. Complete (not truncated or cut off mid-thought).\n2. Error-free (syntax, markdown structure, and basic logic are correct).\n\nAssistant Response:\n%s\n\nOutput ONLY a JSON object in this format:\n{\n  \"complete\": true/false,\n  \"has_errors\": true/false,\n  \"reason\": \"brief explanation\",\n  \"rewritten_content\": \"optional improved version if minor fixes are needed, otherwise empty\"\n}", evaluationText)
 
 	payload := map[string]interface{}{
 		"model": g.Judge.Model,

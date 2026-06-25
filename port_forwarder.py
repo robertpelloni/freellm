@@ -49,19 +49,17 @@ def listen_and_forward(listen_port, target_port):
 
 def main():
     t1 = threading.Thread(target=listen_and_forward, args=(11434, 1234), daemon=True)
-    t2 = threading.Thread(target=listen_and_forward, args=(1234, 11434), daemon=True)
     
     t1.start()
-    t2.start()
     
-    print("Local Bidirectional Port Forwarders Running...")
+    print("Local Port Forwarder Running (11434 -> 1234)...")
     print("Press Ctrl+C to stop.")
     
     try:
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        print("\nStopping forwarders...")
+        print("\nStopping forwarder...")
 
 if __name__ == '__main__':
     main()

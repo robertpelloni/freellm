@@ -8,6 +8,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/robertpelloni/freellm/internal/db"
 	"github.com/robertpelloni/freellm/internal/engine"
 )
 
@@ -60,6 +61,15 @@ func (g *Gateway) processJob(job *RequestJob) {
 	compressedBody, err := g.CompressContext(body)
 	if err == nil {
 		body = compressedBody
+	}
+
+	var testPayload map[string]interface{}
+	if err := json.Unmarshal(body, &testPayload); err != nil {
+		job.Response <- &ProxyResponse{Status: 400, Err: fmt.Errorf("invalid JSON request body: %v", err)}
+		if job.DBID > 0 && g.DB != nil {
+			db.DequeueRequest(g.DB, job.DBID)
+		}
+		return
 	}
 
 	log.Printf("[ROUTER] Processing request (size: %d bytes)", len(body))
@@ -214,11 +224,28 @@ func (g *Gateway) processJob(job *RequestJob) {
 			tried = make(map[string]bool)
 		}
 
+		maxAttempts := g.NumRetries
+		if maxAttempts <= 0 {
+			maxAttempts = 5
+		}
+		if attempt >= maxAttempts {
+			log.Printf("[ROUTER] Max attempts reached (%d). Failing job.", maxAttempts)
+			emit(job, "ROUTER", "max attempts reached, failing job")
+			job.Response <- &ProxyResponse{Status: 502, Err: fmt.Errorf("all model candidates failed after %d attempts", maxAttempts)}
+			if job.DBID > 0 && g.DB != nil {
+				db.DequeueRequest(g.DB, job.DBID)
+			}
+			return
+		}
+
 		log.Printf("[ROUTER] Attempt %d complete. No model succeeded. Retrying...", attempt)
 		emit(job, "ROUTER", fmt.Sprintf("attempt %d complete: all eligible models tried, retrying", attempt))
 
 		select {
 		case <-job.Ctx.Done():
+			if job.DBID > 0 && g.DB != nil {
+				db.DequeueRequest(g.DB, job.DBID)
+			}
 			return
 		case <-time.After(1 * time.Second):
 		}
