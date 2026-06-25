@@ -233,7 +233,7 @@ func QualityScore(m engine.ModelCandidate) float64 {
 	}
 	// Bonus for larger models (more parameters = generally smarter)
 	if m.Parameters > 0 {
-		paramBonus := float64(m.Parameters) / 100_000_000_000.0 // Normalize to 100B
+		paramBonus := float64(m.Parameters) / 100.0 // Normalize to 100B (since Parameters are stored in billions, e.g. 70, 405)
 		if paramBonus > 2.0 {
 			paramBonus = 2.0
 		}
