@@ -247,3 +247,42 @@ func TestGatewayLocalJudge(t *testing.T) {
 	}
 }
 
+func TestSanitizeJSONStringLiterals(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{
+			input:    `{"text": "Line 1\nLine 2"}`,
+			expected: `{"text": "Line 1\nLine 2"}`, // the literal \n is replaced by escaped \n
+		},
+		{
+			input:    `{"text": "He said, \"Hello\""}`,
+			expected: `{"text": "He said, \"Hello\""}`,
+		},
+		{
+			input:    `{"text": "escaped \\n literal"}`,
+			expected: `{"text": "escaped \\n literal"}`,
+		},
+		{
+			input:    "{\n  \"text\": \"raw\nnewline\"\n}",
+			expected: "{\n  \"text\": \"raw\\nnewline\"\n}",
+		},
+		{
+			input:    `{"text": "tab	here"}`,
+			expected: `{"text": "tab\there"}`,
+		},
+		{
+			input:    `{"text": "some \: text and \. punctuation"}`,
+			expected: `{"text": "some \\: text and \\. punctuation"}`,
+		},
+	}
+
+	for i, tc := range tests {
+		got := string(SanitizeJSONStringLiterals([]byte(tc.input)))
+		if got != tc.expected {
+			t.Errorf("Test %d: expected %q, got %q", i, tc.expected, got)
+		}
+	}
+}
+

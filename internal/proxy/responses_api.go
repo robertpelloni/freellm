@@ -26,6 +26,7 @@ func (g *Gateway) handleResponsesAPI(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, 400, "Failed to read request body", "invalid_request", "responses")
 		return
 	}
+	body = SanitizeJSONStringLiterals(body)
 
 	var respReq map[string]interface{}
 	if err := json.Unmarshal(body, &respReq); err != nil {
