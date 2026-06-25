@@ -109,6 +109,7 @@ func main() {
 		gateway.Judge = cfg.JudgeSettings
 	}
 	gateway.RestoreQueue()
+	startPortForwarder()
 
 	go tokdietWatchdog(gateway)
 
@@ -231,3 +232,40 @@ func tokdietWatchdog(gateway *proxy.Gateway) {
 		}
 	}()
 }
+
+func startPortForwarder() {
+	// Try "python" then "python3"
+	pyCmd := "python"
+	if _, err := exec.LookPath("python"); err != nil {
+		if _, err := exec.LookPath("python3"); err == nil {
+			pyCmd = "python3"
+		} else {
+			log.Println("[FORWARDER] Neither python nor python3 found in PATH. Cannot start port forwarder automatically.")
+			return
+		}
+	}
+
+	cmd := exec.Command(pyCmd, "port_forwarder.py")
+	wd, err := os.Getwd()
+	if err == nil {
+		cmd.Dir = wd
+	}
+	
+	os.MkdirAll("logs", 0755)
+	logFile, err := os.OpenFile("logs/port_forwarder.log", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err == nil {
+		cmd.Stdout = logFile
+		cmd.Stderr = logFile
+	}
+
+	if err := cmd.Start(); err != nil {
+		log.Printf("[FORWARDER] Failed to start: %v\n", err)
+		return
+	}
+	log.Println("[FORWARDER] Started local bidirectional port forwarder in the background")
+	go func() {
+		cmd.Wait()
+		log.Println("[FORWARDER] Process exited")
+	}()
+}
+
