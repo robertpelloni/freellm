@@ -1,5 +1,6 @@
 🛠️ ALPHA SOFTWARE UNDER CONSTRUCTION — Use at your own risk. Backwards compatibility not guaranteed.
 
+```text
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                              ║
 ║                     ██╗   ██╗███╗   ██╗██████╗ ███████╗██████╗              ║
@@ -30,6 +31,7 @@
 ║                    ╚══════════════════════════════════════╝                  ║
 ║                                                                              ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
+```
 
 # FreeLLM v2.0.0
 
@@ -64,11 +66,13 @@ FreeLLM ensures your high-performance LLM workflows always hit the best availabl
 ## 📐 Adaptive Scoring & Intelligence
 
 The router uses a configurable weighted algorithm to rank models:
+
 - **Parameter Size (60%)**: Favors high-capability models.
 - **Context Length (20%)**: Prioritizes larger windows for complex tasks.
 - **Latency (20%)**: Penalizes slow response times.
 
 **Smart Features**:
+
 - **Circuit Breaker**: Automatically isolates failing endpoints for 2 hours.
 - **Provider Learning**: Flags and skips providers that consistently fail to provide free models.
 - **Local Cache**: Reuses local model benchmarks for 15 minutes to save resources.
