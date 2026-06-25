@@ -689,6 +689,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	body, _ := io.ReadAll(r.Body)
+	body = SanitizeJSONStringLiterals(body)
 	r.Body = io.NopCloser(bytes.NewBuffer(body))
 
 	schema := gojsonschema.NewStringLoader(`{"type":"object","properties":{"model":{"type":"string"},"messages":{"type":"array"}},"required":["model","messages"]}`)
@@ -3088,7 +3089,8 @@ func (g *Gateway) RestoreQueue() {
 	}
 	log.Printf("Restoring %d pending requests...", len(pending))
 	for _, p := range pending {
-		req, _ := http.NewRequest(p.Method, p.URL, bytes.NewBuffer(p.Body))
+		sanitizedBody := SanitizeJSONStringLiterals(p.Body)
+		req, _ := http.NewRequest(p.Method, p.URL, bytes.NewBuffer(sanitizedBody))
 		job := &RequestJob{
 			Request:  req,
 			Response: make(chan *ProxyResponse, 1),
@@ -3650,4 +3652,63 @@ func (g *Gateway) evaluateResponseWithJudge(ctx context.Context, respBody []byte
 
 	return &verdict, nil
 }
+
+// SanitizeJSONStringLiterals escapes raw control characters (like newlines)
+// inside JSON string literals so that they do not fail standard JSON unmarshaling.
+func SanitizeJSONStringLiterals(input []byte) []byte {
+	var output bytes.Buffer
+	inString := false
+	escaped := false
+	for i := 0; i < len(input); i++ {
+		b := input[i]
+		if inString {
+			if escaped {
+				output.WriteByte(b)
+				escaped = false
+				continue
+			}
+			if b == '\\' {
+				// Check if the next character is a valid JSON escape character.
+				if i+1 < len(input) {
+					next := input[i+1]
+					if next == '"' || next == '\\' || next == '/' || next == 'b' || next == 'f' || next == 'n' || next == 'r' || next == 't' || next == 'u' {
+						output.WriteByte(b)
+						escaped = true
+						continue
+					}
+				}
+				// Otherwise, this backslash is not escaping a valid character, so we must escape the backslash itself.
+				output.WriteString(`\\`)
+				continue
+			}
+			if b == '"' {
+				output.WriteByte(b)
+				inString = false
+				continue
+			}
+			// Control characters (0x00 to 0x1F) must be escaped in JSON strings.
+			if b < 0x20 {
+				switch b {
+				case '\n':
+					output.WriteString(`\n`)
+				case '\r':
+					output.WriteString(`\r`)
+				case '\t':
+					output.WriteString(`\t`)
+				default:
+					output.WriteString(fmt.Sprintf(`\u%04x`, b))
+				}
+			} else {
+				output.WriteByte(b)
+			}
+		} else {
+			output.WriteByte(b)
+			if b == '"' {
+				inString = true
+			}
+		}
+	}
+	return output.Bytes()
+}
+
 

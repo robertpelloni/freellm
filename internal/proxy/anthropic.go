@@ -114,6 +114,7 @@ func (g *Gateway) handleAnthropicMessages(w http.ResponseWriter, r *http.Request
 		writeAnthropicError(w, 400, "invalid_request_error", fmt.Sprintf("read body: %v", err))
 		return
 	}
+	body = SanitizeJSONStringLiterals(body)
 
 	// Parse Anthropic request
 	var aReq anthropicReq
