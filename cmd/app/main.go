@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"sync"
 	"syscall"
@@ -107,9 +108,12 @@ func main() {
 	}
 	if cfg != nil {
 		gateway.Judge = cfg.JudgeSettings
+		gateway.NumRetries = cfg.RouterSettings.NumRetries
 	}
 	gateway.RestoreQueue()
-	startPortForwarder()
+	if runtime.GOOS == "windows" {
+		startPortForwarder()
+	}
 
 	go tokdietWatchdog(gateway)
 
