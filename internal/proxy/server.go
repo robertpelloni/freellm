@@ -2258,8 +2258,10 @@ func (g *Gateway) autoContinueNonStream(client *http.Client, r *http.Request, in
 			}
 		}
 
-		// Inject continuation marker
-		accumulatedContent.WriteString(fmt.Sprintf("\n\n[Continued with Model: %s | Provider: %s]\n\n", currentModel.ID, currentModel.Provider))
+		// Inject continuation marker (debug only)
+		if g.ShowDebugStream {
+			accumulatedContent.WriteString(fmt.Sprintf("\n\n[Continued with Model: %s | Provider: %s]\n\n", currentModel.ID, currentModel.Provider))
+		}
 		accumulatedContent.WriteString(contContent)
 
 		// Update finish_reason from the continuation
@@ -2683,9 +2685,11 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 								s.model = winner.model
 								s.currentStream = winner.resp.Stream
 								s.finishReason = ""
+							if s.g.ShowDebugStream {
 								s.injectTextChunk(fmt.Sprintf("\n\n[Continued with Model: %s | Provider: %s]\n\n", s.model.ID, s.model.Provider))
-								s.prefixSent = false
-								s.firstChunkParsed = false
+							}
+							s.prefixSent = false
+							s.firstChunkParsed = false
 								s.isToolCall = false
 								s.finishReasonSent = false
 								s.resetReader()
@@ -2757,9 +2761,11 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 						s.finishReasonSent = false
 						s.fallbackIdx = 0
 						s.resetReader()
+					if s.g.ShowDebugStream {
 						s.injectTextChunk(fmt.Sprintf("\n\n[Continued with Model: %s | Provider: %s]\n\n", s.model.ID, s.model.Provider))
-						s.continuationCount++
-						success = true
+					}
+					s.continuationCount++
+					success = true
 						return s.buffer.Read(p)
 					}
 				}
