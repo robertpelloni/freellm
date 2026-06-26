@@ -28,6 +28,10 @@ KNOWN_MODELS = {
     "openrouter/openai/gpt-oss-120b:free": {"params": 120, "ctx": 131072, "provider": "openrouter"},
     "openrouter/openai/gpt-oss-20b:free": {"params": 20, "ctx": 131072, "provider": "openrouter"},
     "openrouter/z-ai/glm-4.5-air:free": {"params": 14, "ctx": 131072, "provider": "openrouter"},
+    "openrouter/z-ai/glm-5.2": {"params": 744, "ctx": 1000000, "provider": "openrouter"},
+    "opencode_zen/glm-5.2": {"params": 744, "ctx": 1000000, "provider": "opencode_zen"},
+    "zhipu/glm-5.2": {"params": 744, "ctx": 1000000, "provider": "zhipu"},
+    "zhipu/glm-5.1": {"params": 744, "ctx": 128000, "provider": "zhipu"},
 
     # -- NVIDIA NIM Models (tested working 2025-06) --
     "nvidia/meta/llama-3.3-70b-instruct": {"params": 70, "ctx": 128000, "provider": "nvidia"},
@@ -195,6 +199,14 @@ def estimate_unknown_model(model_id: str) -> dict | None:
             return {"params": 72, "ctx": 32000, "provider": ""}
         if "turbo" in lower:
             return {"params": 14, "ctx": 32000, "provider": ""}
+    # GLM (Zhipu AI)
+    if "glm" in lower:
+        if "5.2" in lower:
+            return {"params": 744, "ctx": 1000000, "provider": ""}
+        if "5.1" in lower or "5" in lower:
+            return {"params": 744, "ctx": 128000, "provider": ""}
+        if "4" in lower:
+            return {"params": 130, "ctx": 128000, "provider": ""}
     return None
 
 

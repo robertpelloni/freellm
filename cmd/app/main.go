@@ -261,7 +261,7 @@ func startPortForwarder() {
 	if err == nil {
 		cmd.Dir = wd
 	}
-	
+
 	os.MkdirAll("logs", 0755)
 	logFile, err := os.OpenFile("logs/port_forwarder.log", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err == nil {
@@ -279,4 +279,3 @@ func startPortForwarder() {
 		log.Println("[FORWARDER] Process exited")
 	}()
 }
-
