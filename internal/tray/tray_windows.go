@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"fmt"
 	"log"
+	"os/exec"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -151,6 +152,25 @@ func onReady(events <-chan proxy.RouterEvent, eventLog chan<- Event, cfg Config)
 				eventBufMu.RUnlock()
 				systray.SetTooltip(fmt.Sprintf("FreeLLM — %d events | Last: %s", count, last))
 				log.Printf("[TRAY] Activity: %d events, latest: %s", count, last)
+
+				// Start python monitoring_ui.py in the background
+				go func() {
+					pyCmd := "python"
+					if _, err := exec.LookPath("python"); err != nil {
+						if _, err = exec.LookPath("python3"); err == nil {
+							pyCmd = "python3"
+						} else {
+							log.Println("[TRAY] Neither python nor python3 found in PATH. Cannot start monitoring UI.")
+							return
+						}
+					}
+					cmd := exec.Command(pyCmd, "monitoring_ui.py")
+					if err := cmd.Start(); err != nil {
+						log.Printf("[TRAY] Failed to start monitoring UI: %v", err)
+					} else {
+						log.Println("[TRAY] Started monitoring UI in background")
+					}
+				}()
 
 			case <-mQuit.ClickedCh:
 				systray.Quit()
