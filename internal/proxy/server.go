@@ -838,7 +838,7 @@ WaitLoop:
 	log.Printf("[PROXY] Got response, err=%v status=%d", resp.Err, resp.Status)
 	if resp.Err != nil {
 		log.Printf("[PROXY] Job error: %v", resp.Err)
-		if isStream {
+		if isStream && g.ShowDebugStream {
 			writeSSEError(w, resp.Err.Error(), "")
 		} else {
 			writeJSONError(w, http.StatusBadGateway, resp.Err.Error(), "server_error", "proxy")
@@ -943,8 +943,10 @@ WaitLoop:
 					}
 				}
 			}
+		if g.ShowDebugStream {
 			writeSSEError(w, errMsg, modelID)
-			return
+		}
+		return
 		} else {
 			// It's a successful non-streaming response. Let's translate it into SSE chunks.
 			id := fmt.Sprintf("chatcmpl-%d", time.Now().UnixNano())
@@ -2173,16 +2175,20 @@ func (g *Gateway) autoContinueNonStream(client *http.Client, r *http.Request, in
 			contResp = g.forwardRequestInternal(r.Context(), client, r, fallbackModel, newBody, true, nil)
 			if contResp.Err == nil && contResp.Status == 200 {
 				currentModel = fallbackModel
-				accumulatedContent.WriteString(fmt.Sprintf("\n\n[Switched to Model: %s | Provider: %s due to error/cutoff]\n\n", currentModel.ID, currentModel.Provider))
+				if g.ShowDebugStream {
+					accumulatedContent.WriteString(fmt.Sprintf("\n\n[Switched to Model: %s | Provider: %s due to error/cutoff]\n\n", currentModel.ID, currentModel.Provider))
+				}
 				break
 			}
 		}
 
 		if contResp.Err != nil || contResp.Status != 200 {
 			log.Printf("[AUTO-CONTINUE] Continuation attempt %d failed completely.", i+1)
-			errMsg := "[FreeLLM Proxy Error: Continuation failed. Response may be incomplete.]"
-			if contResp.Err != nil {
+			errMsg := ""
+			if contResp.Err != nil && g.ShowDebugStream {
 				errMsg = fmt.Sprintf("[FreeLLM Proxy Error: Continuation failed: %v]", contResp.Err)
+			} else if g.ShowDebugStream {
+				errMsg = "[FreeLLM Proxy Error: Continuation failed. Response may be incomplete.]"
 			}
 			accumulatedContent.WriteString("\n\n" + errMsg + "\n\n")
 
@@ -2597,7 +2603,9 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 				if success {
 					return s.buffer.Read(p)
 				}
+			if s.g.ShowDebugStream {
 				s.injectTextChunk("\n\n[FreeLLM Proxy Error: Connection closed after multiple retries.]\n\n")
+			}
 			}
 
 			isTruncated := false
@@ -2685,11 +2693,11 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 								s.model = winner.model
 								s.currentStream = winner.resp.Stream
 								s.finishReason = ""
-							if s.g.ShowDebugStream {
-								s.injectTextChunk(fmt.Sprintf("\n\n[Continued with Model: %s | Provider: %s]\n\n", s.model.ID, s.model.Provider))
-							}
-							s.prefixSent = false
-							s.firstChunkParsed = false
+								if s.g.ShowDebugStream {
+									s.injectTextChunk(fmt.Sprintf("\n\n[Continued with Model: %s | Provider: %s]\n\n", s.model.ID, s.model.Provider))
+								}
+								s.prefixSent = false
+								s.firstChunkParsed = false
 								s.isToolCall = false
 								s.finishReasonSent = false
 								s.resetReader()
@@ -2761,16 +2769,18 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 						s.finishReasonSent = false
 						s.fallbackIdx = 0
 						s.resetReader()
-					if s.g.ShowDebugStream {
-						s.injectTextChunk(fmt.Sprintf("\n\n[Continued with Model: %s | Provider: %s]\n\n", s.model.ID, s.model.Provider))
-					}
-					s.continuationCount++
-					success = true
+						if s.g.ShowDebugStream {
+							s.injectTextChunk(fmt.Sprintf("\n\n[Continued with Model: %s | Provider: %s]\n\n", s.model.ID, s.model.Provider))
+						}
+						s.continuationCount++
+						success = true
 						return s.buffer.Read(p)
 					}
 				}
 				if !success {
-					s.injectTextChunk(fmt.Sprintf("\n\n[FreeLLM Proxy Error: Response too short.]\n\n"))
+				if s.g.ShowDebugStream {
+				s.injectTextChunk(fmt.Sprintf("\n\n[FreeLLM Proxy Error: Response too short.]\n\n"))
+			}
 					s.err = fmt.Errorf("response too short (%d chars)", s.accumulatedText.Len())
 					s.eofReached = true
 					return s.buffer.Read(p)
