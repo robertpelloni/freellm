@@ -19,6 +19,7 @@ import (
 	"github.com/robertpelloni/freellm/internal/db"
 	"github.com/robertpelloni/freellm/internal/engine"
 	"github.com/robertpelloni/freellm/internal/proxy"
+	"github.com/robertpelloni/freellm/internal/tray"
 	"github.com/robertpelloni/freellm/internal/ui"
 )
 
@@ -113,6 +114,7 @@ func main() {
 	gateway.RestoreQueue()
 	if runtime.GOOS == "windows" {
 		startPortForwarder()
+		go tray.Run(gateway.GlobalEvents, tray.Config{})
 	}
 
 	go tokdietWatchdog(gateway)

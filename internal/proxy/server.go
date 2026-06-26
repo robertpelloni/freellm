@@ -79,6 +79,10 @@ type Gateway struct {
 	providerFailureMu    sync.RWMutex
 	providerFailureCount map[string]int // provider -> consecutive failures across all its models
 
+	// GlobalEvents carries all router activity for external consumers (tray, log viewer).
+	// Non-blocking send; dropped if nobody is listening.
+	GlobalEvents chan RouterEvent
+
 	// Configurable Timeouts & Settings
 	RequestTimeout           time.Duration
 	StreamTimeout            time.Duration
@@ -302,6 +306,8 @@ func NewGateway(maxActive int, database *sql.DB, port int) *Gateway {
 		SmartSwitchDelay:         30 * time.Second,
 
 		persistentDisables: make(map[string]string),
+
+		GlobalEvents: make(chan RouterEvent, 256),
 
 		Judge: config.JudgeSettings{
 			Enabled:        false,

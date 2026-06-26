@@ -1,6 +1,6 @@
 {
-  "signature": "internal/proxy/server.go::Unresolved from this turn — internal/proxy/server.go:\n🔴 STOP — 1 issue(s) must be fixed:\n  L911: g.MinParamsFilter undefined (type *Gateway has no field or method MinParamsFilter)\n    💡 Fix: LSP quick fixes: Declare missing method Gateway.filterCandidatesWithOverride",
-  "sessionId": "lens-mqfcz1i8-c6f6a481",
-  "projectSeqStart": 147,
-  "projectSeqEnd": 148
+  "signature": "internal/proxy/processjob.go::Unresolved from this turn — internal/proxy/processjob.go:\n🔴 STOP — 8 issue(s) must be fixed:\n  L98: not enough arguments in call to emit\n  \thave (*RequestJob, string, string)\n  \twant (*Gateway, *RequestJob, string, string)\n  L161: not enough arguments in call to emit\n  \thave (*RequestJob, string, string)\n  \twant (*Gateway, *RequestJob, string, string)\n  L177: not enough arguments in call to emit\n  \thave (*RequestJob, string, string)\n  \twant (*Gateway, *RequestJob, string, string)\n  L208: not enough arguments in call to emit\n  \thave (*RequestJob, string, string)\n  \twant (*Gateway, *RequestJob, string, string)\n  L213: not enough arguments in call to emit\n  \thave (*RequestJob, string, string)\n  \twant (*Gateway, *RequestJob, string, string)\n  L224: not enough arguments in call to emit\n  \thave (*RequestJob, string, string)\n  \twant (*Gateway, *RequestJob, string, string)\n... (truncated)",
+  "sessionId": "019eefc8-28f8-71bb-a54a-1ce4e393039a",
+  "projectSeqStart": 166,
+  "projectSeqEnd": 167
 }
