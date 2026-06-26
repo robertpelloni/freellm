@@ -1,8 +1,8 @@
 package tokdiet
 
 import (
-	"net"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -46,12 +46,10 @@ func (t *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 // NewClient returns an http.Client pre-configured to route through tokdiet.
-// If tokdiet is not reachable at 127.0.0.1:7787, the transport is disabled
-// and requests go directly to upstream providers.
+// The RoundTripper is disabled by default. Set FREELLM_TOKDIET=1 to enable.
 func NewClient(timeout time.Duration) *http.Client {
-	enabled := probeTokdiet()
+	enabled := os.Getenv("FREELLM_TOKDIET") == "1"
 	if !enabled {
-		// Return a direct client without tokdiet routing
 		return &http.Client{
 			Timeout:   timeout,
 			Transport: &RoundTripper{Next: http.DefaultTransport, Enabled: false},
@@ -63,12 +61,4 @@ func NewClient(timeout time.Duration) *http.Client {
 	}
 }
 
-// probeTokdiet checks if tokdiet is listening on its port.
-func probeTokdiet() bool {
-	conn, err := net.DialTimeout("tcp", tokdietPort, 500*time.Millisecond)
-	if err != nil {
-		return false
-	}
-	conn.Close()
-	return true
-}
+
