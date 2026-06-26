@@ -27,13 +27,21 @@ func (g *Gateway) applyProviderCooldown(provider string, d time.Duration) {
 // full (e.g. ServeHTTP already returned, or the client disconnected), the
 // event is dropped so the router is never stalled by a slow consumer. A
 // nil job or nil channel is a no-op.
-func emit(job *RequestJob, tag, message string) {
+func emit(g *Gateway, job *RequestJob, tag, message string) {
 	if job == nil || job.Events == nil {
 		return
 	}
+	ev := RouterEvent{Tag: tag, Message: message}
 	select {
-	case job.Events <- RouterEvent{Tag: tag, Message: message}:
+	case job.Events <- ev:
 	default:
+	}
+	// Also forward to global event stream for tray/log viewers
+	if g != nil && g.GlobalEvents != nil {
+		select {
+		case g.GlobalEvents <- ev:
+		default:
+		}
 	}
 }
 
@@ -87,7 +95,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 		candidates := g.filterCandidatesWithOverride(allModels, g.MinParamsFilter)
 		if len(candidates) == 0 {
 			log.Printf("[ROUTER] Attempt %d: No candidates available (MinParamsFilter: %d). Waiting...", attempt, g.MinParamsFilter)
-			emit(job, "ROUTER", fmt.Sprintf("attempt %d: no candidates available, waiting", attempt))
+			emit(g, job, "ROUTER", fmt.Sprintf("attempt %d: no candidates available, waiting", attempt))
 			select {
 			case <-job.Ctx.Done():
 				return
@@ -150,7 +158,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 			}
 
 			log.Printf("[ROUTER] Attempt %d: Sending request to %s(%s) (seq queue)", attempt, m.ID, m.Provider)
-			emit(job, "ROUTER", fmt.Sprintf("attempt %d: routing to %s(%s)", attempt, m.ID, m.Provider))
+			emit(g, job, "ROUTER", fmt.Sprintf("attempt %d: routing to %s(%s)", attempt, m.ID, m.Provider))
 
 			resp := g.forwardRequestInternal(job.Ctx, g.Client, job.Request, m, body, false, nil)
 
@@ -166,7 +174,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 						log.Printf("[ROUTER] Local judge evaluation failed: %v. Assuming response is OK.", err)
 					} else if !verdict.Complete || verdict.HasErrors {
 						log.Printf("[ROUTER] Local judge rejected response from %s(%s). Reason: %s. Retrying next candidate...", m.ID, m.Provider, verdict.Reason)
-						emit(job, "ROUTER", fmt.Sprintf("%s(%s) failed judge evaluation: %s", m.ID, m.Provider, verdict.Reason))
+						emit(g, job, "ROUTER", fmt.Sprintf("%s(%s) failed judge evaluation: %s", m.ID, m.Provider, verdict.Reason))
 						g.AdjustModelScore(m.ID, m.Provider, 0.4) // Penalize score
 						tried[m.ID+"|"+m.Provider] = true
 						continue // Skip to next candidate in the queue
@@ -197,12 +205,12 @@ func (g *Gateway) processJob(job *RequestJob) {
 				return
 			} else if resp.Status == 429 {
 				log.Printf("[ROUTER] Provider %s hit rate limit (429), cooling down for 30s.", m.Provider)
-				emit(job, "ROUTER", fmt.Sprintf("%s(%s) rate-limited (429), cooling down", m.ID, m.Provider))
+				emit(g, job, "ROUTER", fmt.Sprintf("%s(%s) rate-limited (429), cooling down", m.ID, m.Provider))
 				g.AdjustModelScore(m.ID, m.Provider, 0.8)
 				g.applyProviderCooldown(m.Provider, 30*time.Second)
 			} else if resp.Status >= 400 && resp.Status < 500 {
 				log.Printf("[ROUTER] Provider %s returned permanent error (%d), disabling model.", m.Provider, resp.Status)
-				emit(job, "ROUTER", fmt.Sprintf("%s(%s) permanent error (%d), disabling", m.ID, m.Provider, resp.Status))
+				emit(g, job, "ROUTER", fmt.Sprintf("%s(%s) permanent error (%d), disabling", m.ID, m.Provider, resp.Status))
 				g.recordModelFailure(m.ID, m.Provider, resp.Status, resp.ErrorMessage)
 				g.AdjustModelScore(m.ID, m.Provider, 0.1)
 				if resp.Status == 401 || resp.Status == 403 || resp.Status == 404 {
@@ -213,7 +221,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 			}
 
 			log.Printf("[ROUTER] Attempt %d: %s(%s) failed: %v (Status %d)", attempt, m.ID, m.Provider, resp.Err, resp.Status)
-			emit(job, "ROUTER", fmt.Sprintf("attempt %d: %s(%s) failed (status %d)", attempt, m.ID, m.Provider, resp.Status))
+			emit(g, job, "ROUTER", fmt.Sprintf("attempt %d: %s(%s) failed (status %d)", attempt, m.ID, m.Provider, resp.Status))
 
 			tried[m.ID+"|"+m.Provider] = true
 		}
@@ -230,7 +238,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 		}
 		if attempt >= maxAttempts {
 			log.Printf("[ROUTER] Max attempts reached (%d). Failing job.", maxAttempts)
-			emit(job, "ROUTER", "max attempts reached, failing job")
+			emit(g, job, "ROUTER", "max attempts reached, failing job")
 			job.Response <- &ProxyResponse{Status: 502, Err: fmt.Errorf("all model candidates failed after %d attempts", maxAttempts)}
 			if job.DBID > 0 && g.DB != nil {
 				db.DequeueRequest(g.DB, job.DBID)
@@ -239,7 +247,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 		}
 
 		log.Printf("[ROUTER] Attempt %d complete. No model succeeded. Retrying...", attempt)
-		emit(job, "ROUTER", fmt.Sprintf("attempt %d complete: all eligible models tried, retrying", attempt))
+		emit(g, job, "ROUTER", fmt.Sprintf("attempt %d complete: all eligible models tried, retrying", attempt))
 
 		select {
 		case <-job.Ctx.Done():

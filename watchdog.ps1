@@ -32,6 +32,39 @@ function Write-Log {
     "$timestamp [WATCHDOG] $Message" | Out-File -FilePath $logFile -Append -Encoding UTF8
 }
 
+function Get-FreeLLMProcess {
+    # Check by PID file
+    if (Test-Path $pidFile) {
+        $savedPid = Get-Content $pidFile -Raw -ErrorAction SilentlyContinue
+        if ($savedPid) {
+            $savedPid = $savedPid.Trim()
+            $proc = Get-Process -Id $savedPid -ErrorAction SilentlyContinue
+            if ($proc -and $proc.ProcessName -eq "freellm") {
+                # Verify it's actually listening on the port
+                try {
+                    $req = [System.Net.WebRequest]::Create("http://localhost:4000/api/proxy/health")
+                    $req.Timeout = 2000
+                    $resp = $req.GetResponse()
+                    $resp.Close()
+                    return @($savedPid)
+                } catch {
+                    # Process exists but not responding - stale
+                    Write-Log "PID $savedPid exists but not responding. Removing stale PID file."
+                    Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
+                }
+            }
+        }
+    }
+    
+    # Fallback: check by process name
+    $procs = Get-Process -Name "freellm" -ErrorAction SilentlyContinue
+    if ($procs) {
+        return $procs
+    }
+    
+    return @()
+}
+
 function Start-FreeLLM {
     $exePath = Join-Path $FreeLLMDir "freellm.exe"
     if (-not (Test-Path $exePath)) {
@@ -43,35 +76,30 @@ function Start-FreeLLM {
         $process = Start-Process -FilePath $exePath -WorkingDirectory $FreeLLMDir -WindowStyle Hidden -PassThru
         Write-Log "Started freellm.exe (PID: $($process.Id))"
         
-        # Write PID file for other tools
+        # Write PID file
         $process.Id | Out-File -FilePath $pidFile -Force -Encoding UTF8
         
-        # Wait a moment then check if it's still running
-        Start-Sleep -Seconds 3
-        if (-not (Get-Process -Id $process.Id -ErrorAction SilentlyContinue)) {
-            Write-Log "WARNING: freellm.exe exited immediately after start"
-            return $false
-        }
-        
-        # Wait for the HTTP server to respond
-        $timeout = 15
-        $elapsed = 0
-        while ($elapsed -lt $timeout) {
+        # Wait for the HTTP server to respond (via proxy health endpoint)
+        $timeout = 20
+        for ($i = 0; $i -lt $timeout; $i++) {
             try {
-                $req = [System.Net.WebRequest]::Create("http://localhost:4000/health/readiness")
-                $req.Timeout = 3000
+                $req = [System.Net.WebRequest]::Create("http://localhost:4000/api/proxy/health")
+                $req.Timeout = 2000
                 $resp = $req.GetResponse()
                 $resp.Close()
-                Write-Log "Health check passed (HTTP $($resp.StatusCode))"
+                Write-Log "Health check passed after ${i}s (PID: $($process.Id))"
                 return $true
             } catch {
+                if (-not (Get-Process -Id $process.Id -ErrorAction SilentlyContinue)) {
+                    Write-Log "Process exited during startup"
+                    return $false
+                }
                 Start-Sleep -Seconds 1
-                $elapsed++
             }
         }
         
-        Write-Log "WARNING: Health check did not pass within ${timeout}s"
-        return $true  # Process is running even if health check hasn't passed yet
+        Write-Log "WARNING: Health check did not pass within ${timeout}s, but process is running"
+        return $true
     } catch {
         Write-Log "ERROR starting freellm.exe: $_"
         return $false
@@ -82,40 +110,22 @@ function Start-FreeLLM {
 Write-Log "Watchdog started (check interval: ${CheckIntervalSeconds}s)"
 
 while ($true) {
-    $running = $false
+    $running = Get-FreeLLMProcess
     
-    # Check by PID file first
-    if (Test-Path $pidFile) {
-        $savedPid = Get-Content $pidFile -Raw -ErrorAction SilentlyContinue
-        if ($savedPid) {
-            $savedPid = $savedPid.Trim()
-            $proc = Get-Process -Id $savedPid -ErrorAction SilentlyContinue
-            if ($proc -and $proc.ProcessName -match "freellm|app") {
-                $running = $true
-            }
-        }
-    }
-    
-    # Fallback: check by process name
-    if (-not $running) {
-        $procs = Get-Process -Name "freellm" -ErrorAction SilentlyContinue
-        if (-not $procs) {
-            $procs = Get-Process -Name "app" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -match "freellm" }
-        }
-        if ($procs) {
-            $running = $true
-            # Update PID file
-            $procs[0].Id | Out-File -FilePath $pidFile -Force -Encoding UTF8
-        }
-    }
-    
-    if (-not $running) {
+    if ($running.Count -eq 0) {
         Write-Log "freellm.exe not running. Attempting restart..."
         $result = Start-FreeLLM
         if ($result) {
             Write-Log "Restart successful"
         } else {
             Write-Log "Restart FAILED"
+        }
+    } elseif ($running.Count -gt 1) {
+        Write-Log "Multiple instances ($($running.Count)). Killing duplicates..."
+        # Keep the first one, kill the rest
+        $running | Select-Object -Skip 1 | ForEach-Object {
+            Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+            Write-Log "Killed duplicate PID $($_.Id)"
         }
     }
     

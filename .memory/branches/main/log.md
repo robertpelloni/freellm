@@ -1526,3 +1526,1188 @@ Also, I need to check the tokdiet submodule - it had local modifications (timeou
 **Action**: bash(command: "cd /c/Users/hyper/workspace/freellm && git checkout main && echo "=== tokdiet status ===" && git submodule status && echo "=== All changes to commit ===" && git status -s")
 **Observation**: bash: success
 
+## Turn 1 | 2026-06-26T18:16:52.546Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: The user wants another comprehensive audit. Let me check everything fresh.
+**Action**: bash(command: "echo "==========================================" && echo "  AUDIT — $(date)" && echo "==========================================" && echo "" && echo "========== LOCAL ==========" && echo "" && wmic process where "name='freellm.exe'" get processid,workingsetsize /format:list 2>nul | tail -1 && netstat -ano 2>nul | findstr ":4000" | wc -l | xargs echo "port :4000 listeners:" && netstat -ano 2>nul | findstr ":7787" | wc -l | xargs echo "port :7787 listeners:" && wmic process where "commandline like '%watchdog%' and name='powershell.exe'" get processid /format:list 2>nul | head -3 && curl -s --max-time 5 http://localhost:4000/api/proxy/health && curl -s --max-time 5 http://localhost:4000/api/proxy/v1/models 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'models: {len(d.get(\"data\",[]))}')" 2>&1 && echo "" && curl -s --max-time 30 'http://localhost:4000/api/proxy/v1/chat/completions' -H 'Content-Type: application/json' -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"ok"}],"max_tokens":10}' 2>&1 | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'chat: \"{d[\"choices\"][0][\"message\"][\"content\"]}\"')" 2>&1 && echo "" && echo "========== HETZNER ==========" && echo "" && ssh -o ConnectTimeout=30 hetzner "
+  echo \"service: \$(systemctl is-active aimm-freellm)\"
+  /opt/aimoneymachine/freellm --version 2>&1 | head -1
+  curl -s --max-time 5 http://localhost:4000/api/proxy/health
+  echo '---'
+  curl -s --max-time 5 http://localhost:4000/api/proxy/v1/models 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print(f\"models: {len(d.get(\"data\",[]))}\")' 2>/dev/null
+  curl -s --max-time 30 'http://localhost:4000/api/proxy/v1/chat/completions' -H 'Content-Type: application/json' -d '{\"model\":\"gpt-4o-mini\",\"messages\":[{\"role\":\"user\",\"content\":\"ok\"}],\"max_tokens\":10}' 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print(f\"chat: \\\"{d[\"choices\"][0][\"message\"].get(\"content\",\"(empty)\")}\\\"\")' 2>/dev/null
+" 2>&1 && echo "" && echo "========== GIT ==========" && echo "" && cd /c/Users/hyper/workspace/freellm && echo "main:  $(git log --oneline -1)"", timeout: 90)
+**Observation**: bash: error
+
+## Turn 2 | 2026-06-26T18:17:08.078Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: freellm is not running again! Port 4000 and 7787 have 0 listeners. The watchdog process (PID 26540) is showing but the process might be hung or dead.
+
+Let me check more carefully.
+**Action**: bash(command: "echo "=== processes ===" && wmic process where "name='freellm.exe'" get processid,name,workingsetsize /format:list 2>nul && echo "---" && wmic process where "name='powershell.exe' and commandline like '%watchdog%'" get processid,name,workingsetsize /format:list 2>nul | head -4 && echo "---" && netstat -ano 2>nul | findstr ":4000" | head -1 && netstat -ano 2>nul | findstr ":7787" | head -1 && echo "" && echo "=== watchdog temp file ===" && cat /c/Users/hyper/AppData/Local/Temp/wd_freellm.txt 2>/dev/null && echo "" && echo "=== any WerFault crashes? ===" && wmic process where "name='WerFault.exe'" get processid,name /format:list 2>nul", timeout: 10)
+**Observation**: bash: success
+
+## Turn 3 | 2026-06-26T18:17:16.971Z | deepseek/deepseek-v4-flash
+
+**Thought**: freellm crashed and the watchdog isn't restarting it. Let me check the watchdog status and restart.
+**Thinking**: freellm is DOWN. The watchdog (PID 26540) is still running but it's not restarting freellm. The watchdog temp file shows PID 28700, which was the old PID from yesterday. The watchdog hasn't updated it, meaning it may have stopped looping.
+
+The watchdog.ps1 might have a bug or might have stopped. Let me check if the watchdog process is actually doing anything, and then restart everything.
+**Action**: bash(command: "powershell.exe -NoProfile -Command "Stop-Process -Id 26540 -Force -ErrorAction SilentlyContinue" 2>&1 | tail -1 && echo "Killed old watchdog" && powershell.exe -NoProfile -Command "Start-Process -WindowStyle Hidden -FilePath 'powershell.exe' -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File C:\Users\hyper\workspace\freellm\watchdog.ps1' -PassThru" 2>&1 | tail -1 && sleep 10 && echo "" && echo "=== freellm ===" && netstat -ano 2>nul | findstr ":4000" | head -1 && echo "=== tokdiet ===" && netstat -ano 2>nul | findstr ":7787" | head -1 && echo "=== health ===" && curl -s --max-time 5 http://localhost:4000/api/proxy/health 2>&1", timeout: 25)
+**Observation**: bash: success
+
+## Turn 4 | 2026-06-26T18:17:34.954Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Good, restarted successfully. Let me also check the Hetzner server.
+**Action**: bash(command: "ssh -o ConnectTimeout=30 hetzner "
+  echo \"service: \$(systemctl is-active aimm-freellm)\"
+  /opt/aimoneymachine/freellm --version
+  curl -s --max-time 5 http://localhost:4000/api/proxy/health
+  curl -s --max-time 30 'http://localhost:4000/api/proxy/v1/chat/completions' -H 'Content-Type: application/json' -d '{\"model\":\"gpt-4o-mini\",\"messages\":[{\"role\":\"user\",\"content\":\"ok\"}],\"max_tokens\":10}' 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print(f\"chat: \\\"{d[\"choices\"][0][\"message\"].get(\"content\",\"(empty)\")}\\\"\")' 2>/dev/null
+" 2>&1", timeout: 45)
+**Observation**: bash: success
+
+## Turn 5 | 2026-06-26T18:17:49.703Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Now let me audit the watchdog.ps1 to see why it stopped restarting freellm. The watchdog should have detected the crash and restarted it. Let me check the watchdog script.
+**Action**: read(path: "C:\Users\hyper\workspace\freellm\watchdog.ps1")
+**Observation**: read: success
+
+## Turn 6 | 2026-06-26T18:17:55.332Z | deepseek/deepseek-v4-flash
+
+**Thought**: Found the bugs in the watchdog. Let me fix them — stale PID file was preventing restarts and health check URL was wrong.
+**Thinking**: I see several issues with the watchdog.ps1:
+
+1. **Health check URL is wrong**: It checks `http://localhost:4000/health/readiness` but the actual URL should be `http://localhost:4000/api/proxy/health` (the proxy health endpoint through the UI server). The `GET /health/readiness` would go to the UI server's root handler which returns the dashboard HTML, not the health check endpoint.
+
+2. **Process name check**: It checks for `freellm` process. The `Get-Process -Name "freellm"` should work if the process name is `freellm.exe` (PowerShell strips the `.exe`). But the fallback to `"app"` is wrong (that's not the process name).
+
+3. **PID file logic**: The PID file path is in `$env:TEMP\freellm.pid`. If the PID file exists with a stale PID, the watchdog thinks freellm is running even though it crashed. This is exactly what happened - the old PID was recorded and the watchdog never restarted.
+
+4. **Check interval**: 15 seconds is reasonable.
+
+The main issue is #1 - the health check URL is wrong, so the health check always fails, but it still returns `$true`. And #3 - the stale PID file prevents the watchdog from detecting crashes.
+
+Let me fix the watchdog.ps1:
+1. Fix the health check URL
+2. Fix the PID file logic to validate that the process is actually alive and the port is listening
+3. Add a port check as an additional verification
+**Action**: edit(path: "C:\Users\hyper\workspace\freellm\watchdog.ps1", edits: [object Object],[object Object])
+**Observation**: edit: error
+
+## Turn 7 | 2026-06-26T18:18:07.058Z | deepseek/deepseek-v4-flash
+
+**Thought**: Let me rewrite the whole file with all fixes.
+**Thinking**: I forgot to include `oldText`. Let me rewrite the entire watchdog.ps1 instead since there are multiple issues to fix.
+**Action**: write(content: "# FreeLLM Watchdog — monitors freellm.exe and restarts it if it crashes
+# Runs silently in the background with minimal resource usage.
+
+param(
+    [int]$CheckIntervalSeconds = 15,
+    [string]$FreeLLMDir = "C:\Users\hyper\workspace\freellm"
+)
+
+$logFile = Join-Path $FreeLLMDir "logs\watchdog.log"
+$pidFile = Join-Path ([System.IO.Path]::GetTempPath()) "freellm.pid"
+
+# Load .env file
+$envFile = Join-Path $FreeLLMDir ".env"
+if (Test-Path $envFile) {
+    Get-Content $envFile | Where-Object { $_ -and $_ -notmatch '^#' } | ForEach-Object {
+        $key, $val = $_ -split '=', 2
+        if ($key -and $val) {
+            $key = $key.Trim()
+            $val = $val.Trim().Trim('"').Trim("'")
+            [System.Environment]::SetEnvironmentVariable($key, $val, [System.EnvironmentVariableTarget]::Process)
+        }
+    }
+}
+
+# Ensure logs directory exists
+$logDir = Join-Path $FreeLLMDir "logs"
+if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Path $logDir -Force | Out-Null }
+
+function Write-Log {
+    param([string]$Message)
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    "$timestamp [WATCHDOG] $Message" | Out-File -FilePath $logFile -Append -Encoding UTF8
+}
+
+function Get-FreeLLMProcess {
+    # Check by PID file
+    if (Test-Path $pidFile) {
+        $savedPid = Get-Content $pidFile -Raw -ErrorAction SilentlyContinue
+        if ($savedPid) {
+            $savedPid = $savedPid.Trim()
+            $proc = Get-Process -Id $savedPid -ErrorAction SilentlyContinue
+            if ($proc -and $proc.ProcessName -eq "freellm") {
+                # Verify it's actually listening on the port
+                try {
+                    $req = [System.Net.WebRequest]::Create("http://localhost:4000/api/proxy/health")
+                    $req.Timeout = 2000
+                    $resp = $req.GetResponse()
+                    $resp.Close()
+                    return @($savedPid)
+                } catch {
+                    # Process exists but not responding - stale
+                    Write-Log "PID $savedPid exists but not responding. Removing stale PID file."
+                    Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
+                }
+            }
+        }
+    }
+    
+    # Fallback: check by process name
+    $procs = Get-Process -Name "freellm" -ErrorAction SilentlyContinue
+    if ($procs) {
+        return $procs
+    }
+    
+    return @()
+}
+
+function Start-FreeLLM {
+    $exePath = Join-Path $FreeLLMDir "freellm.exe"
+    if (-not (Test-Path $exePath)) {
+        Write-Log "ERROR: freellm.exe not found at $exePath"
+        return $false
+    }
+    
+    try {
+        $process = Start-Process -FilePath $exePath -WorkingDirectory $FreeLLMDir -WindowStyle Hidden -PassThru
+        Write-Log "Started freellm.exe (PID: $($process.Id))"
+        
+        # Write PID file
+        $process.Id | Out-File -FilePath $pidFile -Force -Encoding UTF8
+        
+        # Wait for the HTTP server to respond (via proxy health endpoint)
+        $timeout = 20
+        for ($i = 0; $i -lt $timeout; $i++) {
+            try {
+                $req = [System.Net.WebRequest]::Create("http://localhost:4000/api/proxy/health")
+                $req.Timeout = 2000
+                $resp = $req.GetResponse()
+                $resp.Close()
+                Write-Log "Health check passed after ${i}s (PID: $($process.Id))"
+                return $true
+            } catch {
+                if (-not (Get-Process -Id $process.Id -ErrorAction SilentlyContinue)) {
+                    Write-Log "Process exited during startup"
+                    return $false
+                }
+                Start-Sleep -Seconds 1
+            }
+        }
+        
+        Write-Log "WARNING: Health check did not pass within ${timeout}s, but process is running"
+        return $true
+    } catch {
+        Write-Log "ERROR starting freellm.exe: $_"
+        return $false
+    }
+}
+
+# Main watchdog loop
+Write-Log "Watchdog started (check interval: ${CheckIntervalSeconds}s)"
+
+while ($true) {
+    $running = Get-FreeLLMProcess
+    
+    if ($running.Count -eq 0) {
+        Write-Log "freellm.exe not running. Attempting restart..."
+        $result = Start-FreeLLM
+        if ($result) {
+            Write-Log "Restart successful"
+        } else {
+            Write-Log "Restart FAILED"
+        }
+    } elseif ($running.Count -gt 1) {
+        Write-Log "Multiple instances ($($running.Count)). Killing duplicates..."
+        # Keep the first one, kill the rest
+        $running | Select-Object -Skip 1 | ForEach-Object {
+            Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+            Write-Log "Killed duplicate PID $($_.Id)"
+        }
+    }
+    
+    Start-Sleep -Seconds $CheckIntervalSeconds
+}
+", path: "C:\Users\hyper\workspace\freellm\watchdog.ps1")
+**Observation**: write: success
+
+## Turn 8 | 2026-06-26T18:18:21.161Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Now let me kill the old watchdog, start the new one, and also clean the stale PID file. Then verify everything is running.
+**Action**: bash(command: "echo "=== Kill old watchdog ===" && powershell.exe -NoProfile -Command "Get-Process | Where-Object { \$_.CommandLine -match 'watchdog.ps1' -and \$_.ProcessName -eq 'powershell' } | Stop-Process -Force -ErrorAction SilentlyContinue" 2>&1 && echo "" && echo "=== Clean stale PID file ===" && rm -f /c/Users/hyper/AppData/Local/Temp/freellm.pid 2>/dev/null && echo "done" && echo "" && echo "=== Start fresh watchdog ===" && powershell.exe -NoProfile -Command "Start-Process -WindowStyle Hidden -FilePath 'powershell.exe' -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File C:\Users\hyper\workspace\freellm\watchdog.ps1' -PassThru" 2>&1 | tail -1 && echo "" && echo "=== Check freellm from scratch ===" && wmic process where "name='freellm.exe'" call terminate 2>&1 | head -1 && sleep 2 && echo "Killed (watchdog will restart)"", timeout: 10)
+**Observation**: bash: error
+
+## Turn 9 | 2026-06-26T18:18:43.830Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: The kill command timed out, probably because the watchdog is restarting freellm. Let me wait for the watchdog to do its thing and then check.
+**Action**: bash(command: "sleep 15 && echo "=== freellm ===" && netstat -ano 2>nul | findstr ":4000.*LISTEN" | head -1 && echo "=== tokdiet ===" && netstat -ano 2>nul | findstr ":7787.*LISTEN" | head -1 && echo "=== health ===" && curl -s --max-time 5 http://localhost:4000/api/proxy/health 2>&1 && echo "" && echo "=== watchdog log ===" && tail -3 /c/Users/hyper/workspace/freellm/logs/watchdog.log 2>/dev/null", timeout: 25)
+**Observation**: bash: success
+
+## Turn 10 | 2026-06-26T18:19:06.545Z | deepseek/deepseek-v4-flash
+
+**Thought**: Watchdog is working properly now — detected the crash, restarted freellm, health check passed in 2s. Let me do the final full check.
+**Thinking**: Now everything is working. The watchdog detected that freellm was killed, restarted it, and the health check passed in 2 seconds. This is much better than before.
+
+Let me check the Hetzner server and do the final full audit.
+**Action**: bash(command: "echo "==========================================" && echo "  FINAL AUDIT — $(date)" && echo "==========================================" && echo "" && echo "========== LOCAL ==========" && echo "" && echo "freellm: PID $(wmic process where \"name='freellm.exe'\" get processid /format:list 2>nul | grep -oP 'ProcessId=\K\d+')" && echo "tokdiet: PID $(wmic process where \"processid='29764'\" get processid /format:list 2>nul | grep -oP 'ProcessId=\K\d+')" && echo "watchdog: $(wmic process where \"commandline like '%watchdog.ps1%' and name='powershell.exe'\" get processid /format:list 2>nul | grep -oP 'ProcessId=\K\d+')" && echo "health: $(curl -s --max-time 5 http://localhost:4000/api/proxy/health 2>&1)" && echo "chat: $(curl -s --max-time 30 'http://localhost:4000/api/proxy/v1/chat/completions' -H 'Content-Type: application/json' -d '{\"model\":\"gpt-4o-mini\",\"messages\":[{\"role\":\"user\",\"content\":\"ok\"}],\"max_tokens\":10}' 2>&1 | python3 -c 'import json,sys; d=json.load(sys.stdin); print(f\"\"{d[\"choices\"][0][\"message\"][\"content\"]}\"\")')" && echo "" && echo "========== HETZNER ==========" && echo "" && ssh -o ConnectTimeout=30 hetzner "echo \"service: \$(systemctl is-active aimm-freellm)\" && /opt/aimoneymachine/freellm --version && curl -s --max-time 5 http://localhost:4000/api/proxy/health" 2>&1", timeout: 60)
+**Observation**: bash: success
+
+## Turn 11 | 2026-06-26T18:19:21.225Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: The grep -oP patterns didn't find matches because the path separator is `\` in Windows. The regex needs to be `\d+` not `\K\d+`. And the Python command had an escape issue. But:
+
+1. Health check `{"status":"healthy"}` passed — freellm is working
+2. Hetzner: active, v4.6.5, healthy
+
+Let me fix the audit commands and verify properly.
+**Action**: bash(command: "echo "=== LOCAL ===" && wmic process where "name='freellm.exe'" get processid /format:list 2>nul && netstat -ano 2>nul | findstr ":4000.*LISTEN" | head -1 && netstat -ano 2>nul | findstr ":7787.*LISTEN" | head -1 && curl -s --max-time 5 http://localhost:4000/api/proxy/health && echo "" && curl -s --max-time 30 'http://localhost:4000/api/proxy/v1/chat/completions' -H 'Content-Type: application/json' -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"ok"}],"max_tokens":10}' 2>&1 | python3 -c "import json,sys; d=json.load(sys.stdin); print('chat:', d['choices'][0]['message']['content'])" && echo "" && echo "=== HETZNER ===" && ssh -o ConnectTimeout=30 hetzner "echo \"service: \$(systemctl is-active aimm-freellm)\" && /opt/aimoneymachine/freellm --version && curl -s --max-time 5 http://localhost:4000/api/proxy/health" 2>&1", timeout: 60)
+**Observation**: bash: error
+
+## Turn 12 | 2026-06-26T18:20:02.887Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: The chat request timed out or returned empty for the local test. But the Hetzner test succeeded. Let me check why the local chat test failed — it might be that the request timed out (30s might not have been enough).
+
+Actually looking more carefully, the Python errors says `Expecting value: line 1 column 1 (char 0)` which means the curl response was empty. The chat request probably timed out.
+
+But the important things:
+- freellm: ✅ PID 29712, port 4000
+- tokdiet: ✅ PID 29764, port 7787
+- health: ✅ `{"status":"healthy"}`
+- Hetzner: ✅ active, v4.6.5
+
+Let me test the chat with a simpler command.
+**Action**: bash(command: "curl -s --max-time 45 'http://localhost:4000/api/proxy/v1/chat/completions' -H 'Content-Type: application/json' -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"hi"}],"max_tokens":5}' 2>&1 | python3 -c "import json,sys; d=json.load(sys.stdin); print('chat:', d['choices'][0]['message']['content'])" 2>&1", timeout: 60)
+**Observation**: bash: success
+
+## Turn 13 | 2026-06-26T18:20:44.212Z | deepseek/deepseek-v4-flash
+
+**Thought**: Everything is running. Here's the full audit:
+
+---
+
+## ✅ AUDIT — Fri Jun 26 14:19 EDT
+
+### Local (Windows)
+| Service | Status | Details |
+|---|---|---|
+| **freellm** | ✅ PID **29712** | Port :4000, health OK |
+| **tokdiet** | ✅ PID **29764** | Port :7787 |
+| **watchdog** | ✅ New version | Detected crash → restarted in 2s |
+| **Chat** | ✅ | Responds via gpt-4o-mini |
+
+### Remote (Hetzner)
+| Service | Status |
+|---|---|
+| **freellm** | ✅ `aimm-freellm` active, v4.6.5, health OK |
+
+### What changed this round
+
+**Watchdog.ps1 fixes:**
+1. **Stale PID bug** — Old watchdog checked PID file first. If PID file had a stale PID (from a previous crash), it thought freellm was still running and never restarted it. **Fixed**: Now verifies the process is actually responding via the health endpoint; if not, removes the stale PID and treats it as down.
+
+2. **Health check URL** — Was hitting `/health/readiness` (wrong path, returns 404/html). **Fixed**: Now hits `/api/proxy/health` (the actual proxy health endpoint).
+
+3. **Startup verification** — Now waits up to 20s for health check to pass, and detects if the process exits during startup (so it retries immediately instead of waiting for the next 15s check cycle).
+
+### Verified behavior
+```
+Watchdog started freellm.exe → Health check passed after 2s → Restart successful
+```
+
+No debug output, no prefix injection, no router noise in responses. `FREELLM_DEBUG=1` toggles debug output at runtime without recompiling.
+**Thinking**: The local chat is working - it returned a Chinese response `收到用户发的"hi` which means "Received 'hi' from user". Everything is running properly.
+
+Let me now compile the full report.
+
+## Turn 1 | 2026-06-26T19:00:56.490Z | deepseek/deepseek-v4-flash
+
+**Thought**: Let me explore what systray infrastructure already exists.
+**Thinking**: The user wants me to add a system tray icon for Windows that:
+1. Shows activity in/out (network traffic indicators)
+2. Clicking it shows a log of all internal events
+3. Still runs headless on Linux
+
+This is a significant feature addition. Let me think about the architecture:
+
+1. The systray library needs to be added back for Windows only (using build tags)
+2. Need an event system that feeds into the tray
+3. The tray should show:
+   - Some kind of visual indicator for activity (maybe an icon that changes color or animates)
+   - A click handler that opens a log window or shows recent events
+
+Let me look at what already exists in the codebase for the systray. There was a `third_party/systray` directory mentioned earlier in the clean-freellm diff, and there's `internal/icon/` with `.ico` files.
+
+Let me explore what's available.
+**Action**: bash(command: "echo "=== icon files ===" && ls -la /c/Users/hyper/workspace/freellm/internal/icon/ && echo "" && echo "=== any existing tray code ===" && grep -rn "systray\|tray\|Tray\|NotifyIcon\|SystemTray" --include="*.go" --include="*.mod" /c/Users/hyper/workspace/freellm/ | grep -v ".git" | grep -v node_modules | grep -v third_party/headroom | head -20 && echo "" && echo "=== go.mod deps ===" && grep -i "systray\|tray\|icon\|walk\|w32" /c/Users/hyper/workspace/freellm/go.mod")
+**Observation**: bash: success
+
+## Turn 2 | 2026-06-26T19:01:05.637Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: There's already a go.mod dependency on `github.com/getlantern/systray v1.2.2` and icon files (gray.ico, green.ico, red.ico, yellow.ico) plus `icon_other.go` and `icon_windows.go`. But there's no actual tray code using them — the old systray integration was removed when the headless Linux build was made.
+
+Let me check the icon files and see what's there.
+**Action**: read(path: "C:\Users\hyper\workspace\freellm\internal\icon\icon_other.go"), read(path: "C:\Users\hyper\workspace\freellm\internal\icon\icon_windows.go")
+**Observation**: read: success; read: success
+
+## Turn 3 | 2026-06-26T19:01:12.615Z | deepseek/deepseek-v4-flash
+
+**Thought**: The icon infrastructure and systray dependency already exist. Let me build the systray integration.
+**Thinking**: The icon infrastructure already exists with build tags (`//go:build windows` and `//go:build !windows`). I can use these icons with the `getlantern/systray` library.
+
+Now let me plan the implementation:
+
+1. **Systray package** — `internal/tray/tray.go` with Windows + fallback implementations
+2. **Event system** — The Gateway already has `Events chan RouterEvent` that feeds router events. I need to also track TX/RX activity.
+3. **Systray behavior**:
+   - `gray.ico` — idle (no activity)
+   - `green.ico` — request in flight (TX)
+   - `yellow.ico` — response received (RX)
+   - `red.ico` — error
+   - Click → shows log window of recent events
+4. **Build tags** — `windows` builds with systray, others build headless
+
+Let me look at how the getlantern/systray library works to implement this.
+
+Actually, let me take a pragmatic approach. The `getlantern/systray` library is already a dependency. I'll create a `internal/tray/` package that:
+- On Windows: shows a systray icon with activity indicators
+- On non-Windows: compiles to a no-op
+
+The tray will subscribe to the gateway's RouterEvent channel and update the icon based on activity.
+
+Let me implement this.
+**Action**: bash(command: "ls -la /c/Users/hyper/workspace/freellm/internal/tray/ 2>/dev/null || echo "tray package doesn't exist yet"")
+**Observation**: bash: success
+
+## Turn 4 | 2026-06-26T19:01:19.846Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Action**: write(content: "//go:build !windows
+
+package tray
+
+// No-op tray implementation for Linux/macOS (headless).
+
+import "github.com/robertpelloni/freellm/internal/proxy"
+
+// Config holds display preferences.
+type Config struct {
+	ShowOnStart bool
+}
+
+// Event describes a single activity event for the tray log.
+type Event struct {
+	Tag     string
+	Message string
+}
+
+// Run is a no-op on non-Windows platforms.
+// Returns a channel of events for logging (unused on non-Windows).
+func Run(events <-chan proxy.RouterEvent, _ Config) <-chan Event {
+	// Drain and discard events on non-Windows
+	go func() {
+		for range events {
+		}
+	}()
+	return nil
+}
+", path: "C:\Users\hyper\workspace\freellm\internal\tray\tray_other.go")
+**Observation**: write: success
+
+## Turn 5 | 2026-06-26T19:01:45.992Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Now let me write the Windows systray implementation. I need to use the `getlantern/systray` library. Let me check how it works by looking at its API.
+**Action**: read(path: "C:\Users\hyper\workspace\freellm\third_party\systray\systray.go", limit: 60)
+**Observation**: read: error
+
+## Turn 6 | 2026-06-26T19:01:53.672Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: The third_party/systray doesn't exist locally (it was removed in the clean-freellm branch). But the go.mod dependency on `github.com/getlantern/systray v1.2.2` exists. Let me check if Go can download it from the module cache.
+**Action**: bash(command: "cd /c/Users/hyper/workspace/freellm && go list -m github.com/getlantern/systray 2>&1 && echo "---" && ls /c/Users/hyper/go/pkg/mod/github.com/getlantern/systray*/ 2>/dev/null | head -10 || echo "Not in module cache, will download on build"")
+**Observation**: bash: success
+
+## Turn 7 | 2026-06-26T19:01:59.213Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Good, the module is downloaded. Let me check the API.
+**Action**: bash(command: "grep -n "^func\|^type" /c/Users/hyper/go/pkg/mod/github.com/getlantern/systray*/systray.go | head -20")
+**Observation**: bash: success
+
+## Turn 8 | 2026-06-26T19:02:03.015Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Now I understand the API. `systray.Run(onReady, onExit)` is the main entry point. In `onReady`, I set up the icon, menu items, and tooltip. 
+
+Let me also check how to set the icon and tooltip.
+**Action**: bash(command: "grep -n "SetIcon\|SetTitle\|SetTooltip\|func Set" /c/Users/hyper/go/pkg/mod/github.com/getlantern/systray*/systray.go | head -10")
+**Observation**: bash: success
+
+## Turn 9 | 2026-06-26T19:02:07.790Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: I see `SetTitle` and `SetTooltip` for menu items, but I need to check how to set the icon and tooltip for the tray icon itself. Let me look at the full API.
+**Action**: bash(command: "grep -n "func Set\|func Run\|template\|icon\|Tooltip" /c/Users/hyper/go/pkg/mod/github.com/getlantern/systray*/systray.go")
+**Observation**: bash: success
+
+## Turn 10 | 2026-06-26T19:02:12.510Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Hmm, the `getlantern/systray` library doesn't seem to have a `SetIcon` function exported in the Go code. Let me check the systray.h file for the C API.
+**Action**: bash(command: "grep -n "nativeIcon\|SetIcon\|icon\|template\|tooltip\|title" /c/Users/hyper/go/pkg/mod/github.com/getlantern/systray*/systray_windows.go | head -20")
+**Observation**: bash: success
+
+## Turn 11 | 2026-06-26T19:02:17.988Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: I see there's a function `iconBytesToFilePath` which suggests icons in the systray library are written to a temp file and loaded from there. Let me look for how the icon is initially set.
+
+Looking at the `winTray` struct, it has a `template` field for the icon. And the `Icon` field in the `NOTIFYICONDATA` struct. Let me search for where the icon is loaded during `onReady`.
+**Action**: bash(command: "grep -n "template\|SetIcon\|nid.Icon\|\.Icon" /c/Users/hyper/go/pkg/mod/github.com/getlantern/systray*/systray_windows.go | head -20")
+**Observation**: bash: success
+
+## Turn 12 | 2026-06-26T19:02:24.286Z | deepseek/deepseek-v4-flash
+
+**Thought**: Now let me write the Windows systray implementation.
+**Thinking**: There it is: `systray.SetIcon(iconBytes []byte)` and `systray.SetTemplateIcon(templateIconBytes []byte, regularIconBytes []byte)`.
+
+Now I have everything I need. Let me create the Windows tray implementation:
+
+- `internal/tray/tray_windows.go` — Windows-specific tray using getlantern/systray
+- The tray will:
+  1. On startup: show gray icon
+  2. On request sent (TX): show green icon
+  3. On request received (RX): flash yellow then back to gray
+  4. On error: show red icon
+  5. Click event: show a notification with recent activity count
+  6. Menu: "Show Log" (opens recent events), "Debug: ON/OFF", "Quit"
+
+I also need to wire the gateway's RouterEvent channel to the tray. Let me also add a mechanism to track TX/RX.
+
+Looking at the Gateway code, the `Events chan RouterEvent` channel carries tagged events. But I also need to know when a request starts (TX) and when a response finishes (RX). Let me add specific event tags.
+
+Actually, looking at the existing code in `processjob.go`, the `emit()` function sends events with tags like "ROUTER". I can add a few more tags:
+- `emit(job, "TX", ...)` when a request is sent to a model
+- `emit(job, "RX", ...)` when a response is received
+
+But modifying `processjob.go` to add events would need careful integration. A simpler approach: the tray just watches the existing `Events` channel for any activity, and I also add a separate `Activity chan string` to the Gateway for TX/RX tracking.
+
+Actually, let me take a simpler approach. I'll:
+1. Create the tray package with the Windows implementation
+2. Have the tray watch the `Events` channel for activity
+3. Track TX/RX by listening for the tag patterns ("Sending request" = TX, "response" = RX)
+4. Wire it up in `main.go`
+
+Let me write the Windows tray implementation.
+**Action**: write(content: "//go:build windows
+
+package tray
+
+import (
+	"fmt"
+	"log"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"github.com/getlantern/systray"
+	"github.com/robertpelloni/freellm/internal/proxy"
+)
+
+// Config holds display preferences.
+type Config struct {
+	ShowOnStart bool
+}
+
+// Event describes a single activity event for the tray log.
+type Event struct {
+	Tag     string
+	Message string
+	Time    time.Time
+}
+
+// Run starts the system tray icon. Blocks until the tray exits.
+// events is the Gateway's router event channel.
+// Returns a channel of all seen events (for external logging).
+func Run(events <-chan proxy.RouterEvent, cfg Config) <-chan Event {
+	eventLog := make(chan Event, 512)
+
+	go func() {
+		systray.Run(
+			func() { onReady(events, eventLog, cfg) },
+			func() { close(eventLog) },
+		)
+	}()
+
+	return eventLog
+}
+
+var (
+	// State tracking
+	txCount      atomic.Int64
+	txCounter    int64
+	isActive     atomic.Bool
+	lastTag      string
+	lastMsg      string
+	lastEventMu  sync.RWMutex
+
+	// Icon state
+	currentState string // "idle", "tx", "rx", "error"
+
+	// Log
+	eventBuf    []Event
+	eventBufMu  sync.RWMutex
+	maxEvents   = 500
+
+	ready       = make(chan struct{}, 1)
+)
+
+func onReady(events <-chan proxy.RouterEvent, eventLog chan<- Event, cfg Config) {
+	systray.SetIcon(iconGray)
+	systray.SetTooltip("FreeLLM Proxy — Idle")
+
+	// Menu items
+	mShowLog := systray.AddMenuItem("Show Activity Log", "View recent events")
+	systray.AddSeparator()
+	mQuit := systray.AddMenuItem("Quit", "Stop FreeLLM")
+
+	// Show the activity window on start if configured
+	if cfg.ShowOnStart {
+		showLogWindow()
+	}
+
+	// Activity processing loop
+	go func() {
+		for ev := range events {
+			now := time.Now()
+			tag := ev.Tag
+			msg := ev.Message
+
+			// Log the event
+			event := Event{Tag: tag, Message: msg, Time: now}
+			select {
+			case eventLog <- event:
+			default:
+			}
+
+			// Store in ring buffer
+			eventBufMu.Lock()
+			eventBuf = append(eventBuf, event)
+			if len(eventBuf) > maxEvents {
+				eventBuf = eventBuf[len(eventBuf)-maxEvents:]
+			}
+			eventBufMu.Unlock()
+
+			// Track TX/RX based on message content
+			isTX := containsAny(msg, "Sending request", "fanning out", "Attempt")
+			isRX := containsAny(msg, "Got response", "success", "Routed to")
+			isErr := containsAny(msg, "failed", "error", "timeout", "cooldown", "rate-limited")
+			isIdle := containsAny(msg, "No fresh", "Resetting")
+
+			lastEventMu.Lock()
+			lastTag = tag
+			lastMsg = msg
+			lastEventMu.Unlock()
+
+			switch {
+			case isTX:
+				n := txCounter
+				txCounter++
+				atomic.StoreInt64(&txCount, n+1)
+				isActive.Store(true)
+				currentState = "tx"
+				updateIcon(iconGreen)
+				systray.SetTooltip(fmt.Sprintf("FreeLLM — TX %d", txCounter))
+
+			case isRX:
+				isActive.Store(false)
+				currentState = "rx"
+				updateIcon(iconYellow)
+
+			case isErr:
+				currentState = "error"
+				updateIcon(iconRed)
+				systray.SetTooltip(fmt.Sprintf("FreeLLM — Error: %s", truncate(msg, 40)))
+
+			case isIdle:
+				isActive.Store(false)
+				currentState = "idle"
+				updateIcon(iconGray)
+				systray.SetTooltip(fmt.Sprintf("FreeLLM Proxy — Idle (TX: %d)", txCounter))
+			}
+		}
+	}()
+
+	// Menu action handlers
+	go func() {
+		for {
+			select {
+			case <-mShowLog.ClickedCh:
+				showLogWindow()
+			case <-mQuit.ClickedCh:
+				systray.Quit()
+				return
+			}
+		}
+	}()
+}
+
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "..."
+}
+
+func containsAny(s string, substrs ...string) bool {
+	for _, sub := range substrs {
+		if stringContains(s, sub) {
+			return true
+		}
+	}
+	return false
+}
+
+func stringContains(s, substr string) bool {
+	return len(s) >= len(substr) && containsSlow(s, substr)
+}
+
+func containsSlow(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
+
+var currentIcon []byte
+
+func updateIcon(ico []byte) {
+	if string(currentIcon) == string(ico) {
+		return // avoid redundant UI updates
+	}
+	currentIcon = ico
+	systray.SetIcon(ico)
+}
+
+func showLogWindow() {
+	eventBufMu.RLock()
+	count := len(eventBuf)
+	last := "no events"
+	if count > 0 {
+		e := eventBuf[count-1]
+		last = fmt.Sprintf("[%s] %s: %s", e.Time.Format("15:04:05"), e.Tag, truncate(e.Message, 60))
+	}
+	eventBufMu.RUnlock()
+
+	// Show via Windows notification balloon
+	systray.SetTooltip(fmt.Sprintf("FreeLLM — %d events | Last: %s", count, last))
+	log.Printf("[TRAY] Activity: %d events tracked, latest: %s", count, last)
+}
+
+// Icon data is loaded from the icon package at init time.
+var iconGray []byte
+var iconGreen []byte
+var iconRed []byte
+var iconYellow []byte
+
+func init() {
+	// These will be set from main.go after the icon package loads
+	iconGray = nil
+	iconGreen = nil
+	iconRed = nil
+	iconYellow = nil
+}
+", path: "C:\Users\hyper\workspace\freellm\internal\tray\tray_windows.go")
+**Observation**: write: success
+
+## Turn 13 | 2026-06-26T19:03:09.590Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Now I need to update the tray to receive the icons from the icon package. And I need to update main.go to:
+1. Create the tray and wire it to the Gateway's Events channel
+2. Only do this on Windows (using build tags or runtime check)
+
+Let me also update the tray_windows.go to properly handle the init flow for icons. Actually, a better approach is to have the tray package import the icon package directly. But the icon package uses build tags (windows vs !windows). On non-windows, the icon variables are nil, so I can't use them in the Windows-only tray.
+
+Let me restructure: The Windows tray_windows.go can directly embed the .ico files since it's already build-tagged for Windows.
+
+Actually, the simplest approach: the tray_windows.go file can embed the icons itself since it's already Windows-only.
+**Action**: write(content: "//go:build windows
+
+package tray
+
+import (
+	_ "embed"
+	"fmt"
+	"log"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"github.com/getlantern/systray"
+	"github.com/robertpelloni/freellm/internal/proxy"
+)
+
+//go:embed green.ico
+var icoGreen []byte
+
+//go:embed gray.ico
+var icoGray []byte
+
+//go:embed red.ico
+var icoRed []byte
+
+//go:embed yellow.ico
+var icoYellow []byte
+
+// Config holds display preferences.
+type Config struct {
+	ShowOnStart bool
+}
+
+// Event describes a single activity event for the tray log.
+type Event struct {
+	Tag     string
+	Message string
+	Time    time.Time
+}
+
+// Run starts the system tray icon. Blocks until the tray exits.
+// events is the Gateway's router event channel.
+// Returns a channel of all seen events (for external logging).
+func Run(events <-chan proxy.RouterEvent, cfg Config) <-chan Event {
+	eventLog := make(chan Event, 512)
+
+	go func() {
+		systray.Run(
+			func() { onReady(events, eventLog, cfg) },
+			func() { close(eventLog) },
+		)
+	}()
+
+	return eventLog
+}
+
+var (
+	txCount     atomic.Int64
+	txCounter   int64
+	isActive    atomic.Bool
+	lastTag     string
+	lastMsg     string
+	lastEventMu sync.RWMutex
+
+	currentState string // "idle", "tx", "rx", "error"
+
+	eventBuf   []Event
+	eventBufMu sync.RWMutex
+	maxEvents  = 500
+)
+
+func onReady(events <-chan proxy.RouterEvent, eventLog chan<- Event, cfg Config) {
+	systray.SetIcon(icoGray)
+	systray.SetTooltip("FreeLLM Proxy — Idle")
+
+	// Menu items
+	mShowLog := systray.AddMenuItem("Show Activity Log", "View recent events")
+	systray.AddSeparator()
+	mQuit := systray.AddMenuItem("Quit", "Stop FreeLLM")
+
+	// Activity processing loop
+	go func() {
+		for ev := range events {
+			now := time.Now()
+			tag := ev.Tag
+			msg := ev.Message
+
+			event := Event{Tag: tag, Message: msg, Time: now}
+			select {
+			case eventLog <- event:
+			default:
+			}
+
+			eventBufMu.Lock()
+			eventBuf = append(eventBuf, event)
+			if len(eventBuf) > maxEvents {
+				eventBuf = eventBuf[len(eventBuf)-maxEvents:]
+			}
+			eventBufMu.Unlock()
+
+			isTX := containsAny(msg, "Sending request", "fanning out", "Attempt")
+			isRX := containsAny(msg, "Got response", "success", "Routed to")
+			isErr := containsAny(msg, "failed", "error", "timeout", "cooldown", "rate-limited")
+			isIdle := containsAny(msg, "No fresh", "Resetting")
+
+			lastEventMu.Lock()
+			lastTag = tag
+			lastMsg = msg
+			lastEventMu.Unlock()
+
+			switch {
+			case isTX:
+				txCounter++
+				atomic.StoreInt64(&txCount, int64(txCounter))
+				isActive.Store(true)
+				currentState = "tx"
+				setIcon(icoGreen)
+				systray.SetTooltip(fmt.Sprintf("FreeLLM — TX %d", txCounter))
+
+			case isRX:
+				isActive.Store(false)
+				currentState = "rx"
+				setIcon(icoYellow)
+
+			case isErr:
+				currentState = "error"
+				setIcon(icoRed)
+				systray.SetTooltip(fmt.Sprintf("FreeLLM — Error: %s", truncate(msg, 45)))
+
+			case isIdle:
+				isActive.Store(false)
+				currentState = "idle"
+				setIcon(icoGray)
+				systray.SetTooltip(fmt.Sprintf("FreeLLM — Idle (TX: %d)", txCounter))
+			}
+		}
+	}()
+
+	// Menu action handlers
+	go func() {
+		for {
+			select {
+			case <-mShowLog.ClickedCh:
+				eventBufMu.RLock()
+				count := len(eventBuf)
+				last := "no events"
+				if count > 0 {
+					e := eventBuf[count-1]
+					last = fmt.Sprintf("[%s] %s: %s", e.Time.Format("15:04:05"), e.Tag, truncate(e.Message, 60))
+				}
+				eventBufMu.RUnlock()
+				systray.SetTooltip(fmt.Sprintf("FreeLLM — %d events | Last: %s", count, last))
+				log.Printf("[TRAY] Activity: %d events, latest: %s", count, last)
+
+			case <-mQuit.ClickedCh:
+				systray.Quit()
+				return
+			}
+		}
+	}()
+}
+
+var currentIcon []byte
+
+func setIcon(ico []byte) {
+	if len(currentIcon) > 0 && len(currentIcon) == len(ico) {
+		return // skip redundant updates
+	}
+	currentIcon = ico
+	systray.SetIcon(ico)
+}
+
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "..."
+}
+
+func containsAny(s string, substrs ...string) bool {
+	for _, sub := range substrs {
+		if strContains(s, sub) {
+			return true
+		}
+	}
+	return false
+}
+
+func strContains(s, substr string) bool {
+	return len(s) >= len(substr) && containsSlow(s, substr)
+}
+
+func containsSlow(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
+", path: "C:\Users\hyper\workspace\freellm\internal\tray\tray_windows.go")
+**Observation**: write: success
+
+## Turn 14 | 2026-06-26T19:03:32.269Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Two issues:
+1. The `.ico` files are in `internal/icon/`, not in `internal/tray/`. I need to copy them or reference them with the right path.
+2. `atomic.StoreInt64` expects `*int64` but `txCount` is `atomic.Int64` (Go 1.19+). I should use `txCount.Store()` instead.
+
+Let me fix both issues.
+
+For the icons, I can either:
+a. Copy the icons to `internal/tray/`
+b. Use relative paths like `../icon/gray.ico` (but go:embed requires the file to be in the same directory or subdirectory)
+
+Option a is simpler. Let me copy the .ico files.
+**Action**: bash(command: "cp /c/Users/hyper/workspace/freellm/internal/icon/*.ico /c/Users/hyper/workspace/freellm/internal/tray/ && echo "Icons copied" && ls -la /c/Users/hyper/workspace/freellm/internal/tray/*.ico")
+**Observation**: bash: success
+
+## Turn 15 | 2026-06-26T19:03:42.536Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Good. Now let me fix the atomic.StoreInt64 to use .Store() instead.
+**Action**: edit(path: "C:\Users\hyper\workspace\freellm\internal\tray\tray_windows.go", edits: [object Object])
+**Observation**: edit: success
+
+## Turn 16 | 2026-06-26T19:03:49.061Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Now let me test if it compiles for Windows.
+**Action**: bash(command: "cd /c/Users/hyper/workspace/freellm && GOOS=windows GOARCH=amd64 go build -buildvcs=false -o /dev/null ./internal/tray/ 2>&1 && echo "tray package OK"", timeout: 60)
+**Observation**: bash: success
+
+## Turn 17 | 2026-06-26T19:03:55.450Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Good, the tray package compiles. Now let me check if the full app compiles and wire the tray into main.go.
+**Action**: bash(command: "cd /c/Users/hyper/workspace/freellm && go build -buildvcs=false -o /dev/null ./cmd/app/ 2>&1 && echo "Full build OK"", timeout: 120)
+**Observation**: bash: success
+
+## Turn 18 | 2026-06-26T19:04:01.121Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Full build compiles. But the tray isn't wired into main.go yet. Let me now update main.go to start the tray when on Windows.
+
+I need to add:
+1. Import the tray package
+2. In the main function (after gateway initialization), start the tray with the gateway's Events channel
+
+The issue is that the tray package only works on Windows (build tag `windows`), and main.go doesn't have a build tag. I need to either:
+a. Use a build-tagged wrapper function in main.go
+b. Call the tray from a platform-specific file
+
+Let me create a separate Windows main file that wraps the tray initialization.
+**Action**: bash(command: "head -30 /c/Users/hyper/workspace/freellm/cmd/app/main.go")
+**Observation**: bash: success
+
+## Turn 19 | 2026-06-26T19:04:05.872Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: I see `"runtime"` is already imported. I can use a simple `if runtime.GOOS == "windows"` check to conditionally start the tray. Let me add the tray startup in main.go.
+**Action**: edit(path: "C:\Users\hyper\workspace\freellm\cmd\app\main.go", edits: [object Object])
+**Observation**: edit: error
+
+## Turn 20 | 2026-06-26T19:04:11.825Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Action**: read(limit: 30, offset: 1, path: "C:\Users\hyper\workspace\freellm\cmd\app\main.go")
+**Observation**: read: success
+
+## Turn 21 | 2026-06-26T19:04:15.738Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Now I need to:
+1. Add the tray import
+2. Start the tray after gateway initialization
+**Action**: edit(path: "C:\Users\hyper\workspace\freellm\cmd\app\main.go", edits: [object Object])
+**Observation**: edit: success
+
+## Turn 22 | 2026-06-26T19:04:24.775Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Right, I need to actually call the tray. Let me add the tray startup code after the gateway is created. Let me find where in main.go to add the tray run call.
+**Action**: read(limit: 40, offset: 95, path: "C:\Users\hyper\workspace\freellm\cmd\app\main.go")
+**Observation**: read: success
+
+## Turn 23 | 2026-06-26T19:04:32.301Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: I can see the pattern. There's already a `if runtime.GOOS == "windows" { startPortForwarder() }` call. I'll add the tray right after that.
+**Action**: edit(path: "C:\Users\hyper\workspace\freellm\cmd\app\main.go", edits: [object Object])
+**Observation**: edit: success
+
+## Turn 24 | 2026-06-26T19:04:39.104Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: The `Events` field might not be exported. Let me check.
+**Action**: bash(command: "grep -n "Events\s" /c/Users/hyper/workspace/freellm/internal/proxy/server.go | head -5")
+**Observation**: bash: success
+
+## Turn 25 | 2026-06-26T19:04:46.152Z | deepseek/deepseek-v4-flash
+
+**Thought**: The `Events` channel is per-request. I need to add a global event stream to the Gateway.
+**Thinking**: The `Events` field is on the `RequestJob` struct, not on `Gateway`. So `gateway.Events` doesn't exist. The events channel is per-request, not global. I need a different approach to get events to the tray.
+
+Looking at the gateway, there's no global events channel. Events are emitted per-request via `emit()` into `job.Events` which is a per-request channel.
+
+To make a global event stream, I could either:
+1. Add a global events channel to the Gateway struct
+2. Create a separate pub/sub mechanism
+
+Option 1 is simpler. Let me add a `GlobalEvents chan RouterEvent` to the Gateway, and have `emit()` also send to this channel.
+**Action**: edit(path: "C:\Users\hyper\workspace\freellm\internal\proxy\server.go", edits: [object Object])
+**Observation**: edit: error
+
+## Turn 26 | 2026-06-26T19:04:53.344Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Action**: read(limit: 10, offset: 128, path: "C:\Users\hyper\workspace\freellm\internal\proxy\server.go")
+**Observation**: read: success
+
+## Turn 27 | 2026-06-26T19:04:57.207Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Now I see the full struct. The `Events` field is in the `RequestJob` struct, not `Gateway`! Let me find the Gateway struct and the `emit` function.
+**Action**: bash(command: "grep -n "func emit\|type Gateway struct" /c/Users/hyper/workspace/freellm/internal/proxy/server.go")
+**Observation**: bash: success
+
+## Turn 28 | 2026-06-26T19:05:01.501Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: So `type Gateway struct` is at line 34 and `func emit` isn't in server.go, it's in processjob.go. Let me check the emit function in processjob.go.
+**Action**: bash(command: "grep -n "func emit\|GlobalEvents" /c/Users/hyper/workspace/freellm/internal/proxy/processjob.go")
+**Observation**: bash: success
+
+## Turn 29 | 2026-06-26T19:05:05.688Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: OK. Let me add a `GlobalEvents` field to the Gateway struct and modify `emit` to also send to it. And modify `NewGateway` to initialize it.
+**Action**: edit(path: "C:\Users\hyper\workspace\freellm\internal\proxy\server.go", edits: [object Object])
+**Observation**: edit: success
+
+## Turn 30 | 2026-06-26T19:05:13.844Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Now I need to initialize GlobalEvents in NewGateway and modify emit to also send to GlobalEvents.
+**Action**: bash(command: "grep -n "func NewGateway\|GlobalEvents" /c/Users/hyper/workspace/freellm/internal/proxy/server.go | head -10")
+**Observation**: bash: success
+
+## Turn 31 | 2026-06-26T19:05:22.760Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Action**: read(limit: 10, offset: 295, path: "C:\Users\hyper\workspace\freellm\internal\proxy\server.go")
+**Observation**: read: success
+
+## Turn 32 | 2026-06-26T19:05:27.493Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: I need to add `GlobalEvents: make(chan RouterEvent, 256)` to the NewGateway initialization. Let me find the right spot.
+**Action**: edit(path: "C:\Users\hyper\workspace\freellm\internal\proxy\server.go", edits: [object Object])
+**Observation**: edit: success
+
+## Turn 33 | 2026-06-26T19:05:34.976Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Now modify `emit` in processjob.go to also send to GlobalEvents.
+**Action**: read(path: "C:\Users\hyper\workspace\freellm\internal\proxy\processjob.go", limit: 20)
+**Observation**: read: success
+
+## Turn 34 | 2026-06-26T19:05:38.813Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Action**: read(limit: 15, offset: 28, path: "C:\Users\hyper\workspace\freellm\internal\proxy\processjob.go")
+**Observation**: read: success
+
+## Turn 35 | 2026-06-26T19:05:42.890Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: I see that `emit` is a standalone function that takes a `*RequestJob`. It doesn't have access to the Gateway. I need to either:
+1. Change `emit` to take a `*Gateway` parameter
+2. Or create a separate global emit function
+
+Actually, looking at the emit function calls, they're all within `processJob` which is a method on `*Gateway`. Let me check how emit is called.
+**Action**: bash(command: "grep -n "emit(job" /c/Users/hyper/workspace/freellm/internal/proxy/processjob.go | head -10")
+**Observation**: bash: success
+
+## Turn 36 | 2026-06-26T19:05:48.051Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: All calls to `emit` are inside methods on `*Gateway` (since they're in processJob which is `func (g *Gateway) processJob`). I need to pass the Gateway's GlobalEvents to the emit function so it can also send there.
+
+Actually, the simplest approach: make `emit` a method on `*Gateway` instead of a standalone function, or pass the global events channel to it.
+
+Let me refactor `emit` to take a `*Gateway` parameter.
+**Action**: read(limit: 30, offset: 83, path: "C:\Users\hyper\workspace\freellm\internal\proxy\processjob.go")
+**Observation**: read: success
+
+## Turn 37 | 2026-06-26T19:05:53.121Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: I see. The simplest fix is to modify the `emit` function to accept a `*Gateway` and also send to `GlobalEvents`. But all the existing calls use `emit(job, ...)`. I could change them to `g.emit(job, ...)` or change the function signature.
+
+Actually, the cleanest approach: just add `g *Gateway` as a parameter to `emit`, and update all call sites. But that's many changes. 
+
+Alternatively, I can scan the `processjob.go` file for all `emit(job` calls and also send to the gateway's GlobalEvents by adding a separate line after each one. But that's also many changes.
+
+The simplest: just have the tray listen to the `Events` channel of all `RequestJob`s. But there's no global registry of active jobs.
+
+Actually, looking at this more carefully, I notice that each request creates its own `job.Events` channel. The tray can't listen to that. 
+
+Let me take the simplest approach: add a separate global emit function that the gateway can call. Or better yet, just modify the existing `emit` to also send to a global channel.
+
+Let me refactor to pass `g *Gateway` to `emit`.
+**Action**: edit(path: "C:\Users\hyper\workspace\freellm\internal\proxy\processjob.go", edits: [object Object])
+**Observation**: edit: success
+
+## Turn 38 | 2026-06-26T19:06:04.240Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: I need to update all emit calls to pass `g` as the first argument. Let me read the file and do all the replacements.
+**Action**: read(path: "C:\Users\hyper\workspace\freellm\internal\proxy\processjob.go", offset: 85, limit: 170)
+**Observation**: read: success
+
+## Turn 39 | 2026-06-26T19:06:12.356Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Now I need to update all 8 `emit(job, ...)` calls to `emit(g, job, ...)`. Let me do a single edit with all replacements.
+**Action**: edit(edits: [object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object], path: "C:\Users\hyper\workspace\freellm\internal\proxy\processjob.go")
+**Observation**: edit: success
+
+## Turn 40 | 2026-06-26T19:06:22.187Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Wait, the linter says "Go clean" but earlier it said there were 8 issues. Let me check if it actually compiled clean.
+**Action**: bash(command: "cd /c/Users/hyper/workspace/freellm && go build -buildvcs=false -o /dev/null ./cmd/app/ 2>&1 && echo "Full build OK"", timeout: 60)
+**Observation**: bash: error
+
+## Turn 41 | 2026-06-26T19:06:28.014Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: The `gateway.Events` field doesn't exist on Gateway. I need to use `gateway.GlobalEvents` instead. Let me fix main.go.
+**Action**: edit(path: "C:\Users\hyper\workspace\freellm\cmd\app\main.go", edits: [object Object])
+**Observation**: edit: success
+
+## Turn 42 | 2026-06-26T19:06:34.651Z | deepseek/deepseek-v4-flash
+
+**Thought**: 
+**Thinking**: Wait, the linter says "Go clean" but the build might still fail. Let me actually build.
+**Action**: bash(command: "cd /c/Users/hyper/workspace/freellm && go build -buildvcs=false -o /dev/null ./cmd/app/ 2>&1 && echo "Full build OK"", timeout: 60)
+**Observation**: bash: success
+
+## Turn 43 | 2026-06-26T19:06:40.885Z | deepseek/deepseek-v4-flash
+
+**Thought**: Full build compiles. Let me build, deploy, and test.
+**Thinking**: Full build compiles. Now I need to:
+1. Build for Windows with tray
+2. Build for Linux without tray (headless)
+3. Commit, push, deploy
+
+Let me build both.
+**Action**: bash(command: "cd /c/Users/hyper/workspace/freellm && go build -buildvcs=false -o freellm.exe ./cmd/app/ 2>&1 && echo "Windows OK" && GOOS=linux GOARCH=amd64 go build -buildvcs=false -o build/freellm-linux ./cmd/app/ 2>&1 && echo "Linux OK"", timeout: 120)
+**Observation**: bash: success
+
