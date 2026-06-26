@@ -3588,7 +3588,7 @@ func (g *Gateway) evaluateResponseWithJudge(ctx context.Context, respBody []byte
 		"messages": []map[string]interface{}{
 			{"role": "user", "content": prompt},
 		},
-		"temperature": 0.1,
+		"temperature":     0.1,
 		"response_format": map[string]string{"type": "json_object"},
 	}
 
@@ -3719,5 +3719,3 @@ func SanitizeJSONStringLiterals(input []byte) []byte {
 	}
 	return output.Bytes()
 }
-
-

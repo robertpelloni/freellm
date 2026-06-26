@@ -81,9 +81,12 @@ var KnownModels = map[string]ModelSpec{
 	"stepfun/step-3.7-flash": {Params: 200, Ctx: 128000, Provider: "stepfun"},
 	"stepfun/step-3.7-flash-15b": {Params: 15, Ctx: 128000, Provider: "stepfun"},
 	// Zhipu AI (GLM) models
+	"zhipu/glm-5.2": {Params: 744, Ctx: 1000000, Provider: "zhipu"},
 	"zhipu/glm-5.1": {Params: 744, Ctx: 128000, Provider: "zhipu"},
 	"zhipu/glm-4-plus": {Params: 130, Ctx: 128000, Provider: "zhipu"},
 	"zhipu/glm-4-flash": {Params: 130, Ctx: 128000, Provider: "zhipu"},
+	"openrouter/z-ai/glm-5.2": {Params: 744, Ctx: 1000000, Provider: "openrouter"},
+	"opencode_zen/glm-5.2": {Params: 744, Ctx: 1000000, Provider: "opencode_zen"},
 	// InternLM (Shanghai AI Lab) models
 	"internlm/internlm3-latest": {Params: 200, Ctx: 128000, Provider: "internlm"},
 	"internlm/internlm3-20b": {Params: 20, Ctx: 128000, Provider: "internlm"},
@@ -189,6 +192,18 @@ func LookupKnownModel(modelID string) (ModelSpec, bool) {
 		}
 		if strings.Contains(lower, "turbo") {
 			return ModelSpec{Params: 14, Ctx: 32000}, true
+		}
+	}
+	// GLM (Zhipu AI)
+	if strings.Contains(lower, "glm") {
+		if strings.Contains(lower, "5.2") {
+			return ModelSpec{Params: 744, Ctx: 1000000}, true
+		}
+		if strings.Contains(lower, "5.1") || strings.Contains(lower, "5") {
+			return ModelSpec{Params: 744, Ctx: 128000}, true
+		}
+		if strings.Contains(lower, "4") {
+			return ModelSpec{Params: 130, Ctx: 128000}, true
 		}
 	}
 

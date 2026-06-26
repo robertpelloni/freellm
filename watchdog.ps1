@@ -9,6 +9,19 @@ param(
 $logFile = Join-Path $FreeLLMDir "logs\watchdog.log"
 $pidFile = Join-Path ([System.IO.Path]::GetTempPath()) "freellm.pid"
 
+# Load .env file
+$envFile = Join-Path $FreeLLMDir ".env"
+if (Test-Path $envFile) {
+    Get-Content $envFile | Where-Object { $_ -and $_ -notmatch '^#' } | ForEach-Object {
+        $key, $val = $_ -split '=', 2
+        if ($key -and $val) {
+            $key = $key.Trim()
+            $val = $val.Trim().Trim('"').Trim("'")
+            [System.Environment]::SetEnvironmentVariable($key, $val, [System.EnvironmentVariableTarget]::Process)
+        }
+    }
+}
+
 # Ensure logs directory exists
 $logDir = Join-Path $FreeLLMDir "logs"
 if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Path $logDir -Force | Out-Null }
@@ -73,10 +86,10 @@ while ($true) {
     
     # Check by PID file first
     if (Test-Path $pidFile) {
-        $pid = Get-Content $pidFile -Raw -ErrorAction SilentlyContinue
-        if ($pid) {
-            $pid = $pid.Trim()
-            $proc = Get-Process -Id $pid -ErrorAction SilentlyContinue
+        $savedPid = Get-Content $pidFile -Raw -ErrorAction SilentlyContinue
+        if ($savedPid) {
+            $savedPid = $savedPid.Trim()
+            $proc = Get-Process -Id $savedPid -ErrorAction SilentlyContinue
             if ($proc -and $proc.ProcessName -match "freellm|app") {
                 $running = $true
             }
