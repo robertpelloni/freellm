@@ -289,7 +289,7 @@ func NewGateway(maxActive int, database *sql.DB, port int) *Gateway {
 			EnableTokdiet:   true,
 		},
 
-		ShowDebugStream: false,
+		ShowDebugStream: os.Getenv("FREELLM_DEBUG") == "1",
 
 		// Default Timeouts
 		RequestTimeout:           900 * time.Second,
