@@ -212,11 +212,13 @@ func tokdietWatchdog(gateway *proxy.Gateway) {
 			}
 			tokdietLogFile = logFile
 
-			tokdietCmd = exec.Command("node", filepath.Join(tokdietDir, "dist/cli.js"), "start", "--port", strconv.Itoa(tokdietPort))
-			tokdietCmd.Dir = tokdietDir
+			absTokdietDir, _ := filepath.Abs(tokdietDir)
+			tokdietCmd = exec.Command("node", "dist/cli.js", "start", "--port", strconv.Itoa(tokdietPort))
+			tokdietCmd.Dir = absTokdietDir
 			tokdietCmd.Stdout = tokdietLogFile
 			tokdietCmd.Stderr = tokdietLogFile
 
+			// Wait a moment then verify tokdiet came up
 			if err := tokdietCmd.Start(); err != nil {
 				log.Printf("[TOKDIET] Failed to start: %v", err)
 				tokdietMu.Unlock()
@@ -229,7 +231,12 @@ func tokdietWatchdog(gateway *proxy.Gateway) {
 
 			go func() {
 				tokdietCmd.Wait()
-				log.Printf("[TOKDIET] Process exited, will restart on next check")
+				// Wait() returning doesn't mean tokdiet died; the CLI backgrounds itself.
+				// Verify by checking if port is still listening.
+				_, probeErr := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", tokdietPort), 500*time.Millisecond)
+				if probeErr != nil {
+					log.Printf("[TOKDIET] Process exited and port %d not reachable, will restart on next check", tokdietPort)
+				}
 			}()
 
 			time.Sleep(30 * time.Second)
