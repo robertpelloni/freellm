@@ -103,7 +103,7 @@ func main() {
 	}
 
 	gateway := proxy.NewGateway(100, database, proxyPort)
-	gateway.MinParamsFilter = 0 // Allow all models
+	gateway.MinParamsFilter = 120 // Exclude small models <= 120B params
 	if gateway.FanOutSize == 0 {
 		gateway.FanOutSize = 3
 	}
