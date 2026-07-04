@@ -12,7 +12,6 @@ import (
 
 	"github.com/a2aproject/a2a-go/a2a"
 	"github.com/a2aproject/a2a-go/a2aclient"
-	"github.com/robertpelloni/freellm/internal/tokdiet"
 )
 
 // SwarmConfig configures the A2A agent swarm.
@@ -64,7 +63,7 @@ func (sc *SwarmCoordinator) RegisterAgent(ctx context.Context, url string) error
 	defer sc.mu.Unlock()
 
 	cardURL := strings.TrimRight(url, "/") + "/.well-known/agent-card"
-	client := tokdiet.NewClient(10 * time.Second)
+	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Get(cardURL)
 	if err != nil {
 		return fmt.Errorf("failed to resolve agent card at %s: %w", cardURL, err)

@@ -1,6 +1,6 @@
 {
-  "signature": "internal/proxy/processjob.go::Unresolved from this turn — internal/proxy/processjob.go:\n🔴 STOP — 8 issue(s) must be fixed:\n  L98: not enough arguments in call to emit\n  \thave (*RequestJob, string, string)\n  \twant (*Gateway, *RequestJob, string, string)\n  L161: not enough arguments in call to emit\n  \thave (*RequestJob, string, string)\n  \twant (*Gateway, *RequestJob, string, string)\n  L177: not enough arguments in call to emit\n  \thave (*RequestJob, string, string)\n  \twant (*Gateway, *RequestJob, string, string)\n  L208: not enough arguments in call to emit\n  \thave (*RequestJob, string, string)\n  \twant (*Gateway, *RequestJob, string, string)\n  L213: not enough arguments in call to emit\n  \thave (*RequestJob, string, string)\n  \twant (*Gateway, *RequestJob, string, string)\n  L224: not enough arguments in call to emit\n  \thave (*RequestJob, string, string)\n  \twant (*Gateway, *RequestJob, string, string)\n... (truncated)",
-  "sessionId": "019eefc8-28f8-71bb-a54a-1ce4e393039a",
-  "projectSeqStart": 166,
-  "projectSeqEnd": 167
+  "signature": "internal/proxy/responses_api.go::Unresolved from this turn — internal/proxy/responses_api.go:\n🔴 STOP — 1 issue(s) must be fixed:\n  L66: g.Port undefined (type *Gateway has no field or method Port)",
+  "sessionId": "lens-mq10xy51-6c13dcce",
+  "projectSeqStart": 84,
+  "projectSeqEnd": 85
 }
