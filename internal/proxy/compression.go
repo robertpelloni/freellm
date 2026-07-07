@@ -12,10 +12,6 @@ import (
 // and returns the compressed body. If the sidecar is unavailable or fails,
 // it returns the original body to ensure reliability.
 func (g *Gateway) CompressContext(body []byte) ([]byte, error) {
-	if !g.Compression.EnableRTK && !g.Compression.EnableHeadroom && !g.Compression.EnableLLMLingua {
-		return body, nil
-	}
-
 	// Only compress if the sidecar is configured and potentially alive
 	sidecarURL := "http://127.0.0.1:7788/compress"
 	
@@ -29,18 +25,13 @@ func (g *Gateway) CompressContext(body []byte) ([]byte, error) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		// Log error but continue with original body
-		if g != nil && g.ShowDebugStream {
-			log.Printf("[COMPRESSION] Sidecar unavailable: %v", err)
-		}
+		log.Printf("[COMPRESSION] Sidecar unavailable: %v", err)
 		return body, nil
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		if g != nil && g.ShowDebugStream {
-			log.Printf("[COMPRESSION] Sidecar returned status %d", resp.StatusCode)
-		}
+		log.Printf("[COMPRESSION] Sidecar returned status %d", resp.StatusCode)
 		return body, nil
 	}
 
@@ -49,8 +40,6 @@ func (g *Gateway) CompressContext(body []byte) ([]byte, error) {
 		return body, err
 	}
 
-	if g != nil && g.ShowDebugStream {
-		log.Printf("[COMPRESSION] Reduced body from %d to %d bytes", len(body), len(compressedBody))
-	}
+	log.Printf("[COMPRESSION] Reduced body from %d to %d bytes", len(body), len(compressedBody))
 	return compressedBody, nil
 }

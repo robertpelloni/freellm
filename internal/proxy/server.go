@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -1224,6 +1225,9 @@ func (g *Gateway) forwardRequestInternal(client *http.Client, r *http.Request, m
 	}
 
 	if !stream && resp.StatusCode == 200 && !isContinuation {
+		// Transform plaintext tool calls into formal tool_calls
+		respBody = g.transformPlaintextToolCalls(respBody)
+
 		// Prepend initial model prefix (prependModelPrefixNonStream will check if response has tool calls)
 		respBody = g.prependModelPrefixNonStream(respBody, model)
 
@@ -2531,4 +2535,147 @@ func (g *Gateway) RouteMessage(ctx context.Context, message string, model string
 	}
 
 	return content, nil
+}
+
+// transformPlaintextToolCalls parses common plaintext tool call patterns and converts them
+// into formal OpenAI tool_calls objects.
+func (g *Gateway) transformPlaintextToolCalls(respBody []byte) []byte {
+	var resp map[string]interface{}
+	if err := json.Unmarshal(respBody, &resp); err != nil {
+		return respBody
+	}
+	choices, ok := resp["choices"].([]interface{})
+	if !ok || len(choices) == 0 {
+		return respBody
+	}
+	choice, ok := choices[0].(map[string]interface{})
+	if !ok {
+		return respBody
+	}
+	msg, ok := choice["message"].(map[string]interface{})
+	if !ok {
+		return respBody
+	}
+
+	content, ok := msg["content"].(string)
+	if !ok || content == "" {
+		return respBody
+	}
+
+	// If already has formal tool_calls, skip
+	if _, hasToolCalls := msg["tool_calls"]; hasToolCalls {
+		return respBody
+	}
+
+	var toolCalls []interface{}
+
+	// Common plaintext tool call patterns that some models output:
+	//
+	// 1. <tool_call><function=name><parameter=key>value</parameter></function></tool_call>
+	// 2. <tool_call>{"name":"...","arguments":{...}}</tool_call>
+	// 3. [TOOL_CALL] {tool:"name",args:{...}} [/TOOL_CALL]
+	// 4. ```bash\n...\n```  (triple backtick code blocks)
+
+	// Pattern 1 (most common from free models): <tool_call> wrapping <function> or JSON
+	reToolCall := regexp.MustCompile(`(?s)<tool_call>\s*(.*?)\s*</tool_call>`)
+	for _, m := range reToolCall.FindAllStringSubmatch(content, -1) {
+		inner := m[1]
+
+		// Try JSON: {"name":"...","arguments":{...}}
+		var tool struct {
+			Name      string                 `json:"name"`
+			Arguments map[string]interface{} `json:"arguments"`
+		}
+		if err := json.Unmarshal([]byte(inner), &tool); err == nil && tool.Name != "" {
+			argsJson, _ := json.Marshal(tool.Arguments)
+			toolCalls = append(toolCalls, map[string]interface{}{
+				"id":   fmt.Sprintf("call_%d", rand.Intn(1000000)),
+				"type": "function",
+				"function": map[string]interface{}{
+					"name":      tool.Name,
+					"arguments": string(argsJson),
+				},
+			})
+			continue
+		}
+
+		// Try <function=name> with <parameter=key>value</parameter>
+		reFunc := regexp.MustCompile(`(?s)<function=([^>]+)>\s*(.*?)\s*</function>`)
+		for _, fm := range reFunc.FindAllStringSubmatch(inner, -1) {
+			name := fm[1]
+			args := make(map[string]interface{})
+			reParam := regexp.MustCompile(`(?s)<parameter=([^>]+)>(.*?)</parameter>`)
+			for _, pm := range reParam.FindAllStringSubmatch(fm[2], -1) {
+				key := strings.TrimSpace(pm[1])
+				val := strings.TrimSpace(pm[2])
+				args[key] = val
+			}
+			argsJson, _ := json.Marshal(args)
+			toolCalls = append(toolCalls, map[string]interface{}{
+				"id":   fmt.Sprintf("call_%d", rand.Intn(1000000)),
+				"type": "function",
+				"function": map[string]interface{}{
+					"name":      name,
+					"arguments": string(argsJson),
+				},
+			})
+		}
+	}
+
+	// Pattern 2: [TOOL_CALL] ... [/TOOL_CALL]
+	reBracket := regexp.MustCompile(`(?s)\[TOOL_CALL\]\s*(.*?)\s*\[/TOOL_CALL\]`)
+	for _, m := range reBracket.FindAllStringSubmatch(content, -1) {
+		inner := m[1]
+		var tool struct {
+			Tool string                 `json:"tool"`
+			Args map[string]interface{} `json:"args"`
+		}
+		if err := json.Unmarshal([]byte(inner), &tool); err == nil && tool.Tool != "" {
+			argsJson, _ := json.Marshal(tool.Args)
+			toolCalls = append(toolCalls, map[string]interface{}{
+				"id":   fmt.Sprintf("call_%d", rand.Intn(1000000)),
+				"type": "function",
+				"function": map[string]interface{}{
+					"name":      tool.Tool,
+					"arguments": string(argsJson),
+				},
+			})
+		}
+	}
+
+	// Pattern 3: Triple backtick bash/python blocks
+	reCode := regexp.MustCompile("(?s)```(bash|python)\n(.*?)\n```")
+	for _, m := range reCode.FindAllStringSubmatch(content, -1) {
+		lang := m[1]
+		code := m[2]
+		toolName := "bash"
+		if lang == "python" {
+			toolName = "python"
+		}
+		args := map[string]interface{}{
+			"command": code,
+		}
+		argsJson, _ := json.Marshal(args)
+		toolCalls = append(toolCalls, map[string]interface{}{
+			"id":   fmt.Sprintf("call_%d", rand.Intn(1000000)),
+			"type": "function",
+			"function": map[string]interface{}{
+				"name":      toolName,
+				"arguments": string(argsJson),
+			},
+		})
+	}
+
+	if len(toolCalls) > 0 {
+		// Check if finish_reason needs updating
+		if fr, ok := choice["finish_reason"]; !ok || fr == nil || fmt.Sprintf("%v", fr) == "stop" {
+			choice["finish_reason"] = "tool_calls"
+		}
+		msg["tool_calls"] = toolCalls
+	}
+
+	if merged, err := json.Marshal(resp); err == nil {
+		return merged
+	}
+	return respBody
 }
