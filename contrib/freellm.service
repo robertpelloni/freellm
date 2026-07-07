@@ -1,0 +1,20 @@
+[Unit]
+Description=FreeLLM Proxy (Linux-native)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/aimoneymachine
+
+# Port
+Environment=FREELLM_PORT=4000
+
+# Place API keys here or set them via the systemd EnvironmentFile directive
+# EnvironmentFile=/opt/aimoneymachine/.env
+
+ExecStart=/opt/aimoneymachine/freellm
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,162 @@
+# FreeLLM Config - Updated 2026-06-05
+# Three groups: free-llm (top 3) + free-llm-fallback (tool-compatible) + free-llm-plain (non-tool)
+# Routing: simple-shuffle (picks smart models, not fast small ones)
+# Fallback: free-llm -> free-llm-fallback (plain group free-llm-plain for direct use only)
+
+# PROBE RESULTS:
+#   p2/model-2  0.2s score=90.0 (? ctx)
+#   p1/model-1  0.1s score=100.0 (? ctx)
+model_list:
+  - # Rank 1: model-2 via p2 - 4K ctx, 0.2s, 70B, score=90
+    model_name: free-llm
+    freellm_params:
+      model: p2/model-2
+      timeout: 30
+      api_key: os.environ/P2_API_KEY
+      max_tokens: 3840
+    model_info:
+      score: 90
+      latency: 0.2
+      context: 4096
+      params: 70
+  - # Rank 2: model-1 via p1 - 4K ctx, 0.1s, 100B, score=100
+    model_name: free-llm
+    freellm_params:
+      model: p1/model-1
+      timeout: 30
+      api_key: os.environ/P1_API_KEY
+      max_tokens: 3840
+    model_info:
+      score: 100
+      latency: 0.1
+      context: 4096
+      params: 100
+  - model_name: free-llm-fallback
+    freellm_params:
+      model: openai/Meta-Llama-3.1-405B-Instruct
+      timeout: 30
+      api_key: os.environ/GITHUB_TOKEN
+      api_base: https://models.inference.ai.azure.com
+      max_tokens: 16384
+    model_info:
+      score: 0
+      latency: 0
+      context: 128000
+  - model_name: free-llm-fallback
+    freellm_params:
+      model: openai/Meta-Llama-3.1-8B-Instruct
+      timeout: 30
+      api_key: os.environ/GITHUB_TOKEN
+      api_base: https://models.inference.ai.azure.com
+      max_tokens: 16384
+    model_info:
+      score: 0
+      latency: 0
+      context: 131072
+  - model_name: free-llm-fallback
+    freellm_params:
+      model: openai/gpt-4o
+      timeout: 30
+      api_key: os.environ/GITHUB_TOKEN
+      api_base: https://models.inference.ai.azure.com
+      max_tokens: 16384
+    model_info:
+      score: 0
+      latency: 0
+      context: 128000
+  - model_name: free-llm-fallback
+    freellm_params:
+      model: openai/gpt-4o-mini
+      timeout: 30
+      api_key: os.environ/GITHUB_TOKEN
+      api_base: https://models.inference.ai.azure.com
+      max_tokens: 16384
+    model_info:
+      score: 0
+      latency: 0
+      context: 128000
+  - model_name: free-llm-fallback
+    freellm_params:
+      model: openrouter/google/gemma-4-31b-it:free
+      timeout: 30
+      stream_timeout: 300
+      api_key: os.environ/OPENROUTER_API_KEY
+      max_tokens: 16384
+    model_info:
+      score: 0
+      latency: 0
+      context: 131072
+  - model_name: free-llm-fallback
+    freellm_params:
+      model: openrouter/google/gemma-4-26b-a4b-it:free
+      timeout: 30
+      stream_timeout: 300
+      api_key: os.environ/OPENROUTER_API_KEY
+      max_tokens: 16384
+    model_info:
+      score: 0
+      latency: 0
+      context: 131072
+  - model_name: free-llm-fallback
+    freellm_params:
+      model: openrouter/nvidia/nemotron-3-super-120b-a12b:free
+      timeout: 30
+      stream_timeout: 300
+      api_key: os.environ/OPENROUTER_API_KEY
+      max_tokens: 3840
+    model_info:
+      score: 0
+      latency: 0
+      context: 4096
+  - model_name: free-llm-fallback
+    freellm_params:
+      model: openrouter/nvidia/nemotron-3-nano-30b-a3b:free
+      timeout: 30
+      stream_timeout: 300
+      api_key: os.environ/OPENROUTER_API_KEY
+      max_tokens: 3840
+    model_info:
+      score: 0
+      latency: 0
+      context: 4096
+  - model_name: free-llm-fallback
+    freellm_params:
+      model: openrouter/openai/gpt-oss-120b:free
+      timeout: 30
+      stream_timeout: 300
+      api_key: os.environ/OPENROUTER_API_KEY
+      max_tokens: 16384
+    model_info:
+      score: 0
+      latency: 0
+      context: 131072
+  - model_name: free-llm-fallback
+    freellm_params:
+      model: openrouter/openai/gpt-oss-20b:free
+      timeout: 30
+      stream_timeout: 300
+      api_key: os.environ/OPENROUTER_API_KEY
+      max_tokens: 16384
+    model_info:
+      score: 0
+      latency: 0
+      context: 131072
+router_settings:
+  routing_strategy: simple-shuffle
+  cooldown_time: 30
+  allowed_fails: 2
+  num_retries: 2
+  timeout: 30
+  enable_pre_call_checks: false
+  ignore_cooldown_on_fallbacks: true
+freellm_settings:
+  drop_params: true
+  num_retries: 2
+  request_timeout: 60
+  allowed_fails: 2
+  cooldown_time: 30
+  fallbacks:
+    - free-llm:
+        - free-llm-fallback
+  stream_timeout: 300
+port: 4000

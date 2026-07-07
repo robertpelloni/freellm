@@ -1,0 +1,125 @@
+//go:build !windows
+
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"os"
+	"os/signal"
+	"strconv"
+	"syscall"
+	"time"
+
+	"github.com/robertpelloni/freellm/internal/config"
+	"github.com/robertpelloni/freellm/internal/db"
+	"github.com/robertpelloni/freellm/internal/engine"
+	"github.com/robertpelloni/freellm/internal/proxy"
+	"github.com/robertpelloni/freellm/internal/ui"
+)
+
+func main() {
+	log.Println("[FreeLLM] Starting headless server on :4000")
+
+	database, err := db.InitDB()
+	if err != nil {
+		log.Fatalf("Failed to init DB: %v", err)
+	}
+
+	eventLogger := engine.NewEventLogger(100, database)
+
+	apiKeys := map[string]string{
+		"openrouter":   os.Getenv("OPENROUTER_API_KEY"),
+		"groq":         os.Getenv("GROQ_API_KEY"),
+		"github":       os.Getenv("GITHUB_TOKEN"),
+		"deepinfra":    os.Getenv("DEEPINFRA_API_KEY"),
+		"cerebras":     os.Getenv("CEREBRAS_API_KEY"),
+		"huggingface":  os.Getenv("HUGGINGFACE_API_KEY"),
+		"nvidia":       os.Getenv("NVIDIA_NIM_API_KEY"),
+		"gemini":       os.Getenv("GEMINI_API_KEY"),
+		"anthropic":    os.Getenv("ANTHROPIC_API_KEY"),
+		"mistral":      os.Getenv("MISTRAL_API_KEY"),
+		"cohere":       os.Getenv("COHERE_API_KEY"),
+		"sambanova":    os.Getenv("SAMBANOVA_API_KEY"),
+		"fireworks":    os.Getenv("FIREWORKS_API_KEY"),
+		"hyperbolic":   os.Getenv("HYPERBOLIC_API_KEY"),
+		"cloudflare":   os.Getenv("CLOUDFLARE_API_KEY"),
+		"codestral":    os.Getenv("CODESTRAL_API_KEY"),
+		"nvidia_nim":   os.Getenv("NVIDIA_API_KEY"),
+		"siliconflow":  os.Getenv("SILICONFLOW_API_KEY"),
+		"together":     os.Getenv("TOGETHER_API_KEY"),
+		"novita":       os.Getenv("NOVITA_API_KEY"),
+		"nebius":       os.Getenv("NEBIUS_API_KEY"),
+		"deepseek":     os.Getenv("DEEPSEEK_API_KEY"),
+		"ai21":         os.Getenv("AI21_API_KEY"),
+		"replicate":    os.Getenv("REPLICATE_API_TOKEN"),
+		"dashscope":    os.Getenv("DASHSCOPE_API_KEY"),
+		"perplexity":   os.Getenv("PERPLEXITY_API_KEY"),
+	}
+
+	keyCount := 0
+	for _, v := range apiKeys {
+		if v != "" {
+			keyCount++
+		}
+	}
+	log.Printf("API keys configured: %d/%d providers have keys", keyCount, len(apiKeys))
+
+	benchmarker := engine.NewBenchmarker(apiKeys, 100, eventLogger)
+
+	cfg, err := config.LoadConfig("freellm-config.yaml")
+	if err != nil {
+		log.Printf("Warning: freellm-config.yaml not found, using defaults: %v", err)
+		cfg = &config.Config{Port: 4000}
+	}
+
+	proxyPort := cfg.Port
+	if proxyPort == 0 {
+		proxyPort = 4000
+	}
+	if envPort := os.Getenv("FREELLM_PORT"); envPort != "" {
+		if p, err := strconv.Atoi(envPort); err == nil && p > 0 {
+			proxyPort = p
+		}
+	}
+
+	gateway := proxy.NewGateway(100, database, proxyPort)
+	if gateway.FanOutSize == 0 {
+		gateway.FanOutSize = 3
+	}
+	gateway.RestoreQueue()
+
+	log.Println("[FreeLLM] Fetching initial model rankings...")
+	ctx := context.Background()
+	models := benchmarker.FetchModels(ctx, database)
+	filtered := benchmarker.FilterCandidates(models, database)
+	gateway.UpdateModels(filtered)
+	log.Printf("[FreeLLM] Loaded %d models\n", len(filtered))
+
+	go func() {
+		for {
+			time.Sleep(5 * time.Minute)
+			models := benchmarker.FetchModels(context.Background(), database)
+			if len(models) > 0 {
+				filtered := benchmarker.FilterCandidates(models, database)
+				gateway.UpdateModels(filtered)
+				log.Printf("[FreeLLM] Refreshed %d models\n", len(filtered))
+			}
+		}
+	}()
+
+	uiServer := ui.NewUIServer(database, eventLogger, gateway)
+	go func() {
+		addr := fmt.Sprintf(":%d", proxyPort)
+		log.Printf("[FreeLLM] Listening on %s\n", addr)
+		if err := uiServer.Start(addr); err != nil {
+			log.Fatalf("[FreeLLM] Server failed: %v\n", err)
+		}
+	}()
+
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+	<-sig
+	log.Println("[FreeLLM] Shutting down...")
+}

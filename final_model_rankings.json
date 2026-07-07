@@ -1,0 +1,116 @@
+[
+  {
+    "model": "north-mini-code-free",
+    "provider": "opencode_zen",
+    "tests": {
+      "Reasoning": {
+        "status": "ok",
+        "latency": 0.86,
+        "response": "The sky appears blue because molecules in the atmosphere scatter sunlight more efficiently at shorter wavelengths, such as blue, than at longer wavelengths like red. This scattering, known as Rayleigh scattering, fills the sky with blue light when we look away from the sun."
+      },
+      "Coding": {
+        "status": "ok",
+        "latency": 0.85,
+        "response": "The user wants a Python function to check if a string is a palindrome.\n\n1.  **Understand the Goal:** A palindrome is a string that reads the same forwards and backwards (e.g., \"madam\", \"racecar\", \"12321\"). The function needs to return `True` if it is a palindrome and `False` otherwise.\n\n2.  **Determ"
+      },
+      "Math": {
+        "status": "ok",
+        "latency": 0.29,
+        "response": "12"
+      }
+    },
+    "avg_latency": 0.67,
+    "score": 293.3
+  },
+  {
+    "model": "big-pickle",
+    "provider": "opencode_zen",
+    "tests": {
+      "Reasoning": {
+        "status": "ok",
+        "latency": 2.94,
+        "response": ""
+      },
+      "Coding": {
+        "status": "ok",
+        "latency": 3.13,
+        "response": ""
+      },
+      "Math": {
+        "status": "ok",
+        "latency": 1.52,
+        "response": "12"
+      }
+    },
+    "avg_latency": 2.53,
+    "score": 274.7
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "provider": "opencode_zen",
+    "tests": {
+      "Reasoning": {
+        "status": "ok",
+        "latency": 3.25,
+        "response": ""
+      },
+      "Coding": {
+        "status": "ok",
+        "latency": 3.53,
+        "response": ""
+      },
+      "Math": {
+        "status": "ok",
+        "latency": 1.4,
+        "response": "12"
+      }
+    },
+    "avg_latency": 2.73,
+    "score": 272.7
+  },
+  {
+    "model": "nemotron-3-ultra-free",
+    "provider": "opencode_zen",
+    "tests": {
+      "Reasoning": {
+        "status": "ok",
+        "latency": 8.8,
+        "response": "Sunlight contains all colors of the rainbow, but when it hits Earth's atmosphere, gas molecules scatter the shorter blue wavelengths much more efficiently than the longer red wavelengths. This scattered blue light reaches our eyes from every direction, making the sky appear blue."
+      },
+      "Coding": {
+        "status": "ok",
+        "latency": 3.53,
+        "response": "Here are three common ways to write this function, depending on how strict you want the definition of \"palindrome\" to be.\n\n### 1. The Robust Version (Recommended)\n**Ignores capitalization, spaces, punctuation, and special characters.**\nThis is usually what is expected in coding interviews or real-wo"
+      },
+      "Math": {
+        "status": "ok",
+        "latency": 4.66,
+        "response": "12"
+      }
+    },
+    "avg_latency": 5.66,
+    "score": 243.4
+  },
+  {
+    "model": "mimo-v2.5-free",
+    "provider": "opencode_zen",
+    "tests": {
+      "Reasoning": {
+        "status": "ok",
+        "latency": 3.3,
+        "response": "Sunlight contains all colors of the visible spectrum, and when it enters Earth's atmosphere, shorter blue wavelengths are scattered much more than other colors by gas molecules \u2014 a phenomenon called Rayleigh scattering. This scattered blue light reaches our eyes from all directions across the sky, m"
+      },
+      "Coding": {
+        "status": "exception",
+        "error": "'NoneType' object is not subscriptable"
+      },
+      "Math": {
+        "status": "ok",
+        "latency": 3.73,
+        "response": "12"
+      }
+    },
+    "avg_latency": 4.06,
+    "score": 159.4
+  }
+]

@@ -1,0 +1,37 @@
+{
+  "generated_at": "2026-06-15 00:28:57",
+  "results": [
+    {
+      "success": false,
+      "latency": 0.212,
+      "status_code": 400,
+      "error": "{\"error\":\"Model not supported by provider hf-inference\"}",
+      "model": "mistralai/Mixtral-8x7B-Instruct-v0.1",
+      "provider": "huggingface"
+    },
+    {
+      "success": false,
+      "latency": 0.187,
+      "status_code": 400,
+      "error": "{\"error\":\"Model not supported by provider hf-inference\"}",
+      "model": "meta-llama/Llama-3.3-70B-Instruct",
+      "provider": "huggingface"
+    },
+    {
+      "success": false,
+      "latency": 0.175,
+      "status_code": 400,
+      "error": "{\"error\":\"Model not supported by provider hf-inference\"}",
+      "model": "google/gemma-2-9b-it",
+      "provider": "huggingface"
+    },
+    {
+      "success": false,
+      "latency": 0.172,
+      "status_code": 400,
+      "error": "{\"error\":\"Model not supported by provider hf-inference\"}",
+      "model": "microsoft/phi-3-mini-4k-instruct",
+      "provider": "huggingface"
+    }
+  ]
+}

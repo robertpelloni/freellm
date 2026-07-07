@@ -1,0 +1,3 @@
+[submodule "freellm_repo"]
+path = freellm_repo
+url = https://github.com/robertpelloni/freellm
