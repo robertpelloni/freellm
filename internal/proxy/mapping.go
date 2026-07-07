@@ -24,32 +24,14 @@ func sanitizeRequest(provider string, body []byte) ([]byte, error) {
 		return body, err
 	}
 
-	// OpenAI-standard params that many specialty providers (Cerebras, Groq, 
-	// NVIDIA, etc.) reject with 400 Bad Request. We strip them by default
-	// unless we know the provider supports them.
-	unsupported := []string{
-		"frequency_penalty",
-		"presence_penalty",
-		"logit_bias",
-		"user",
-		"seed",
-		"top_logprobs",
-		"logprobs",
-		"tools",
-		"tool_choice",
-		"functions",
-		"function_call",
-	}
+	// Remove unsupported params for specific providers
+	unsupported := []string{"frequency_penalty", "presence_penalty", "logit_bias"}
 
-	for _, p := range unsupported {
-		delete(payload, p)
-	}
-
-	// Specific fixes for common strict providers
 	switch provider {
-	case "cerebras", "groq", "nvidia", "nvidia_nim", "sambanova", "deepinfra":
-		// These are particularly strict about 'top_p' and 'temperature' bounds.
-		// If they are exactly 0 or 1, some prefer they be omitted or adjusted.
+	case "anthropic":
+		for _, p := range unsupported {
+			delete(payload, p)
+		}
 	}
 
 	return json.Marshal(payload)

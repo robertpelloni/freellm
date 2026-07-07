@@ -10,58 +10,11 @@ import (
 )
 
 type Config struct {
-	ModelList           []ModelEntry              `yaml:"model_list"`
-	RouterSettings      RouterSettings            `yaml:"router_settings"`
-	ProxySettings       ProxySettings             `yaml:"proxy_settings"`
-	CompressionSettings CompressionSettings       `yaml:"compression_settings"`
-	Port                int                       `yaml:"port"`
-	Providers           map[string]ProviderCfg    `yaml:"providers"`
-	JudgeSettings       JudgeSettings             `yaml:"judge_settings"`
-}
-
-type JudgeSettings struct {
-	Enabled        bool   `yaml:"enabled"`
-	URL            string `yaml:"url"`
-	Model          string `yaml:"model"`
-	TimeoutSeconds int    `yaml:"timeout_seconds"`
-}
-
-type CompressionSettings struct {
-	EnableRTK       bool   `yaml:"enable_rtk"`
-	RTKPath         string `yaml:"rtk_path"`
-	EnableHeadroom  bool   `yaml:"enable_headroom"`
-	HeadroomURL     string `yaml:"headroom_url"`
-	EnableLLMLingua bool   `yaml:"enable_llmlingua"`
-	LLMLinguaURL    string `yaml:"llmlingua_url"`
-	EnableTokdiet   bool   `yaml:"enable_tokdiet"`
-}
-
-type RouterSettings struct {
-	RoutingStrategy           string `yaml:"routing_strategy"`
-	CooldownTime              int    `yaml:"cooldown_time"`
-	AllowedFails              int    `yaml:"allowed_fails"`
-	NumRetries                int    `yaml:"num_retries"`
-	Timeout                   int    `yaml:"timeout"`
-	EnablePreCallChecks       bool   `yaml:"enable_pre_call_checks"`
-	IgnoreCooldownOnFallbacks bool   `yaml:"ignore_cooldown_on_fallbacks"`
-	MinParamsFilter           int    `yaml:"min_params_filter"`
-}
-
-type ProxySettings struct {
-	DropParams               bool                   `yaml:"drop_params"`
-	NumRetries               int                    `yaml:"num_retries"`
-	RequestTimeout           int                    `yaml:"request_timeout"`
-	StreamTimeout            int                    `yaml:"stream_timeout"`
-	ConnectTimeout           int                    `yaml:"connect_timeout"`
-	WatchdogTimeout          int                    `yaml:"watchdog_timeout"`
-	ProvenWatchdogTimeout    int                    `yaml:"proven_watchdog_timeout"`
-	ReasoningWatchdogTimeout int                    `yaml:"reasoning_watchdog_timeout"`
-	LockDuration             int                    `yaml:"lock_duration"`
-	SmartSwitchDelay         int                    `yaml:"smart_switch_delay"`
-	FanOutSize               int                    `yaml:"fan_out_size"`
-	AllowedFails             int                    `yaml:"allowed_fails"`
-	CooldownTime             int                    `yaml:"cooldown_time"`
-	Fallbacks                []map[string]interface{} `yaml:"fallbacks"`
+	ModelList       []ModelEntry              `yaml:"model_list"`
+	RouterSettings  map[string]interface{}    `yaml:"router_settings"`
+	ProxySettings   map[string]interface{}    `yaml:"proxy_settings"`
+	Port            int                       `yaml:"port"`
+	Providers       map[string]ProviderCfg    `yaml:"providers"`
 }
 
 type ProviderCfg struct {
@@ -133,30 +86,23 @@ func WatchConfig(path string, onReload func(*Config)) error {
 func ApplyRankedModels(ranked []engine.ModelCandidate, cfgPath string, primaryCount int) error {
 	cfg := &Config{
 		Port: 4000,
-		RouterSettings: RouterSettings{
-			RoutingStrategy:           "simple-shuffle",
-			CooldownTime:              30,
-			AllowedFails:              2,
-			NumRetries:                2,
-			Timeout:                   30,
-			EnablePreCallChecks:       false,
-			IgnoreCooldownOnFallbacks: true,
-			MinParamsFilter:           130,
+		RouterSettings: map[string]interface{}{
+			"routing_strategy":               "simple-shuffle",
+			"cooldown_time":                  30,
+			"allowed_fails":                  2,
+			"num_retries":                    2,
+			"timeout":                        30,
+			"enable_pre_call_checks":         false,
+			"ignore_cooldown_on_fallbacks":   true,
 		},
-		ProxySettings: ProxySettings{
-			DropParams:               true,
-			NumRetries:               2,
-			RequestTimeout:           300,
-			StreamTimeout:            300,
-			ConnectTimeout:           30,
-			WatchdogTimeout:          30,
-			ProvenWatchdogTimeout:    60,
-			ReasoningWatchdogTimeout: 80,
-			LockDuration:             30,
-			SmartSwitchDelay:         500,
-			AllowedFails:             2,
-			CooldownTime:             30,
-			Fallbacks: []map[string]interface{}{
+		ProxySettings: map[string]interface{}{
+			"drop_params":     true,
+			"num_retries":     2,
+			"request_timeout": 60,
+			"stream_timeout":  300,
+			"allowed_fails":   2,
+			"cooldown_time":   30,
+			"fallbacks": []map[string]interface{}{
 				{"free-llm": []string{"free-llm-fallback"}},
 			},
 		},
