@@ -17,8 +17,11 @@
 - `MEMORY.md`: Architectural traits and design decisions.
 - `ROADMAP.md`: Long-term structural milestones.
 - `TODO.md`: Immediate tasks and completed features.
-- `VERSION.md`: Current version (v4.1.0).
+- `VERSION.md`: Current version (v4.6.4).
 - `CHANGELOG.md`: Detailed feature and fix history.
 
 ## Submodules
-- `freellm_repo/`: Official FreeLLM repository for parity reference and integration.
+- `third_party/tokdiet`: Compression proxy (https://github.com/robertpelloni/tokdiet.git)
+- `third_party/rtk`: Compression toolkit (https://github.com/rtk-ai/rtk)
+- `third_party/headroom`: Compression proxy (https://github.com/chopratejas/headroom)
+- `third_party/LLMLingua`: Compression library (https://github.com/microsoft/LLMLingua)

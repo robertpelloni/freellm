@@ -1,0 +1,156 @@
+{
+  "version": 1,
+  "files": {
+    "cmd\\app\\main.go": {
+      "latest": {
+        "commit": "8bc43bc",
+        "timestamp": "2026-07-13T03:25:01.062Z",
+        "mi": 40.1,
+        "cognitive": 599,
+        "nesting": 5,
+        "lines": 1006,
+        "maxCyclomatic": 151,
+        "entropy": 7.79
+      },
+      "history": [
+        {
+          "commit": "8bc43bc",
+          "timestamp": "2026-07-13T03:25:01.062Z",
+          "mi": 40.1,
+          "cognitive": 599,
+          "nesting": 5,
+          "lines": 1006,
+          "maxCyclomatic": 151,
+          "entropy": 7.79
+        }
+      ],
+      "trend": "stable"
+    },
+    "cmd\\app\\main_linux.go": {
+      "latest": {
+        "commit": "8bc43bc",
+        "timestamp": "2026-07-13T03:27:41.740Z",
+        "mi": 53,
+        "cognitive": 43,
+        "nesting": 4,
+        "lines": 196,
+        "maxCyclomatic": 10,
+        "entropy": 3.95
+      },
+      "history": [
+        {
+          "commit": "8bc43bc",
+          "timestamp": "2026-07-13T03:27:41.740Z",
+          "mi": 53,
+          "cognitive": 43,
+          "nesting": 4,
+          "lines": 196,
+          "maxCyclomatic": 10,
+          "entropy": 3.95
+        }
+      ],
+      "trend": "stable"
+    },
+    "cmd\\headless\\main.go": {
+      "latest": {
+        "commit": "8bc43bc",
+        "timestamp": "2026-07-13T03:30:25.436Z",
+        "mi": 54.8,
+        "cognitive": 28,
+        "nesting": 3,
+        "lines": 170,
+        "maxCyclomatic": 9,
+        "entropy": 4.71
+      },
+      "history": [
+        {
+          "commit": "8bc43bc",
+          "timestamp": "2026-07-13T03:30:25.436Z",
+          "mi": 54.8,
+          "cognitive": 28,
+          "nesting": 3,
+          "lines": 170,
+          "maxCyclomatic": 9,
+          "entropy": 4.71
+        }
+      ],
+      "trend": "stable"
+    },
+    "internal\\engine\\benchmarker.go": {
+      "latest": {
+        "commit": "8bc43bc",
+        "timestamp": "2026-07-13T03:34:29.778Z",
+        "mi": 37.9,
+        "cognitive": 612,
+        "nesting": 5,
+        "lines": 807,
+        "maxCyclomatic": 52,
+        "entropy": 6.58
+      },
+      "history": [
+        {
+          "commit": "8bc43bc",
+          "timestamp": "2026-07-13T03:34:29.778Z",
+          "mi": 37.9,
+          "cognitive": 612,
+          "nesting": 5,
+          "lines": 807,
+          "maxCyclomatic": 52,
+          "entropy": 6.58
+        }
+      ],
+      "trend": "stable"
+    },
+    "internal\\tokdiet\\tokdiet.go": {
+      "latest": {
+        "commit": "8bc43bc",
+        "timestamp": "2026-07-13T03:37:22.120Z",
+        "mi": 77.8,
+        "cognitive": 5,
+        "nesting": 2,
+        "lines": 29,
+        "maxCyclomatic": 3,
+        "entropy": 5.03
+      },
+      "history": [
+        {
+          "commit": "8bc43bc",
+          "timestamp": "2026-07-13T03:37:22.120Z",
+          "mi": 77.8,
+          "cognitive": 5,
+          "nesting": 2,
+          "lines": 29,
+          "maxCyclomatic": 3,
+          "entropy": 5.03
+        }
+      ],
+      "trend": "stable"
+    },
+    "internal\\proxy\\server.go": {
+      "latest": {
+        "commit": "8bc43bc",
+        "timestamp": "2026-07-13T03:37:52.748Z",
+        "mi": 30.4,
+        "cognitive": 1908,
+        "nesting": 11,
+        "lines": 2425,
+        "maxCyclomatic": 108,
+        "entropy": 7.54
+      },
+      "history": [
+        {
+          "commit": "8bc43bc",
+          "timestamp": "2026-07-13T03:37:52.748Z",
+          "mi": 30.4,
+          "cognitive": 1908,
+          "nesting": 11,
+          "lines": 2425,
+          "maxCyclomatic": 108,
+          "entropy": 7.54
+        }
+      ],
+      "trend": "stable"
+    }
+  },
+  "capturedAt": "2026-07-13T03:37:57.757Z"
+}

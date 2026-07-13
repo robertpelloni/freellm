@@ -114,6 +114,7 @@ func (g *Gateway) handleAnthropicMessages(w http.ResponseWriter, r *http.Request
 		writeAnthropicError(w, 400, "invalid_request_error", fmt.Sprintf("read body: %v", err))
 		return
 	}
+	body = SanitizeJSONStringLiterals(body)
 
 	// Parse Anthropic request
 	var aReq anthropicReq
@@ -136,7 +137,8 @@ func (g *Gateway) handleAnthropicMessages(w http.ResponseWriter, r *http.Request
 	}
 
 	// Create a new HTTP request with the translated body, targeting our own /v1/chat/completions
-	oaiReq, err := http.NewRequestWithContext(r.Context(), "POST", "http://localhost:4000/v1/chat/completions", bytes.NewReader(oaiBody))
+	oaiURL := fmt.Sprintf("http://127.0.0.1:%d/v1/chat/completions", g.Port)
+	oaiReq, err := http.NewRequestWithContext(r.Context(), "POST", oaiURL, bytes.NewReader(oaiBody))
 	if err != nil {
 		writeAnthropicError(w, 500, "api_error", fmt.Sprintf("create request: %v", err))
 		return

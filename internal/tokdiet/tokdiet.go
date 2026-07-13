@@ -2,15 +2,19 @@ package tokdiet
 
 import (
 	"net/http"
+	"os"
 	"time"
 )
+
+// tokdietPort is the local port tokdiet listens on.
+const tokdietPort = "127.0.0.1:7787"
 
 // RoundTripper intercepts all outbound requests and routes them through the
 // tokdiet proxy (local port 7787), injecting the original destination into
 // the x-ctxgov-upstream header.
 type RoundTripper struct {
-	Next       http.RoundTripper
-	SkipTokdiet bool // if true, requests go directly to upstream, bypassing tokdiet
+	Next    http.RoundTripper
+	Enabled bool
 }
 
 func (t *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -20,14 +24,13 @@ func (t *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 		next = http.DefaultTransport
 	}
 
-	// Skip if it's already going to tokdiet
-	host := req.URL.Host
-	if host == "127.0.0.1:7787" || host == "localhost:7787" || host == ":7787" {
+	// Skip if disabled or already going to tokdiet
+	if !t.Enabled {
 		return next.RoundTrip(req)
 	}
 
-	// Bypass tokdiet when skip is enabled
-	if t.SkipTokdiet {
+	host := req.URL.Host
+	if host == tokdietPort || host == "localhost:7787" {
 		return next.RoundTrip(req)
 	}
 
@@ -37,24 +40,25 @@ func (t *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	// Re-route to the local tokdiet proxy
 	req.URL.Scheme = "http"
-	req.URL.Host = "127.0.0.1:7787"
+	req.URL.Host = tokdietPort
 
 	return next.RoundTrip(req)
 }
 
 // NewClient returns an http.Client pre-configured to route through tokdiet.
+// The RoundTripper is disabled by default. Set FREELLM_TOKDIET=1 to enable.
 func NewClient(timeout time.Duration) *http.Client {
+	enabled := os.Getenv("FREELLM_TOKDIET") == "1"
+	if !enabled {
+		return &http.Client{
+			Timeout:   timeout,
+			Transport: &RoundTripper{Next: http.DefaultTransport, Enabled: false},
+		}
+	}
 	return &http.Client{
 		Timeout:   timeout,
-		Transport: &RoundTripper{Next: http.DefaultTransport},
+		Transport: &RoundTripper{Next: http.DefaultTransport, Enabled: true},
 	}
 }
 
-// NewDirectClient returns an http.Client that bypasses tokdiet entirely,
-// calling upstream APIs directly.
-func NewDirectClient(timeout time.Duration) *http.Client {
-	return &http.Client{
-		Timeout:   timeout,
-		Transport: &RoundTripper{Next: http.DefaultTransport, SkipTokdiet: true},
-	}
-}
+
