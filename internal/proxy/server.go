@@ -58,6 +58,7 @@ type Gateway struct {
 	FanOutSize int           // number of parallel requests in fan-out
 	ShuffleEnabled bool      // whether to shuffle models after successful request
 	MinParamsFilter int // filter out models with params <= this value (billions); 0 = disabled
+	ShowDebugStream bool
 	provenModels     map[string]bool // map of modelID+provider that have successfully worked
 	provenMu         sync.RWMutex
 	sessionModelLocks map[string]time.Time // modelID+provider -> locked until
@@ -178,6 +179,14 @@ func writeSSEError(w http.ResponseWriter, message string, modelID string) {
 }
 
 func NewGateway(maxActive int, database *sql.DB, port int) *Gateway {
+	// Client selection — bypass tokdiet by default unless FREELLM_ENABLE_TOKDIET=1
+	var httpClient *http.Client
+	if os.Getenv("FREELLM_ENABLE_TOKDIET") == "1" {
+		httpClient = tokdiet.NewClient(60 * time.Second)
+	} else {
+		httpClient = tokdiet.NewDirectClient(60 * time.Second)
+	}
+
 	g := &Gateway{
 		Port: port,
 		Queue: make(chan *RequestJob, 100),
@@ -186,8 +195,9 @@ func NewGateway(maxActive int, database *sql.DB, port int) *Gateway {
 		DB: database,
 		PrimaryCount: 10,
 		Cache: make(map[string]cacheEntry),
+		ShowDebugStream: os.Getenv("FREELLM_DEBUG") == "1",
 		providerCooldown: make(map[string]time.Time),
-		Client: tokdiet.NewClient(60 * time.Second),
+		Client: httpClient,
 		preflightCache: make(map[string]preflightEntry),
 		Sessions:   NewSessionTracker(),
 		activeSem: make(chan struct{}, maxActive),
@@ -1626,8 +1636,10 @@ func (g *Gateway) forwardRequestInternal(ctx context.Context, client *http.Clien
 	}
 
 	if !stream && resp.StatusCode == 200 && !isContinuation {
-		// Prepend initial model prefix (prependModelPrefixNonStream will check if response has tool calls)
-		respBody = g.prependModelPrefixNonStream(respBody, model)
+		// Prepend initial model prefix (only in debug mode)
+		if g.ShowDebugStream {
+			respBody = g.prependModelPrefixNonStream(respBody, model)
+		}
 
 		if g.isResponseTruncated(respBody) {
 			log.Printf("[AUTO-CONTINUE] Non-stream response truncated, starting auto-continuation...")
@@ -1886,7 +1898,10 @@ func (g *Gateway) autoContinueNonStream(client *http.Client, r *http.Request, in
 		}
 
 		// Inject continuation marker
-		accumulatedContent.WriteString(fmt.Sprintf("\n\n[Continued with Model: %s | Provider: %s]\n\n", currentModel.ID, currentModel.Provider))
+		// Inject continuation marker (debug only)
+		if g.ShowDebugStream {
+			accumulatedContent.WriteString(fmt.Sprintf("\n\n[Continued with Model: %s | Provider: %s]\n\n", currentModel.ID, currentModel.Provider))
+		}
 		accumulatedContent.WriteString(contContent)
 
 		// Update finish_reason from the continuation
@@ -2052,7 +2067,10 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 	for s.buffer.Len() == 0 {
 		// Mandatory prefix injection if not yet sent (as requested by user)
 		if !s.prefixSent && !s.isToolCall {
-			s.injectTextChunk(fmt.Sprintf("[Model: %s | Provider: %s]\n\n", s.model.ID, s.model.Provider))
+			// Inject model prefix on first chunk (debug only)
+			if s.g.ShowDebugStream {
+				s.injectTextChunk(fmt.Sprintf("[Model: %s | Provider: %s]\n\n", s.model.ID, s.model.Provider))
+			}
 			s.prefixSent = true
 			return s.buffer.Read(p)
 		}
@@ -2291,7 +2309,10 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 								s.model = winner.model
 								s.currentStream = winner.resp.Stream
 								s.finishReason = ""
+								// Inject continuation marker (debug only)
+							if s.g.ShowDebugStream {
 								s.injectTextChunk(fmt.Sprintf("\n\n[Continued with Model: %s | Provider: %s]\n\n", s.model.ID, s.model.Provider))
+							}
 								s.prefixSent = false
 								s.firstChunkParsed = false
 								s.isToolCall = false
@@ -2351,7 +2372,11 @@ func (s *continuationStream) Read(p []byte) (int, error) {
 						s.finishReasonSent = false
 						s.fallbackIdx = 0
 						s.resetReader()
-						s.injectTextChunk(fmt.Sprintf("\n\n[Continued with Model: %s | Provider: %s]\n\n", s.model.ID, s.model.Provider))
+
+						// Inject continuation marker (debug only)
+						if s.g.ShowDebugStream {
+							s.injectTextChunk(fmt.Sprintf("\n\n[Continued with Model: %s | Provider: %s]\n\n", s.model.ID, s.model.Provider))
+						}
 						s.continuationCount++
 						success = true
 						return s.buffer.Read(p)

@@ -9,7 +9,8 @@ import (
 // tokdiet proxy (local port 7787), injecting the original destination into
 // the x-ctxgov-upstream header.
 type RoundTripper struct {
-	Next http.RoundTripper
+	Next       http.RoundTripper
+	SkipTokdiet bool // if true, requests go directly to upstream, bypassing tokdiet
 }
 
 func (t *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -21,7 +22,12 @@ func (t *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	// Skip if it's already going to tokdiet
 	host := req.URL.Host
-	if host == "127.0.0.1:7787" || host == "localhost:7787" {
+	if host == "127.0.0.1:7787" || host == "localhost:7787" || host == ":7787" {
+		return next.RoundTrip(req)
+	}
+
+	// Bypass tokdiet when skip is enabled
+	if t.SkipTokdiet {
 		return next.RoundTrip(req)
 	}
 
@@ -41,5 +47,14 @@ func NewClient(timeout time.Duration) *http.Client {
 	return &http.Client{
 		Timeout:   timeout,
 		Transport: &RoundTripper{Next: http.DefaultTransport},
+	}
+}
+
+// NewDirectClient returns an http.Client that bypasses tokdiet entirely,
+// calling upstream APIs directly.
+func NewDirectClient(timeout time.Duration) *http.Client {
+	return &http.Client{
+		Timeout:   timeout,
+		Transport: &RoundTripper{Next: http.DefaultTransport, SkipTokdiet: true},
 	}
 }
