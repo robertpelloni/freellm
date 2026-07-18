@@ -204,10 +204,24 @@ func (g *Gateway) processJob(job *RequestJob) {
 				g.onSuccess(job, m, resp, body)
 				return
 			} else if resp.Status == 429 {
-				log.Printf("[ROUTER] Provider %s hit rate limit (429), cooling down for 30s.", m.Provider)
+				log.Printf("[ROUTER] Provider %s hit rate limit (429), applying exponential backoff.", m.Provider)
 				emit(g, job, "ROUTER", fmt.Sprintf("%s(%s) rate-limited (429), cooling down", m.ID, m.Provider))
 				g.AdjustModelScore(m.ID, m.Provider, 0.8)
-				g.applyProviderCooldown(m.Provider, 30*time.Second)
+
+				// Exponential backoff: 30s → 60s → 120s → 300s
+				g.modelFailureMu.Lock()
+				rlKey := m.ID + "|" + m.Provider
+				g.modelRateLimitBackoff[rlKey]++
+				backoffCount := g.modelRateLimitBackoff[rlKey]
+				if backoffCount >= 4 {
+					g.modelRateLimitUntil[rlKey] = time.Now().Add(300 * time.Second)
+					g.applyProviderCooldown(m.Provider, 300*time.Second)
+				} else {
+					cd := time.Duration(30<<uint(backoffCount-1)) * time.Second
+					g.modelRateLimitUntil[rlKey] = time.Now().Add(cd)
+					g.applyProviderCooldown(m.Provider, cd)
+				}
+				g.modelFailureMu.Unlock()
 			} else if resp.Status >= 400 && resp.Status < 500 {
 				log.Printf("[ROUTER] Provider %s returned permanent error (%d), disabling model.", m.Provider, resp.Status)
 				emit(g, job, "ROUTER", fmt.Sprintf("%s(%s) permanent error (%d), disabling", m.ID, m.Provider, resp.Status))

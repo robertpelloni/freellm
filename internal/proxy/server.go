@@ -76,6 +76,8 @@ type Gateway struct {
 	modelFailureMu       sync.RWMutex
 	modelFailureCount    map[string]int       // modelID+provider -> consecutive fatal failures
 	modelDisabledUntil   map[string]time.Time // modelID+provider -> blocked until
+	modelRateLimitUntil  map[string]time.Time // modelID+provider -> rate-limit cooldown until
+	modelRateLimitBackoff map[string]int      // modelID+provider -> consecutive 429 count
 	providerFailureMu    sync.RWMutex
 	providerFailureCount map[string]int // provider -> consecutive failures across all its models
 
@@ -283,6 +285,8 @@ func NewGateway(maxActive int, database *sql.DB, port int) *Gateway {
 		upstreamSem:          make(chan struct{}, 1000), // Global limit increased to 1000
 		modelFailureCount:    make(map[string]int),
 		modelDisabledUntil:   make(map[string]time.Time),
+		modelRateLimitUntil:  make(map[string]time.Time),
+		modelRateLimitBackoff: make(map[string]int),
 		providerFailureCount: make(map[string]int),
 
 		// Default Compression Settings (Selective)
@@ -509,6 +513,23 @@ func (g *Gateway) isModelDisabled(modelID, provider string) bool {
 	return ok && time.Now().Before(until)
 }
 
+// isModelRateLimited returns true if the model is currently on rate-limit cooldown.
+func (g *Gateway) isModelRateLimited(modelID, provider string) bool {
+	g.modelFailureMu.RLock()
+	defer g.modelFailureMu.RUnlock()
+	key := modelID + "|" + provider
+	until, ok := g.modelRateLimitUntil[key]
+	if !ok {
+		return false
+	}
+	if time.Now().After(until) {
+		delete(g.modelRateLimitUntil, key)
+		delete(g.modelRateLimitBackoff, key)
+		return false
+	}
+	return true
+}
+
 // recordProviderFailure increments the provider failure counter. When the
 // threshold is crossed, the whole provider is put on cooldown and the
 // counter resets so the next trip can fire again.
@@ -536,7 +557,7 @@ func (g *Gateway) recordProviderSuccess(provider string) {
 	delete(g.providerFailureCount, provider)
 }
 
-// cleanupExpiredModelBlocks removes expired disables from the in-memory map.
+// cleanupExpiredModelBlocks removes expired disables and rate-limit cooldowns from the in-memory maps.
 // Called from filterCandidates so expired entries free up automatically.
 func (g *Gateway) cleanupExpiredModelBlocks() {
 	g.modelFailureMu.Lock()
@@ -546,6 +567,12 @@ func (g *Gateway) cleanupExpiredModelBlocks() {
 		if now.After(until) {
 			delete(g.modelDisabledUntil, k)
 			delete(g.modelFailureCount, k)
+		}
+	}
+	for k, until := range g.modelRateLimitUntil {
+		if now.After(until) {
+			delete(g.modelRateLimitUntil, k)
+			delete(g.modelRateLimitBackoff, k)
 		}
 	}
 }
@@ -1463,8 +1490,8 @@ func (g *Gateway) filterCandidatesWithOverride(all engine.RankedModels, minParam
 			continue
 		}
 
-		// In-memory circuit breaker: skip models that have failed repeatedly
-		if g.isModelDisabled(m.ID, m.Provider) {
+		// In-memory circuit breaker & rate-limit cooldown: skip models that have failed repeatedly
+		if g.isModelDisabled(m.ID, m.Provider) || g.isModelRateLimited(m.ID, m.Provider) {
 			skipped++
 			continue
 		}
