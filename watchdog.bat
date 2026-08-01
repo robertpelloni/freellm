@@ -1,4 +1,14 @@
 @echo off
+:: Self-hide: relaunch via hidden VBS if not already hidden (prevents console flash)
+if defined WATCHDOG_HIDDEN goto :main
+set WATCHDOG_HIDDEN=1
+set WD_VBS=%TEMP%\wd_hide_freellm.vbs
+echo Set WshShell = CreateObject("WScript.Shell") > "%WD_VBS%"
+echo WshShell.Run "%~f0", 0, False >> "%WD_VBS%"
+cscript //nologo "%WD_VBS%" >nul 2>&1
+del "%WD_VBS%" 2>nul
+exit /b
+:main
 cd /d C:\Users\hyper\workspace\freellm
 
 echo [WATCHDOG] %date% %time% Started
