@@ -1,7 +1,7 @@
 {
   "version": "v3",
-  "timestamp": 1781538133992,
-  "ruleHash": "584c1d75804d03b9",
+  "timestamp": 1785613814477,
+  "ruleHash": "68ae1b84a4dade86",
   "queries": [
     {
       "id": "go-bare-error",
@@ -9,7 +9,7 @@
       "severity": "warning",
       "language": "go",
       "message": "Error returned without handling — check err value",
-      "query": "  [\n    (function_declaration\n      result: (type_identifier) @RET\n      body: (block\n        (return_statement\n          (expression_list\n            (call_expression) @CALL)))\n      (#eq? @RET \"error\"))\n    (function_declaration\n      result: (parameter_list\n        (parameter_declaration\n          type: (type_identifier) @RET))\n      body: (block\n        (return_statement\n          (expression_list\n            (call_expression) @CALL)))\n      (#eq? @RET \"error\"))\n  ]",
+      "query": "[\n  (function_declaration\n    result: (type_identifier) @RET\n    body: (block\n      (return_statement\n        (expression_list\n          (call_expression) @CALL)))\n    (#eq? @RET \"error\"))\n  (function_declaration\n    result: (parameter_list\n      (parameter_declaration\n        type: (type_identifier) @RET))\n    body: (block\n      (return_statement\n        (expression_list\n          (call_expression) @CALL)))\n    (#eq? @RET \"error\"))\n]",
       "metavars": [
         "RET",
         "CALL"
@@ -25,7 +25,7 @@
       "severity": "error",
       "language": "go",
       "message": "Potential command injection sink — avoid shell command composition with user input",
-      "query": "  (call_expression\n    function: (selector_expression\n      operand: (identifier) @PKG\n      field: (field_identifier) @FN)\n    arguments: (argument_list\n      (interpreted_string_literal) @SHELL\n      (interpreted_string_literal) @FLAG\n      (_) @CMD)\n    (#eq? @PKG \"exec\")\n    (#match? @FN \"^(Command|CommandContext)$\")\n    (#match? @SHELL \"^\\\"(sh|bash|zsh|cmd|powershell|pwsh)\\\"$\")\n    (#match? @FLAG \"^\\\"(-c|/c)\\\"$\"))",
+      "query": "(call_expression\n  function: (selector_expression\n    operand: (identifier) @PKG\n    field: (field_identifier) @FN)\n  arguments: (argument_list\n    (interpreted_string_literal) @SHELL\n    (interpreted_string_literal) @FLAG\n    (_) @CMD)\n  (#eq? @PKG \"exec\")\n  (#match? @FN \"^(Command|CommandContext)$\")\n  (#match? @SHELL \"^\\\"(sh|bash|zsh|cmd|powershell|pwsh)\\\"$\")\n  (#match? @FLAG \"^\\\"(-c|/c)\\\"$\"))",
       "metavars": [
         "PKG",
         "FN",
@@ -45,7 +45,7 @@
       "severity": "warning",
       "language": "go",
       "message": "context.Background() in handler — use the request context (r.Context()) to propagate cancellation",
-      "query": "  (call_expression\n    function: (selector_expression\n      operand: (identifier) @PKG\n      field: (field_identifier) @FN)\n    (#eq? @PKG \"context\")\n    (#eq? @FN \"Background\")) @CALL",
+      "query": "(call_expression\n  function: (selector_expression\n    operand: (identifier) @PKG\n    field: (field_identifier) @FN)\n  (#eq? @PKG \"context\")\n  (#eq? @FN \"Background\")) @CALL",
       "metavars": [
         "PKG",
         "FN",
@@ -62,7 +62,7 @@
       "severity": "warning",
       "language": "go",
       "message": "defer in loop can cause resource exhaustion — move outside loop or use function",
-      "query": "  (for_statement\n    body: (block\n      (defer_statement) @DEFER))",
+      "query": "(for_statement\n  body: (block\n    (defer_statement) @DEFER))",
       "metavars": [
         "DEFER"
       ],
@@ -77,7 +77,7 @@
       "severity": "warning",
       "language": "go",
       "message": "Direct panic() call can crash the process — return or propagate an error instead",
-      "query": "  (call_expression\n    function: (identifier) @FN\n    arguments: (argument_list) @ARGS\n    (#eq? @FN \"panic\"))",
+      "query": "(call_expression\n  function: (identifier) @FN\n  arguments: (argument_list) @ARGS\n  (#eq? @FN \"panic\"))",
       "metavars": [
         "FN",
         "ARGS"
@@ -93,7 +93,7 @@
       "severity": "warning",
       "language": "go",
       "message": "Empty error handler — handle err or return it",
-      "query": "  (if_statement\n    condition: (binary_expression\n      left: (identifier) @ERR\n      right: (nil))\n    consequence: (block) @BODY\n    (#eq? @ERR \"err\"))",
+      "query": "(if_statement\n  condition: (binary_expression\n    left: (identifier) @ERR\n    right: (nil))\n  consequence: (block) @BODY\n  (#eq? @ERR \"err\"))",
       "metavars": [
         "ERR",
         "BODY"
@@ -110,7 +110,7 @@
       "severity": "warning",
       "language": "go",
       "message": "Goroutine launched in loop with captured variables — pass loop values as parameters",
-      "query": "  (for_statement\n    body: (block\n      (go_statement) @GO))",
+      "query": "(for_statement\n  body: (block\n    (go_statement) @GO))",
       "metavars": [
         "GO"
       ],
@@ -125,7 +125,7 @@
       "severity": "warning",
       "language": "go",
       "message": "Hardcoded {{VARNAME}} — use environment variables or a secrets manager",
-      "query": "  [\n    (short_var_declaration\n      left: (expression_list\n        (identifier) @VARNAME)\n      right: (expression_list\n        (interpreted_string_literal) @VALUE))\n    (var_declaration\n      (var_spec\n        name: (identifier) @VARNAME\n        value: (expression_list\n          (interpreted_string_literal) @VALUE)))\n    (const_declaration\n      (const_spec\n        name: (identifier) @VARNAME\n        value: (expression_list\n          (interpreted_string_literal) @VALUE)))\n  ]",
+      "query": "[\n  (short_var_declaration\n    left: (expression_list\n      (identifier) @VARNAME)\n    right: (expression_list\n      (interpreted_string_literal) @VALUE))\n  (var_declaration\n    (var_spec\n      name: (identifier) @VARNAME\n      value: (expression_list\n        (interpreted_string_literal) @VALUE)))\n  (const_declaration\n    (const_spec\n      name: (identifier) @VARNAME\n      value: (expression_list\n        (interpreted_string_literal) @VALUE)))\n]",
       "metavars": [
         "VARNAME",
         "VALUE"
@@ -142,7 +142,7 @@
       "severity": "warning",
       "language": "go",
       "message": "Call result assigned to '_' — verify this discard is intentional",
-      "query": "  [\n    (short_var_declaration\n      left: (expression_list\n        (identifier) @VAR)\n      right: (expression_list\n        (call_expression) @CALL)\n      (#eq? @VAR \"_\"))\n    (assignment_statement\n      left: (expression_list\n        (identifier) @VAR)\n      right: (expression_list\n        (call_expression) @CALL)\n      (#eq? @VAR \"_\"))\n  ]",
+      "query": "[\n  (short_var_declaration\n    left: (expression_list\n      (identifier) @VAR)\n    right: (expression_list\n      (call_expression) @CALL)\n    (#eq? @VAR \"_\"))\n  (assignment_statement\n    left: (expression_list\n      (identifier) @VAR)\n    right: (expression_list\n      (call_expression) @CALL)\n    (#eq? @VAR \"_\"))\n]",
       "metavars": [
         "VAR",
         "CALL"
@@ -158,7 +158,7 @@
       "severity": "warning",
       "language": "go",
       "message": "Insecure randomness source detected — use crypto/rand for security-sensitive values",
-      "query": "  (call_expression\n    function: (selector_expression\n      operand: (identifier) @PKG\n      field: (field_identifier) @FN)\n    arguments: (argument_list) @ARGS\n    (#eq? @PKG \"rand\")\n    (#match? @FN \"^(Int|Intn|Int63|Uint32|Uint64|Read|Float64)$\"))",
+      "query": "(call_expression\n  function: (selector_expression\n    operand: (identifier) @PKG\n    field: (field_identifier) @FN)\n  arguments: (argument_list) @ARGS\n  (#eq? @PKG \"rand\")\n  (#match? @FN \"^(Int|Intn|Int63|Uint32|Uint64|Read|Float64)$\"))",
       "metavars": [
         "PKG",
         "FN",
@@ -175,7 +175,7 @@
       "severity": "warning",
       "language": "go",
       "message": "log.Fatal/log.Panic terminates execution — prefer returning errors from core logic",
-      "query": "  (call_expression\n    function: (selector_expression\n      operand: (identifier) @PKG\n      field: (field_identifier) @METHOD)\n    arguments: (argument_list) @ARGS\n    (#eq? @PKG \"log\")\n    (#match? @METHOD \"^(Fatal|Fatalf|Fatalln|Panic|Panicf|Panicln)$\"))",
+      "query": "(call_expression\n  function: (selector_expression\n    operand: (identifier) @PKG\n    field: (field_identifier) @METHOD)\n  arguments: (argument_list) @ARGS\n  (#eq? @PKG \"log\")\n  (#match? @METHOD \"^(Fatal|Fatalf|Fatalln|Panic|Panicf|Panicln)$\"))",
       "metavars": [
         "PKG",
         "METHOD",
@@ -192,7 +192,7 @@
       "severity": "warning",
       "language": "go",
       "message": "sync.Mutex copied by value — copy breaks the lock; use a pointer receiver or embed via pointer",
-      "query": "  (short_var_declaration\n    right: (call_expression\n      function: (selector_expression\n        operand: (identifier) @PKG\n        field: (field_identifier) @FN)\n      (#eq? @PKG \"sync\")\n      (#match? @FN \"^(Mutex|RWMutex)$\"))) @DECL",
+      "query": "(short_var_declaration\n  right: (call_expression\n    function: (selector_expression\n      operand: (identifier) @PKG\n      field: (field_identifier) @FN)\n    (#eq? @PKG \"sync\")\n    (#match? @FN \"^(Mutex|RWMutex)$\"))) @DECL",
       "metavars": [
         "PKG",
         "FN",
@@ -209,7 +209,7 @@
       "severity": "warning",
       "language": "go",
       "message": "Potential path traversal sink — sanitize and constrain file paths",
-      "query": "  (call_expression\n    function: (selector_expression\n      operand: (identifier) @PKG\n      field: (field_identifier) @FN)\n    arguments: (argument_list\n      [(identifier) (binary_expression) (call_expression)] @PATH\n      (_)*)\n    (#match? @PKG \"^(os|ioutil)$\")\n    (#match? @FN \"^(Open|OpenFile|ReadFile|WriteFile|Create|Remove|RemoveAll)$\"))",
+      "query": "(call_expression\n  function: (selector_expression\n    operand: (identifier) @PKG\n    field: (field_identifier) @FN)\n  arguments: (argument_list\n    [(identifier) (binary_expression) (call_expression)] @PATH\n    (_)*)\n  (#match? @PKG \"^(os|ioutil)$\")\n  (#match? @FN \"^(Open|OpenFile|ReadFile|WriteFile|Create|Remove|RemoveAll)$\"))",
       "metavars": [
         "PKG",
         "FN",
@@ -227,7 +227,7 @@
       "severity": "error",
       "language": "go",
       "message": "Map write inside goroutine may race — guard with synchronization or ownership boundaries",
-      "query": "  (go_statement\n    expression: (call_expression\n      function: (func_literal\n        body: (block\n          (assignment_statement\n            left: (index_expression) @MAPWRITE\n            right: (_) @VALUE)))\n      arguments: (argument_list) @ARGS))",
+      "query": "(go_statement\n  expression: (call_expression\n    function: (func_literal\n      body: (block\n        (assignment_statement\n          left: (index_expression) @MAPWRITE\n          right: (_) @VALUE)))\n    arguments: (argument_list) @ARGS))",
       "metavars": [
         "MAPWRITE",
         "VALUE",
@@ -244,7 +244,7 @@
       "severity": "error",
       "language": "go",
       "message": "Potential SQL injection sink — use parameterized queries",
-      "query": "  (call_expression\n    function: (selector_expression\n      field: (field_identifier) @DBFN)\n    arguments: (argument_list\n      (call_expression\n        function: (selector_expression\n          operand: (identifier) @FMTPKG\n          field: (field_identifier) @FMTFN)\n        arguments: (argument_list) @FMTARGS)\n      (_)*)\n    (#match? @DBFN \"^(Query|QueryContext|QueryRow|QueryRowContext|Exec|ExecContext)$\")\n    (#eq? @FMTPKG \"fmt\")\n    (#eq? @FMTFN \"Sprintf\"))",
+      "query": "(call_expression\n  function: (selector_expression\n    field: (field_identifier) @DBFN)\n  arguments: (argument_list\n    (call_expression\n      function: (selector_expression\n        operand: (identifier) @FMTPKG\n        field: (field_identifier) @FMTFN)\n      arguments: (argument_list) @FMTARGS)\n    (_)*)\n  (#match? @DBFN \"^(Query|QueryContext|QueryRow|QueryRowContext|Exec|ExecContext)$\")\n  (#eq? @FMTPKG \"fmt\")\n  (#eq? @FMTFN \"Sprintf\"))",
       "metavars": [
         "DBFN",
         "FMTPKG",
@@ -263,7 +263,7 @@
       "severity": "warning",
       "language": "go",
       "message": "time.Sleep in test — use synchronisation (channel, WaitGroup, Eventually) instead of arbitrary sleeps",
-      "query": "  (call_expression\n    function: (selector_expression\n      operand: (identifier) @PKG\n      field: (field_identifier) @FN)\n    (#eq? @PKG \"time\")\n    (#eq? @FN \"Sleep\")) @CALL",
+      "query": "(call_expression\n  function: (selector_expression\n    operand: (identifier) @PKG\n    field: (field_identifier) @FN)\n  (#eq? @PKG \"time\")\n  (#eq? @FN \"Sleep\")) @CALL",
       "metavars": [
         "PKG",
         "FN",
@@ -280,7 +280,7 @@
       "severity": "error",
       "language": "go",
       "message": "Weak hash primitive detected (md5/sha1) — use sha256+ for security-sensitive contexts",
-      "query": "  (call_expression\n    function: (selector_expression\n      operand: (identifier) @PKG\n      field: (field_identifier) @FN)\n    arguments: (argument_list) @ARGS\n    (#match? @PKG \"^(md5|sha1)$\")\n    (#match? @FN \"^(New|Sum)$\"))",
+      "query": "(call_expression\n  function: (selector_expression\n    operand: (identifier) @PKG\n    field: (field_identifier) @FN)\n  arguments: (argument_list) @ARGS\n  (#match? @PKG \"^(md5|sha1)$\")\n  (#match? @FN \"^(New|Sum)$\"))",
       "metavars": [
         "PKG",
         "FN",

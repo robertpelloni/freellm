@@ -1,15 +1,58 @@
 {
-  "generatedAt": "2026-06-26T19:06:34.624Z",
+  "generatedAt": "2026-08-01T20:03:40.931Z",
   "scope": "turn_delta",
   "sessionId": "019eefc8-28f8-71bb-a54a-1ce4e393039a",
-  "turnIndex": 54,
-  "projectSeqStart": 168,
-  "projectSeqEnd": 169,
+  "turnIndex": 42,
+  "projectSeqStart": 171,
+  "projectSeqEnd": 172,
   "deltaOnly": true,
-  "files": [],
+  "files": [
+    {
+      "filePath": "C:\\Users\\hyper\\workspace\\freellm\\cmd\\app\\main.go",
+      "displayPath": "cmd/app/main.go",
+      "fileSeq": 8,
+      "warnings": [
+        {
+          "id": "cq:43822a4037",
+          "filePath": "C:\\Users\\hyper\\workspace\\freellm\\cmd\\app\\main.go",
+          "displayPath": "cmd/app/main.go",
+          "line": 176,
+          "column": 11,
+          "severity": "warning",
+          "tool": "ast-grep",
+          "rule": "ast-grep:gorm-n-plus-one",
+          "message": "N+1 query detected. GORM DB call inside loop causes performance issues. Batch queries with WHERE IN instead.",
+          "category": "other",
+          "origin": "dispatch"
+        },
+        {
+          "id": "cq:7feed8c20c",
+          "filePath": "C:\\Users\\hyper\\workspace\\freellm\\cmd\\app\\main.go",
+          "displayPath": "cmd/app/main.go",
+          "line": 194,
+          "column": 12,
+          "severity": "warning",
+          "tool": "tree-sitter",
+          "rule": "go-ignored-call-result",
+          "message": "Call result assigned to '_' — verify this discard is intentional",
+          "category": "other",
+          "origin": "dispatch"
+        }
+      ]
+    }
+  ],
   "summary": {
-    "warnings": 0,
-    "files": 0,
-    "topRules": []
+    "warnings": 2,
+    "files": 1,
+    "topRules": [
+      {
+        "rule": "ast-grep:gorm-n-plus-one",
+        "count": 1
+      },
+      {
+        "rule": "go-ignored-call-result",
+        "count": 1
+      }
+    ]
   }
 }

@@ -37,6 +37,17 @@ func main() {
 		return
 	}
 
+	// Global panic recovery — log stack trace to file instead of dying silently
+	defer func() {
+		if r := recover(); r != nil {
+			buf := make([]byte, 1<<16)
+			n := runtime.Stack(buf, true)
+			crashLog := fmt.Sprintf("[%s] PANIC: %v\n%s\n", time.Now().Format(time.RFC3339), r, buf[:n])
+			os.WriteFile(filepath.Join("logs", "crash.log"), []byte(crashLog), 0644)
+			log.Printf("\n========== CRASH ==========\n%s", crashLog)
+		}
+	}()
+
 	log.Println("[FreeLLM] Starting headless server on :4000")
 
 	database, err := db.InitDB()
@@ -119,12 +130,16 @@ func main() {
 
 	go tokdietWatchdog(gateway)
 
+	// Start UI server early so it can receive model updates
+	uiServer := ui.NewUIServer(database, eventLogger, gateway)
+
 	// Pull initial rankings
 	log.Println("[FreeLLM] Fetching initial model rankings...")
 	ctx := context.Background()
 	models := benchmarker.FetchModels(ctx, database)
 	filtered := benchmarker.FilterCandidates(models, database)
 	gateway.UpdateModels(filtered)
+	uiServer.UpdateModels(filtered)
 	log.Printf("[FreeLLM] Loaded %d models\n", len(filtered))
 
 	// Start periodic refresh
@@ -135,18 +150,48 @@ func main() {
 			if len(models) > 0 {
 				filtered := benchmarker.FilterCandidates(models, database)
 				gateway.UpdateModels(filtered)
+				uiServer.UpdateModels(filtered)
 				log.Printf("[FreeLLM] Refreshed %d models\n", len(filtered))
 			}
 		}
 	}()
 
-	// Start UI server (handles HTTP + proxy)
-	uiServer := ui.NewUIServer(database, eventLogger, gateway)
+	// Start HTTP server (handles proxy + dashboard)
 	go func() {
 		addr := fmt.Sprintf(":%d", proxyPort)
 		log.Printf("[FreeLLM] Listening on %s\n", addr)
 		if err := uiServer.Start(addr); err != nil {
 			log.Fatalf("[FreeLLM] Server failed: %v\n", err)
+		}
+	}()
+
+	// Stability metrics collector — logs qpm/tps to DB every 60s
+	go func() {
+		ticker := time.NewTicker(60 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			var qpm float64
+			var totalTokens float64
+			oneMinAgo := time.Now().Add(-1 * time.Minute)
+			err := database.QueryRow("SELECT COUNT(*), COALESCE(SUM(prompt_tokens + completion_tokens),0) FROM usage WHERE timestamp > ?", oneMinAgo).Scan(&qpm, &totalTokens)
+			if err == nil {
+				tps := totalTokens / 60.0
+				if qpm > 0 {
+					if e := db.LogStabilityMetric(database, qpm, tps); e == nil {
+						log.Printf("[METRICS] qpm=%.0f tps=%.1f\n", qpm, tps)
+					}
+				}
+			}
+		}
+	}()
+
+	// Prune old data daily
+	go func() {
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			count, _ := db.PruneOldData(database, 30)
+			log.Printf("Pruned %d old records", count)
 		}
 	}()
 

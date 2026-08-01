@@ -3,14 +3,14 @@
   "files": {
     "cmd\\app\\main.go": {
       "latest": {
-        "commit": "8bc43bc",
-        "timestamp": "2026-07-13T03:25:01.062Z",
-        "mi": 40.1,
-        "cognitive": 599,
-        "nesting": 5,
-        "lines": 1006,
-        "maxCyclomatic": 151,
-        "entropy": 7.79
+        "commit": "2492966",
+        "timestamp": "2026-08-01T19:50:04.909Z",
+        "mi": 49.9,
+        "cognitive": 64,
+        "nesting": 3,
+        "lines": 239,
+        "maxCyclomatic": 16,
+        "entropy": 5.76
       },
       "history": [
         {
@@ -22,9 +22,19 @@
           "lines": 1006,
           "maxCyclomatic": 151,
           "entropy": 7.79
+        },
+        {
+          "commit": "2492966",
+          "timestamp": "2026-08-01T19:50:04.909Z",
+          "mi": 49.9,
+          "cognitive": 64,
+          "nesting": 3,
+          "lines": 239,
+          "maxCyclomatic": 16,
+          "entropy": 5.76
         }
       ],
-      "trend": "stable"
+      "trend": "improving"
     },
     "cmd\\app\\main_linux.go": {
       "latest": {
@@ -150,7 +160,32 @@
         }
       ],
       "trend": "stable"
+    },
+    "internal\\ui\\server.go": {
+      "latest": {
+        "commit": "2492966",
+        "timestamp": "2026-08-01T19:56:14.586Z",
+        "mi": 43.5,
+        "cognitive": 153,
+        "nesting": 5,
+        "lines": 379,
+        "maxCyclomatic": 15,
+        "entropy": 6.1
+      },
+      "history": [
+        {
+          "commit": "2492966",
+          "timestamp": "2026-08-01T19:56:14.586Z",
+          "mi": 43.5,
+          "cognitive": 153,
+          "nesting": 5,
+          "lines": 379,
+          "maxCyclomatic": 15,
+          "entropy": 6.1
+        }
+      ],
+      "trend": "stable"
     }
   },
-  "capturedAt": "2026-07-13T03:37:57.757Z"
+  "capturedAt": "2026-08-01T19:56:19.590Z"
 }

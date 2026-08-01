@@ -1,6 +1,6 @@
 {
-  "signature": "internal/proxy/processjob.go::Unresolved from this turn — internal/proxy/processjob.go:\n🔴 STOP — 8 issue(s) must be fixed:\n  L98: not enough arguments in call to emit\n  \thave (*RequestJob, string, string)\n  \twant (*Gateway, *RequestJob, string, string)\n  L161: not enough arguments in call to emit\n  \thave (*RequestJob, string, string)\n  \twant (*Gateway, *RequestJob, string, string)\n  L177: not enough arguments in call to emit\n  \thave (*RequestJob, string, string)\n  \twant (*Gateway, *RequestJob, string, string)\n  L208: not enough arguments in call to emit\n  \thave (*RequestJob, string, string)\n  \twant (*Gateway, *RequestJob, string, string)\n  L213: not enough arguments in call to emit\n  \thave (*RequestJob, string, string)\n  \twant (*Gateway, *RequestJob, string, string)\n  L224: not enough arguments in call to emit\n  \thave (*RequestJob, string, string)\n  \twant (*Gateway, *RequestJob, string, string)\n... (truncated)",
+  "signature": "cmd/app/main.go::ℹ️ Advisory — no action required this turn:\nCode-quality warnings introduced/touched this turn: 2 across 1 file(s).\nTop rules: ast-grep:gorm-n-plus-one×1, go-ignored-call-result×1\nDetails written to .pi-lens/cache/code-quality-warnings.json\nNo action required unless you are already refactoring these areas.",
   "sessionId": "019eefc8-28f8-71bb-a54a-1ce4e393039a",
-  "projectSeqStart": 166,
-  "projectSeqEnd": 167
+  "projectSeqStart": 171,
+  "projectSeqEnd": 172
 }
