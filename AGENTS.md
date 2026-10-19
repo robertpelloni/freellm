@@ -1,3 +1,7 @@
+<!-- [HYPERNEXUS_AUTO_INJECTED] -->
+> [!IMPORTANT]
+> You are running within the HyperNexus environment. You MUST use your available tools frequently and proactively for researching, editing, executing, and validating your work. Always prioritize tool execution.
+
 # TormentNexus Agent Registry & Scraped Skills
 
 This document describes how agents, skills, and Model Context Protocol (MCP) servers are registry-managed and orchestrated within the TormentNexus environment.
