@@ -1,49 +1,19 @@
-# FreeLLM v2.0.0
+# FreeLLM
 
-A powerful, autonomous Windows system tray utility for intelligent LLM routing, benchmarking, and proxy management.
+A Windows system-tray utility (Python) that keeps LLM workflows pointed at the best *free* models: it continuously benchmarks large free models (≥100B parameters) across providers, measures time-to-first-token with streaming requests, and rewrites your proxy routing config so the `free-llm` group (and its `free-llm-fallback` group) always resolve to whatever is currently fastest and alive.
 
-FreeLLM ensures your high-performance LLM workflows always hit the best available models. It automatically benchmarks free, massive models (>= 100B parameters) across a wide array of providers and dynamically updates your routing configuration.
+**Providers covered:** GitHub Models, Hugging Face, NVIDIA NIM, OpenRouter, Groq, Together AI, DeepInfra, Cerebras — plus local Ollama and LM Studio.
 
-## 🚀 Key Features
+## What's in the tree
 
-- **Autonomous Two-Group Routing**: Automatically manages `free-llm` (primary) and `free-llm-fallback` groups in your config.
-- **Real-time Performance Benchmarking**: Measures TTFT (Time-To-First-Token) using asynchronous streaming.
-- **Multi-Provider Ecosystem**:
-  - **Cloud Providers**: **GitHub Models**, **Hugging Face**, **NVIDIA NIM**, OpenRouter, Groq, Together AI, DeepInfra, and Cerebras.
-  - **Local Providers**: Ollama and LM Studio.
-- **Deep Windows Integration**:
-  - Smart System Tray icon with dynamic color states (Health, Working, Offline).
-  - Native Windows notifications for model switches and health alerts.
-  - "Start with Windows" persistence.
-- **Operational Tools**:
-  - **Main Dashboard**: Full oversight of rankings, scores, and provider health.
-  - **Quick Query**: A minimalist chat interface for instant model testing.
-  - **Advanced Log Viewer**: Real-time monitoring of FreeLLM proxy output with search/filter.
-  - **Maintenance Suite**: Tools to clear skips, manage blacklists, and backup/restore configurations.
+- `engine.py`, `api_server.py`, `config_manager.py` — benchmarking/routing engine, local API, config management
+- `dashboard_ui.py`, `comparison_ui.py`, `execution_dashboard*` — tray dashboards and model comparison UI
+- `database.py` — benchmark history/results (`benchmark_results.json` is a sample output)
+- `build_exe.py` — Windows executable build; `claude-freellm.bat` / `codex-freellm.bat` — launchers that start AI CLIs against the FreeLLM routing
+- `deploy_hetzner.ps1` — deployment script for the server side
 
-## 🛠️ Quick Start
+Version 2.0.0 (per the previous README). The tray icon reflects state (healthy / working / offline) with native Windows notifications on model switches, and it can persist with "Start with Windows".
 
-1. **Run `setup.bat`**: Installs all required Python dependencies.
-2. **Run `start.bat`**: Launches the control panel in your system tray.
+## Status
 
-*Configure your API keys for GitHub, Hugging Face, NVIDIA NIM, and others in the **Settings** panel (right-click tray icon).*
-
-## 📐 Adaptive Scoring & Intelligence
-
-The router uses a configurable weighted algorithm to rank models:
-- **Parameter Size (60%)**: Favors high-capability models.
-- **Context Length (20%)**: Prioritizes larger windows for complex tasks.
-- **Latency (20%)**: Penalizes slow response times.
-
-**Smart Features**:
-- **Circuit Breaker**: Automatically isolates failing endpoints for 2 hours.
-- **Provider Learning**: Flags and skips providers that consistently fail to provide free models.
-- **Local Cache**: Reuses local model benchmarks for 15 minutes to save resources.
-
-## ⚙️ Configuration Safety
-
-- **Structure Preservation**: Uses `ruamel.yaml` to ensure your `.hermes` or local FreeLLM config comments and formatting are never lost.
-- **Automated Lifecycle**: Control Panel can automatically start and stop the FreeLLM proxy process.
-
----
-*Optimized for high-performance developer environments on Windows.*
+A personal infrastructure tool from Robert Pelloni's multi-provider agent-fleet work — the pragmatic answer to "which free model is actually good right now" changing every week. Windows-first; actively used, not packaged for general distribution.
