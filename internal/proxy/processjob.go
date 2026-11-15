@@ -82,6 +82,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 
 		if len(availableFanOut) == 0 {
 			log.Printf("[ROUTER] No models available, auto-recovering...")
+			g.EmitRouterEvent("ROUTER", "No fresh candidates available; Resetting circuit breakers")
 			g.autoRecoverCircuitBreakers()
 			time.Sleep(1 * time.Second)
 			continue
@@ -89,6 +90,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 
 		log.Printf("[ROUTER] Survival-of-the-fittest: Fan-out %d models randomly from top %d",
 			len(availableFanOut), topCount)
+		g.EmitRouterEvent("ROUTER", fmt.Sprintf("Attempt %d: fanning out to %d models", attemptCount, len(availableFanOut)))
 
 		type fanResult struct {
 			model       engine.ModelCandidate
@@ -232,6 +234,7 @@ func (g *Gateway) processJob(job *RequestJob) {
 			best := successes[0]
 			log.Printf("[ROUTER] Selected winner: %s(%s) quality=%.1f (from %d successes)",
 				best.model.ID, best.model.Provider, best.quality, len(successes))
+			g.EmitRouterEvent("ROUTER", fmt.Sprintf("Routed to %s (%s) success quality=%.1f", best.model.ID, best.model.Provider, best.quality))
 
 			if g.ShuffleEnabled {
 				g.ShuffleModels(best.model, availableFanOut)

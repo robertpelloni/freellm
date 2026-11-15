@@ -55,6 +55,33 @@ type Gateway struct {
 	ShuffleEnabled bool      // whether to shuffle models after successful request
 	provenModels     map[string]bool // map of modelID+provider that have successfully worked
 	provenMu         sync.RWMutex
+	Events           chan RouterEvent // non-blocking activity stream for system tray / telemetry
+}
+
+// RouterEvent describes a single router activity event for tray/telemetry consumers.
+type RouterEvent struct {
+	Tag     string
+	Message string
+}
+
+// String formats a RouterEvent for structured logs or stream injection.
+func (e RouterEvent) String() string {
+	tag := e.Tag
+	if tag == "" {
+		tag = "ROUTER"
+	}
+	return fmt.Sprintf("[freellm:%s] %s", tag, strings.TrimSpace(e.Message))
+}
+
+// EmitRouterEvent sends an activity event without blocking request routing.
+func (g *Gateway) EmitRouterEvent(tag, message string) {
+	if g == nil || g.Events == nil {
+		return
+	}
+	select {
+	case g.Events <- RouterEvent{Tag: tag, Message: message}:
+	default:
+	}
 }
 
 // A2ARouter is the interface for A2A protocol route handling.
@@ -164,6 +191,7 @@ func NewGateway(maxActive int, database *sql.DB, port int) *Gateway {
 		FanOutSize: 5,
 		ShuffleEnabled: true,
 		provenModels: make(map[string]bool),
+		Events: make(chan RouterEvent, 512),
 		}
 	go g.workerLoop()
 	return g
